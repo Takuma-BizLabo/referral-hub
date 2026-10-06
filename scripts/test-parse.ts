@@ -53,6 +53,10 @@ const dateCases: { body: string; base: string; want: string | null; note?: strin
   { body: "よろしくお願いいたします。", base: "2026-10-07 10:00", want: null },
   { body: "従業員数100名以上1000名未満の企業", base: "2026-10-07 10:00", want: null },
   { body: "2月30日 10:00", base: "2026-10-07 10:00", want: null, note: "存在しない日付" },
+  { body: "10月32日 10:00", base: "2026-10-07 10:00", want: null, note: "存在しない日" },
+  { body: "10月9日 24:00", base: "2026-10-07 10:00", want: null, note: "存在しない時刻" },
+  { body: "ご都合のよろしい日程は 10月9日 11:40 または 10月13日 16:00 です", base: "2026-10-07 10:00", want: "2026-10-09 11:40", note: "複数候補なら先頭" },
+  { body: "2026/10/20 14:00 でお願いします", base: "2026-10-07 10:00", want: "2026-10-20 14:00", note: "年つきの日付" },
 ];
 for (const c of dateCases) {
   test(`日時: ${c.body}（${c.base}発言）${c.note ? ` - ${c.note}` : ""}`, () => {
