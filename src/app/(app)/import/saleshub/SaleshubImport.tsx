@@ -41,12 +41,18 @@ export function SaleshubImport({
   const [pending, start] = useTransition();
   const [state, action, actionPending, actionSubmit] = useStickyAction(registerSaleshubAction, undefined);
   const [vendorId, setVendorId] = useState<string>("");
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   const analyze = () => {
+    setAnalyzeError(null);
     start(async () => {
-      const r = await analyzeSaleshubAction(text);
-      setResult(r);
-      setVendorId(r.vendorMatch ? String(r.vendorMatch.id) : "");
+      try {
+        const r = await analyzeSaleshubAction(text);
+        setResult(r);
+        setVendorId(r.vendorMatch ? String(r.vendorMatch.id) : "");
+      } catch (e) {
+        setAnalyzeError(`解析に失敗しました。${e instanceof Error ? e.message : ""}`);
+      }
     });
   };
 
@@ -63,6 +69,9 @@ export function SaleshubImport({
           onChange={(e) => setText(e.target.value)}
           placeholder="セールスハブのチャット画面で、こちらの送信文とベンダーの返信をまとめてコピーして貼り付けてください"
         />
+        <div className="mt-3">
+          <ErrorMessage message={analyzeError} />
+        </div>
         <div className="flex flex-wrap gap-2 mt-3">
           <button className="btn-primary" onClick={analyze} disabled={pending || !text.trim()}>
             {pending ? "解析中..." : "2. 解析する"}
