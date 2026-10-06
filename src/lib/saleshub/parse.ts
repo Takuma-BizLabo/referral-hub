@@ -122,6 +122,9 @@ export function formatThreadAsText(
 
 // ---------- 自動化ルール用の抽出 ----------
 
+/** 会社名抽出ロジックのバージョン。変更したら上げる（SaleshubThread.proposedCache が再計算される） */
+export const COMPANY_PARSER_VERSION = 2;
+
 export const URL_RE = /https?:\/\/[^\s<>"'）)」』]+/g;
 
 /** 打ち合わせ・日程調整の依頼っぽいか（ベンダー発言向け） */

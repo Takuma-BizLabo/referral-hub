@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Badge, EmptyState, PageHeader } from "@/components/ui";
@@ -13,10 +14,7 @@ export default async function SaleshubInboxPage({ searchParams }: { searchParams
   const user = await requireUser();
   const sp = await searchParams;
   const [allThreads, lastIngest, enabled, unreadRows] = await Promise.all([
-    prisma.saleshubThread.findMany({
-      include: { messages: { orderBy: { sentAt: "desc" }, take: 1 } },
-      orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
-    }),
+    prisma.saleshubThread.findMany({ orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }] }),
     getSettingRaw("saleshub.lastIngestAt"),
     getSettingRaw("saleshub.enabled"),
     // 自分がまだ見ていない新着（＝未読のセールスハブ通知）をスレッドごとに数える
@@ -26,6 +24,15 @@ export default async function SaleshubInboxPage({ searchParams }: { searchParams
       _count: { _all: true },
     }),
   ]);
+  // 各スレッドの最新メッセージ1件（DISTINCT ON で1クエリ）
+  const lastRows = allThreads.length
+    ? await prisma.$queryRaw<{ threadId: number; senderName: string; isMine: boolean; body: string; sentAt: Date }[]>`
+        SELECT DISTINCT ON ("threadId") "threadId", "senderName", "isMine", "body", "sentAt"
+        FROM "SaleshubMessage"
+        WHERE "threadId" IN (${Prisma.join(allThreads.map((t) => t.id))})
+        ORDER BY "threadId", "sentAt" DESC, "id" DESC`
+    : [];
+  const lastBy = new Map(lastRows.map((r) => [r.threadId, r]));
   const unreadOf = (id: number) => unreadRows.find((u) => u.linkUrl === `/saleshub/${id}`)?._count._all ?? 0;
   const unreadTotal = allThreads.filter((t) => unreadOf(t.id) > 0).length;
   const threads = sp.unread === "1" ? allThreads.filter((t) => unreadOf(t.id) > 0) : allThreads;
@@ -64,7 +71,7 @@ export default async function SaleshubInboxPage({ searchParams }: { searchParams
           {/* スマホ: カード表示 */}
           <ul className="md:hidden space-y-2">
             {threads.map((t) => {
-              const last = t.messages[0];
+              const last = lastBy.get(t.id);
               const m = meetings.find((x) => x.id === t.importedMeetingId);
               return (
                 <li key={t.id} className={cn("card p-3", unreadOf(t.id) > 0 && "border-blue-300 bg-blue-50/40")}>
@@ -121,7 +128,7 @@ export default async function SaleshubInboxPage({ searchParams }: { searchParams
               </thead>
               <tbody>
                 {threads.map((t) => {
-                  const last = t.messages[0];
+                  const last = lastBy.get(t.id);
                   const v = vendors.find((x) => x.id === t.vendorId);
                   const m = meetings.find((x) => x.id === t.importedMeetingId);
                   return (

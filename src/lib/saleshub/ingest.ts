@@ -4,6 +4,8 @@ import { setSetting } from "../settings";
 import { applyRules } from "./rules";
 import { formatThreadAsText, messageKey, normalizeCompanyName, parseProposalFee, parseThreadList, parseThreadMessages } from "./parse";
 import { format } from "date-fns";
+import { Prisma } from "@prisma/client";
+import { refreshThreadProposed } from "./proposed";
 
 export type IngestPayload = {
   listHtml?: string;
@@ -49,15 +51,29 @@ export async function ingestFromExtension(payload: IngestPayload): Promise<Inges
     const threads = parseThreadList(payload.listHtml);
     threadsCount = threads.length;
     const vendors = await prisma.vendor.findMany({ where: { isActive: true } });
+    // 既存スレッドとメッセージ件数はまとめて取得する（スレッドごとの問い合わせをしない）
+    const existingRows = await prisma.saleshubThread.findMany({ where: { proposalId: { in: threads.map((t) => t.proposalId) } } });
+    const existingBy = new Map(existingRows.map((r) => [r.proposalId, r]));
+    const counts = existingRows.length
+      ? await prisma.saleshubMessage.groupBy({ by: ["threadId"], where: { threadId: { in: existingRows.map((r) => r.id) } }, _count: { _all: true } })
+      : [];
+    const countBy = new Map(counts.map((c) => [c.threadId, c._count._all]));
     for (const t of threads) {
-      const existing = await prisma.saleshubThread.findUnique({ where: { proposalId: t.proposalId } });
+      const existing = existingBy.get(t.proposalId) ?? null;
       const vendorMatch = existing?.vendorId ?? vendors.find((v) => normalizeCompanyName(v.name) === normalizeCompanyName(t.vendorName))?.id ?? null;
       await prisma.saleshubThread.upsert({
         where: { proposalId: t.proposalId },
-        update: { vendorName: t.vendorName, requestTitle: t.requestTitle, lastSnippet: t.lastSnippet, vendorId: vendorMatch },
+        update: {
+          vendorName: t.vendorName,
+          requestTitle: t.requestTitle,
+          lastSnippet: t.lastSnippet,
+          vendorId: vendorMatch,
+          // 提示会社の抽出はベンダー名（除外対象）に依存するので、名前が変わったら作り直す
+          ...(existing && existing.vendorName !== t.vendorName ? { proposedCache: Prisma.DbNull } : {}),
+        },
         create: { proposalId: t.proposalId, vendorName: t.vendorName, requestTitle: t.requestTitle, lastSnippet: t.lastSnippet, vendorId: vendorMatch },
       });
-      const msgCount = existing ? await prisma.saleshubMessage.count({ where: { threadId: existing.id } }) : 0;
+      const msgCount = existing ? (countBy.get(existing.id) ?? 0) : 0;
       if (!existing || existing.lastSnippet !== t.lastSnippet || msgCount === 0 || existing.fee === null) needDetails.push(t.proposalId);
     }
   }
@@ -83,27 +99,42 @@ export async function ingestFromExtension(payload: IngestPayload): Promise<Inges
     }
     const created = [];
     let lastAt = thread.lastMessageAt;
+    const keys = parsed.map((m) => messageKey(d.proposalId, m));
+    const existingKeys = new Set(
+      (await prisma.saleshubMessage.findMany({ where: { externalKey: { in: keys } }, select: { externalKey: true } })).map((x) => x.externalKey),
+    );
     for (const m of parsed) {
       const key = messageKey(d.proposalId, m);
-      const exists = await prisma.saleshubMessage.findUnique({ where: { externalKey: key } });
-      if (exists) continue;
-      const row = await prisma.saleshubMessage.create({
-        data: {
-          threadId: thread.id,
-          externalKey: key,
-          senderName: m.senderName,
-          isMine: m.isMine,
-          sentAt: m.sentAt,
-          body: m.body,
-          notifiedAt: firstRun || m.isMine ? now : null,
-        },
-      });
+      if (existingKeys.has(key)) continue;
+      existingKeys.add(key);
+      let row;
+      try {
+        row = await prisma.saleshubMessage.create({
+          data: {
+            threadId: thread.id,
+            externalKey: key,
+            senderName: m.senderName,
+            isMine: m.isMine,
+            sentAt: m.sentAt,
+            body: m.body,
+            notifiedAt: firstRun || m.isMine ? now : null,
+          },
+        });
+      } catch (e) {
+        // 複数の拡張から同時に届いた場合など、同じメッセージが先に登録されていたら飛ばす
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") continue;
+        throw e;
+      }
       created.push(row);
       newMessages++;
       if (!lastAt || m.sentAt > lastAt) lastAt = m.sentAt;
     }
     if (lastAt && (!thread.lastMessageAt || lastAt > thread.lastMessageAt)) {
       await prisma.saleshubThread.update({ where: { id: thread.id }, data: { lastMessageAt: lastAt } });
+    }
+    // こちら側の発言が増えたら「提示した会社」キャッシュを更新（自動化ルールより先に）
+    if (created.some((r) => r.isMine) || (created.length && !thread.proposedCache)) {
+      await refreshThreadProposed(thread.id);
     }
     // 通知（初回同期の過去分は通知しない）
     for (const row of created.filter((r) => !r.notifiedAt)) {

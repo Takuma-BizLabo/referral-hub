@@ -31,23 +31,24 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
     prisma.referral.groupBy({ by: ["rewardStatus"], _count: { _all: true }, _sum: { rewardAmount: true } }),
   ]);
 
-  // 直近6ヶ月の月次集計
+  // 直近6ヶ月の月次集計（対象期間の行を1回で取得してまとめる）
   const months = Array.from({ length: 6 }, (_, i) => yearMonthOf(subMonths(new Date(), i)));
-  const summary = await Promise.all(
-    months.map(async (ym) => {
-      const { start, end } = monthRange(ym);
-      const [accrual, paid, invoiced] = await Promise.all([
-        prisma.referral.aggregate({
-          where: { rewardApprovedAt: { gte: start, lte: end }, rewardStatus: { in: ["APPROVED", "INVOICED", "PAID"] } },
-          _sum: { rewardAmount: true },
-          _count: { _all: true },
-        }),
-        prisma.referral.aggregate({ where: { paidAt: { gte: start, lte: end }, rewardStatus: "PAID" }, _sum: { rewardAmount: true }, _count: { _all: true } }),
-        prisma.referral.aggregate({ where: { invoicedAt: { gte: start, lte: end } }, _sum: { rewardAmount: true }, _count: { _all: true } }),
-      ]);
-      return { ym, accrual, paid, invoiced };
-    }),
-  );
+  const windowStart = monthRange(months[months.length - 1]).start;
+  const windowRows = await prisma.referral.findMany({
+    where: { OR: [{ rewardApprovedAt: { gte: windowStart } }, { paidAt: { gte: windowStart } }, { invoicedAt: { gte: windowStart } }] },
+    select: { rewardAmount: true, rewardStatus: true, rewardApprovedAt: true, paidAt: true, invoicedAt: true },
+  });
+  const agg = (rows: typeof windowRows) => ({ _sum: { rewardAmount: rows.reduce((a, r) => a + r.rewardAmount, 0) }, _count: { _all: rows.length } });
+  const summary = months.map((ym) => {
+    const { start, end } = monthRange(ym);
+    const inMonth = (d: Date | null) => !!d && d >= start && d <= end;
+    return {
+      ym,
+      accrual: agg(windowRows.filter((r) => inMonth(r.rewardApprovedAt) && ["APPROVED", "INVOICED", "PAID"].includes(r.rewardStatus))),
+      paid: agg(windowRows.filter((r) => inMonth(r.paidAt) && r.rewardStatus === "PAID")),
+      invoiced: agg(windowRows.filter((r) => inMonth(r.invoicedAt))),
+    };
+  });
 
   const countOf = (s: RewardStatus) => counts.find((c) => c.rewardStatus === s);
 

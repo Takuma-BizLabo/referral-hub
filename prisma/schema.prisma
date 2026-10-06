@@ -142,6 +142,9 @@ model VendorMeeting {
   @@index([vendorId])
   @@index([assigneeId])
   @@index([scheduledAt])
+  @@index([executionStatus])
+  @@index([approvalStatus])
+  @@index([nextActionDue])
 }
 
 // ---------- 繋がりリスト ----------
@@ -221,6 +224,11 @@ model Referral {
   @@index([contactId])
   @@index([status])
   @@index([rewardStatus])
+  @@index([meetingAt])
+  @@index([nextActionDue])
+  @@index([statusChangedAt])
+  @@index([rewardApprovedAt])
+  @@index([paidAt])
 }
 
 // ---------- 履歴 ----------
@@ -257,6 +265,8 @@ model Notification {
   createdAt  DateTime  @default(now())
 
   @@index([userId, readAt])
+  @@index([userId, createdAt])
+  @@index([userId, type, readAt])
 }
 
 // ---------- 目標 ----------
@@ -293,10 +303,15 @@ model SaleshubThread {
   fee            Int? // 依頼ページの協力金（紹介単価）
   vendorId       Int? // 紐付け済みベンダー
   importedMeetingId Int?
+  /// こちら側が提示した会社名のキャッシュ { v: 解析バージョン, items: [{ company, dept }] }。受信時に更新、古ければ表示時に再計算
+  proposedCache  Json?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   messages SaleshubMessage[]
+
+  @@index([vendorId])
+  @@index([lastMessageAt])
 }
 
 model SaleshubMessage {

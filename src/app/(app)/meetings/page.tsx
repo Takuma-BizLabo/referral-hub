@@ -28,11 +28,15 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
     ...(sp.vendor ? { vendorId: Number(sp.vendor) } : {}),
     ...(sp.q ? { vendor: { name: { contains: sp.q, mode: "insensitive" } } } : {}),
   };
-  const proposedByVendor = await proposedCompaniesByVendor();
-  const [meetings, users, vendors, allForCounts] = await Promise.all([
+  const [proposedByVendor, meetings, users, vendors, allForCounts] = await Promise.all([
+    proposedCompaniesByVendor(),
     prisma.vendorMeeting.findMany({
       where,
-      include: { vendor: { include: { referrals: { include: { contact: true } } } }, assignee: true },
+      include: {
+        // お繋ぎ先と単価の表示に必要な列だけ取る
+        vendor: { include: { referrals: { select: { status: true, rewardAmount: true, rewardUndetermined: true, contact: { select: { company: true, name: true } } } } } },
+        assignee: { select: { id: true, name: true } },
+      },
       orderBy: [{ scheduledAt: "asc" }, { id: "desc" }],
       take: 500,
     }),
