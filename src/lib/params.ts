@@ -2,14 +2,15 @@ import { notFound } from "next/navigation";
 
 /** URL の [id] を数値に。数値でなければ 404（Prisma の検証エラーで 500 にしない） */
 export function idParam(id: string): number {
-  const n = Number(id);
+  // 10進の整数だけ許可（"0x10" や "1e1" のような Number() が受け付ける別表記は404）
+  const n = /^\d{1,10}$/.test(id) ? Number(id) : NaN;
   if (!Number.isSafeInteger(n) || n <= 0 || n > 2147483647) notFound();
   return n;
 }
 
 /** generateMetadata 用（404 にはせず null を返す） */
 export function idOrNull(id: string): number | null {
-  const n = Number(id);
+  const n = /^\d{1,10}$/.test(id) ? Number(id) : NaN;
   return Number.isSafeInteger(n) && n > 0 && n <= 2147483647 ? n : null;
 }
 
