@@ -147,7 +147,7 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
     meetingId = meeting.id;
     await recordHistory(prisma, { entityType: "VENDOR_MEETING", entityId: meeting.id, field: "approvalStatus", fromValue: null, toValue: "APPROVED", note: "セールスハブ連携により自動作成（承認不要）", changedById: null });
     await prisma.saleshubThread.update({ where: { id: thread.id }, data: { importedMeetingId: meeting.id } });
-    const { created, unmatched } = await registerCandidates(vendorId, candidates, "松田の初回メッセージ", thread.fee ?? (await prisma.vendor.findUnique({ where: { id: vendorId } }))?.referralFee ?? null);
+    const { created, unmatched } = await registerCandidates(vendorId, candidates, "松田の初回メッセージ", thread.fee ?? ((await prisma.vendor.findUnique({ where: { id: vendorId } }))?.referralFee || null));
     await notify({
       userId: schedulerId,
       type: "TASK_ASSIGNED",
@@ -208,7 +208,7 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
       const proposed = await proposedCompaniesForVendor(vendorId);
       const known = companies.filter((c) => isProposed(c.company, proposed));
       const fresh = companies.filter((c) => !isProposed(c.company, proposed));
-      const vendorFee = thread.fee ?? (await prisma.vendor.findUnique({ where: { id: vendorId } }))?.referralFee ?? null;
+      const vendorFee = thread.fee ?? ((await prisma.vendor.findUnique({ where: { id: vendorId } }))?.referralFee || null);
       const r1 = known.length ? await registerCandidates(vendorId, known, `ベンダーが指名 ${fmtDateTime(m.sentAt)}`, vendorFee) : { created: 0, unmatched: [] as string[] };
       const r2 = fresh.length ? await registerCandidates(vendorId, fresh, `ベンダーがチャットで言及 ${fmtDateTime(m.sentAt)}`, null) : { created: 0, unmatched: [] as string[] };
       const created = r1.created + r2.created;
@@ -249,7 +249,7 @@ export async function rebuildCandidates(): Promise<{ threads: number; created: n
     const vendorId = t.vendorId ?? (await ensureVendor(t));
     const sources: { body: string; note: string; fee: number | null }[] = [];
     const proposed = await proposedCompaniesForVendor(vendorId);
-    const fee = t.fee ?? (await prisma.vendor.findUnique({ where: { id: vendorId } }))?.referralFee ?? null;
+    const fee = t.fee ?? ((await prisma.vendor.findUnique({ where: { id: vendorId } }))?.referralFee || null);
     for (const m of t.messages.filter((m) => m.isMine)) sources.push({ body: m.body, note: "松田が提示", fee });
     for (const m of t.messages.filter((m) => !m.isMine)) sources.push({ body: m.body, note: `ベンダーがチャットで言及 ${fmtDateTime(m.sentAt)}`, fee: null });
     for (const s of sources) {
