@@ -82,12 +82,20 @@ export function EmptyState({ message }: { message: string }) {
 
 export function ErrorMessage({ message }: { message?: string | null }) {
   if (!message) return null;
-  return <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{message}</div>;
+  return (
+    <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+      {message}
+    </div>
+  );
 }
 
 export function SuccessMessage({ message }: { message?: string | null }) {
   if (!message) return null;
-  return <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</div>;
+  return (
+    <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+      {message}
+    </div>
+  );
 }
 
 export function Stat({ label, value, sub, href }: { label: string; value: ReactNode; sub?: string; href?: string }) {
