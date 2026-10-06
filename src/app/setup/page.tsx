@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { SetupForm } from "./SetupForm";
 
 export const metadata = { title: "初期セットアップ" };
+// ビルド時に静的生成せず、毎回DBを見てユーザー数を判定する
+export const dynamic = "force-dynamic";
 
 export default async function SetupPage() {
   const count = await prisma.user.count();
