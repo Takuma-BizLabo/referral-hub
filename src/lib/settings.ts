@@ -1,4 +1,3 @@
-import "server-only";
 import { prisma } from "./db";
 import { NOTIFICATION_TYPES } from "./labels";
 

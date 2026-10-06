@@ -1,4 +1,3 @@
-import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 const LINE_API = "https://api.line.me/v2/bot";

@@ -1,4 +1,3 @@
-import "server-only";
 import { prisma } from "./db";
 import { lineConfigured, pushLineText } from "./line";
 import { getLineEnabledMap } from "./settings";

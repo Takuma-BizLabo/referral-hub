@@ -1,4 +1,3 @@
-import "server-only";
 
 const INTERVAL_MS = 5 * 60 * 1000;
 const g = globalThis as unknown as { __rhSchedulerStarted?: boolean };

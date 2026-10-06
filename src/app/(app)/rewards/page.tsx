@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { format, subMonths } from "date-fns";
+import { subMonths } from "date-fns";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Badge, Card, EmptyState, PageHeader, Tabs } from "@/components/ui";

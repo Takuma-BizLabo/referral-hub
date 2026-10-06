@@ -1,4 +1,3 @@
-import "server-only";
 import { endOfMonth, parse, startOfMonth } from "date-fns";
 import { prisma } from "./db";
 
