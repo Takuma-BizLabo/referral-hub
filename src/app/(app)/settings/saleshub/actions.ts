@@ -26,3 +26,12 @@ export async function saveSaleshubSettingsAction(_prev: ActionState, formData: F
     return errorState(e);
   }
 }
+
+export async function rebuildCandidatesAction() {
+  await assertAdmin();
+  const { rebuildCandidates } = await import("@/lib/saleshub/rules");
+  const r = await rebuildCandidates();
+  await setSetting("saleshub.lastRebuild", `${new Date().toISOString()}|${r.threads}|${r.created}|${r.unmatched.slice(0, 20).join("、")}`);
+  revalidatePath("/settings/saleshub");
+  revalidatePath("/referrals");
+}

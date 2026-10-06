@@ -156,6 +156,10 @@ export async function importBundledCompaniesAction(): Promise<void> {
   await assertAdmin();
   const { importCompanyLists } = await import("@/lib/import-companies");
   const r = await importCompanyLists();
+  // 取り込んだ会社名で、セールスハブの過去メッセージから紹介候補を再抽出
+  const { rebuildCandidates } = await import("@/lib/saleshub/rules");
+  const c = await rebuildCandidates().catch(() => ({ created: 0 }));
   revalidatePath("/contacts");
-  redirect(`/contacts?imported=${r.created}&updated=${r.updated}`);
+  revalidatePath("/referrals");
+  redirect(`/contacts?imported=${r.created}&updated=${r.updated}&candidates=${c.created}`);
 }

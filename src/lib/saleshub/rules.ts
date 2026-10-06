@@ -208,3 +208,29 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
     }
   }
 }
+
+/**
+ * 取り込み済みの全スレッドを見直して紹介候補を再抽出する。
+ * 繋がりリストを後から取り込んだ場合（過去メッセージの会社名が未照合）に使う。
+ */
+export async function rebuildCandidates(): Promise<{ threads: number; created: number; unmatched: string[] }> {
+  const threads = await prisma.saleshubThread.findMany({ include: { messages: { orderBy: { sentAt: "asc" } } } });
+  let created = 0;
+  const unmatched = new Set<string>();
+  for (const t of threads) {
+    if (t.messages.length === 0) continue;
+    const vendorId = t.vendorId ?? (await ensureVendor(t));
+    const firstMine = t.messages.find((m) => m.isMine);
+    const sources: { body: string; note: string }[] = [];
+    if (firstMine) sources.push({ body: firstMine.body, note: "松田の初回メッセージ" });
+    for (const m of t.messages.filter((m) => !m.isMine)) sources.push({ body: m.body, note: `ベンダーがチャットで言及 ${fmtDateTime(m.sentAt)}` });
+    for (const s of sources) {
+      const companies = extractCompanies(s.body, [t.vendorName]);
+      if (!companies.length) continue;
+      const r = await registerCandidates(vendorId, companies, s.note);
+      created += r.created;
+      r.unmatched.forEach((u) => unmatched.add(u));
+    }
+  }
+  return { threads: threads.length, created, unmatched: [...unmatched] };
+}

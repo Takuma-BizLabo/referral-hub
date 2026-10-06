@@ -3,13 +3,14 @@ import { prisma } from "@/lib/db";
 import { Card } from "@/components/ui";
 import { getSettingRaw, getSetting } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/utils";
-import { issueIngestTokenAction } from "./actions";
+import { issueIngestTokenAction, rebuildCandidatesAction } from "./actions";
 import { SaleshubSettingsForm } from "./SaleshubSettingsForm";
 
 export const metadata = { title: "セールスハブ連携" };
 
 export default async function SaleshubSettingsPage() {
   await requireAdmin();
+  const lastRebuild = (await getSettingRaw("saleshub.lastRebuild"))?.split("|") ?? null;
   const [token, enabled, schedulerUserId, lastIngest, status, extVersion, stale, users, threadCount, msgCount] = await Promise.all([
     getSettingRaw("saleshub.ingestToken"),
     getSettingRaw("saleshub.enabled"),
@@ -102,6 +103,21 @@ export default async function SaleshubSettingsPage() {
           <p>・ログイン情報はツールのサーバーには保存されません。ログインが切れた場合やしばらく受信がない場合は、管理者に通知が届きます。</p>
           <p>・初回は過去のやりとりも取り込み、打ち合わせが決まっているスレッドはベンダーMTGとして自動登録します（初回分は LINE 通知なし）。</p>
         </div>
+      </Card>
+
+      <Card title="紹介候補の再抽出" className="lg:col-span-2">
+        <p className="text-sm text-gray-700 mb-3">
+          繋がりリストを後から追加した場合などに、取り込み済みの全スレッドの会社名を繋がりリストと突き合わせ直し、紹介候補（ピックアップ受付）を登録します。登録済みの組み合わせは重複しません。
+        </p>
+        <form action={rebuildCandidatesAction} className="flex flex-wrap items-center gap-3">
+          <button className="btn-secondary">過去メッセージから紹介候補を再抽出</button>
+          {lastRebuild && (
+            <span className="text-xs text-gray-500">
+              前回 {fmtDateTime(new Date(lastRebuild[0]))}：{lastRebuild[1]} スレッド → 候補 {lastRebuild[2]} 件を登録
+              {lastRebuild[3] ? `／ 繋がり未登録: ${lastRebuild[3]}` : ""}
+            </span>
+          )}
+        </form>
       </Card>
 
       <Card title="自動化の内容" className="lg:col-span-2">
