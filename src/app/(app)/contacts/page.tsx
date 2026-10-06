@@ -198,12 +198,7 @@ export default async function ContactsPage({
                       {c.referrals.length === 0 && <span className="text-xs text-gray-400">未紹介</span>}
                     </div>
                   </td>
-                  {sp.imported !== undefined && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900 mb-3">
-          会社リストを取り込みました：新規 {sp.imported} 件 / 更新 {sp.updated ?? 0} 件{sp.removed && sp.removed !== "0" ? ` / セールスハブ未掲載 ${sp.removed} 件を削除` : ""}{sp.candidates ? `／ セールスハブの過去メッセージから紹介候補 ${sp.candidates} 件を登録` : ""}
-        </div>
-      )}
-      {notVendor && (
+                  {notVendor && (
                     <td className="text-right">
                       <Link href={`/referrals/new?vendorId=${notVendor.id}&contactId=${c.id}`} className="btn-primary btn-sm">
                         紹介する
