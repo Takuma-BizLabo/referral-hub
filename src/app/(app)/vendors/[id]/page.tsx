@@ -26,6 +26,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
     },
   });
   if (!vendor) notFound();
+  const notReferredCount = await prisma.contact.count({ where: { isActive: true, referrals: { none: { vendorId: vendor.id } } } });
   const histories = await prisma.statusHistory.findMany({
     where: { entityType: "VENDOR", entityId: vendor.id },
     include: { changedBy: true },
@@ -143,7 +144,14 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         )}
       </Card>
 
-      <Card title={`紹介案件（${vendor.referrals.length}）`}>
+      <Card
+        title={`紹介案件（${vendor.referrals.length}）`}
+        actions={
+          <Link href={`/contacts?notVendor=${vendor.id}`} className="text-xs text-blue-700 hover:underline">
+            まだ紹介していない繋がり {notReferredCount} 人を見る →
+          </Link>
+        }
+      >
         {vendor.referrals.length === 0 ? (
           <EmptyState message="紹介案件はまだありません" />
         ) : (

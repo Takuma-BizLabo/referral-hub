@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { EmptyState, PageHeader } from "@/components/ui";
+import { EmptyState, PageHeader, Tabs } from "@/components/ui";
+import { VendorTag } from "@/components/VendorTag";
+import { fmtYen } from "@/lib/utils";
 import type { Prisma } from "@prisma/client";
 
 export const metadata = { title: "繋がりリスト" };
@@ -9,7 +11,7 @@ export const metadata = { title: "繋がりリスト" };
 export default async function ContactsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; industry?: string; region?: string; saleshub?: string; tag?: string; inactive?: string }>;
+  searchParams: Promise<{ q?: string; industry?: string; region?: string; saleshub?: string; tag?: string; inactive?: string; notVendor?: string }>;
 }) {
   await requireUser();
   const sp = await searchParams;
@@ -29,12 +31,15 @@ export default async function ContactsPage({
     ...(sp.region ? { region: sp.region } : {}),
     ...(sp.saleshub === "1" ? { isOnSaleshub: true } : sp.saleshub === "0" ? { isOnSaleshub: false } : {}),
     ...(sp.tag ? { tags: { some: { tag: { name: sp.tag } } } } : {}),
+    ...(sp.notVendor ? { referrals: { none: { vendorId: Number(sp.notVendor) } } } : {}),
   };
+  const vendors = await prisma.vendor.findMany({ where: { isActive: true }, orderBy: { name: "asc" } });
+  const notVendor = sp.notVendor ? vendors.find((v) => v.id === Number(sp.notVendor)) : undefined;
   const [contacts, industries, regions, tags, total] = await Promise.all([
     prisma.contact.findMany({
       where,
       orderBy: [{ company: "asc" }, { name: "asc" }],
-      include: { tags: { include: { tag: true } }, _count: { select: { referrals: true } } },
+      include: { tags: { include: { tag: true } }, referrals: { select: { vendorId: true } } },
       take: 500,
     }),
     prisma.contact.findMany({ where: { industry: { not: null } }, distinct: ["industry"], select: { industry: true }, orderBy: { industry: "asc" } }),
@@ -59,10 +64,33 @@ export default async function ContactsPage({
           </>
         }
       />
+      <Tabs
+        items={[
+          { href: "/contacts", label: "一覧", active: true },
+          { href: "/contacts/matrix", label: "紹介マトリクス（誰をどこに紹介済みか）", active: false },
+        ]}
+      />
+      {notVendor && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 mb-3 flex flex-wrap items-center gap-2">
+          <VendorTag id={notVendor.id} name={notVendor.name} />
+          にまだ紹介していない繋がりを表示中（単価 {fmtYen(notVendor.referralFee)}）。右端の「紹介する」で紹介案件を作成できます。
+        </div>
+      )}
       <form className="card p-3 mb-3 flex flex-wrap gap-2 items-end">
         <div className="flex-1 min-w-48">
           <label className="label">検索</label>
           <input name="q" defaultValue={sp.q} className="input" placeholder="氏名・会社・役職・メモ" />
+        </div>
+        <div>
+          <label className="label">未紹介のベンダー</label>
+          <select name="notVendor" defaultValue={sp.notVendor ?? ""} className="input">
+            <option value="">指定なし</option>
+            {vendors.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name} に未紹介
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="label">業種</label>
@@ -129,7 +157,8 @@ export default async function ContactsPage({
                 <th>地域</th>
                 <th>SH</th>
                 <th>タグ</th>
-                <th className="text-right">紹介</th>
+                <th>紹介済みベンダー</th>
+                {notVendor && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -155,7 +184,22 @@ export default async function ContactsPage({
                       ))}
                     </div>
                   </td>
-                  <td className="text-right">{c._count.referrals}</td>
+                  <td>
+                    <div className="flex flex-wrap gap-1">
+                      {Array.from(new Set(c.referrals.map((r) => r.vendorId))).map((vid) => {
+                        const v = vendors.find((x) => x.id === vid);
+                        return v ? <VendorTag key={vid} id={v.id} name={v.name} /> : null;
+                      })}
+                      {c.referrals.length === 0 && <span className="text-xs text-gray-400">未紹介</span>}
+                    </div>
+                  </td>
+                  {notVendor && (
+                    <td className="text-right">
+                      <Link href={`/referrals/new?vendorId=${notVendor.id}&contactId=${c.id}`} className="btn-primary btn-sm">
+                        紹介する
+                      </Link>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

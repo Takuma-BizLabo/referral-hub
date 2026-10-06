@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Badge, Card, Description, EmptyState, PageHeader } from "@/components/ui";
-import { REFERRAL_LABEL, REWARD_LABEL } from "@/lib/labels";
+import { REFERRAL_LABEL, REWARD_LABEL, VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
+import { VendorTag } from "@/components/VendorTag";
 import { fmtDate, fmtDateTime, fmtYen } from "@/lib/utils";
 import { toggleContactActiveAction } from "../actions";
 
@@ -18,6 +19,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
     },
   });
   if (!contact) notFound();
+  const referredVendorIds = new Set(contact.referrals.map((r) => r.vendorId));
+  const otherVendors = await prisma.vendor.findMany({ where: { isActive: true, id: { notIn: [...referredVendorIds] } }, orderBy: { name: "asc" } });
 
   return (
     <div className="space-y-4">
@@ -75,6 +78,45 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         </Card>
       </div>
 
+      <Card title={`まだ紹介していないベンダー（${otherVendors.length}）`}>
+        {otherVendors.length === 0 ? (
+          <EmptyState message="すべてのベンダーに紹介済みです" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>ベンダー</th>
+                  <th>サービス概要</th>
+                  <th className="text-right">単価</th>
+                  <th>MTG状態</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {otherVendors.map((v) => (
+                  <tr key={v.id}>
+                    <td>
+                      <VendorTag id={v.id} name={v.name} />
+                    </td>
+                    <td className="text-gray-600 max-w-xs truncate">{v.serviceSummary ?? "-"}</td>
+                    <td className="text-right whitespace-nowrap font-medium">{fmtYen(v.referralFee)}</td>
+                    <td>
+                      <Badge value={v.meetingStatus} label={VENDOR_MEETING_STATUS_LABEL[v.meetingStatus]} />
+                    </td>
+                    <td className="text-right">
+                      <Link href={`/referrals/new?vendorId=${v.id}&contactId=${contact.id}`} className="btn-primary btn-sm">
+                        紹介する
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       <Card title={`紹介履歴（${contact.referrals.length}）`}>
         {contact.referrals.length === 0 ? (
           <EmptyState message="紹介履歴はありません" />
@@ -95,8 +137,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                 {contact.referrals.map((r) => (
                   <tr key={r.id}>
                     <td className="whitespace-nowrap">
-                      <Link href={`/referrals/${r.id}`} className="text-blue-700 hover:underline">
-                        {r.vendor.name}
+                      <Link href={`/referrals/${r.id}`}>
+                        <VendorTag id={r.vendor.id} name={r.vendor.name} link={false} />
                       </Link>
                     </td>
                     <td className="whitespace-nowrap">{fmtDate(r.pickedUpAt)}</td>
