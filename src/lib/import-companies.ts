@@ -120,7 +120,7 @@ export async function importCompanyLists(): Promise<{ registered: number; connec
       company: m.company,
       title: m.title,
       industry: m.industry,
-      employeeSize: m.employeeSize ? `${m.employeeSize}名` : null,
+      employeeSize: m.employeeSize ? `${m.employeeSize.replace(/\.0+$/, "")}${/名/.test(m.employeeSize) ? "" : "名"}` : null,
       region: m.region,
       otherContact: m.channel,
       isOnSaleshub: m.onSaleshub,
