@@ -82,22 +82,31 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
             <thead>
               <tr>
                 <th>月</th>
-                <th className="text-right">計上ベース（承認月）</th>
-                <th className="text-right">請求ベース（請求月）</th>
-                <th className="text-right">入金ベース（入金月）</th>
+                <th className="text-right">
+                  <span className="md:hidden">計上</span>
+                  <span className="hidden md:inline">計上ベース（承認月）</span>
+                </th>
+                <th className="text-right">
+                  <span className="md:hidden">請求</span>
+                  <span className="hidden md:inline">請求ベース（請求月）</span>
+                </th>
+                <th className="text-right">
+                  <span className="md:hidden">入金</span>
+                  <span className="hidden md:inline">入金ベース（入金月）</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {summary.map((s) => (
                 <tr key={s.ym}>
-                  <td className="font-medium">{s.ym.replace("-", "年")}月</td>
-                  <td className="text-right">
+                  <td className="font-medium whitespace-nowrap">{s.ym.replace("-", "/")}</td>
+                  <td className="text-right whitespace-nowrap">
                     {fmtYen(s.accrual._sum.rewardAmount ?? 0)} <span className="text-xs text-gray-400">({s.accrual._count._all})</span>
                   </td>
-                  <td className="text-right">
+                  <td className="text-right whitespace-nowrap">
                     {fmtYen(s.invoiced._sum.rewardAmount ?? 0)} <span className="text-xs text-gray-400">({s.invoiced._count._all})</span>
                   </td>
-                  <td className="text-right">
+                  <td className="text-right whitespace-nowrap">
                     {fmtYen(s.paid._sum.rewardAmount ?? 0)} <span className="text-xs text-gray-400">({s.paid._count._all})</span>
                   </td>
                 </tr>
@@ -114,10 +123,48 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
             ...REWARD_ORDER.map((s) => ({ href: `/rewards?status=${s}`, label: REWARD_LABEL[s], active: status === s })),
           ]}
         />
-        <div className="card overflow-x-auto">
-          {rows.length === 0 ? (
+        {rows.length === 0 ? (
+          <div className="card">
             <EmptyState message="該当する報酬はありません" />
-          ) : (
+          </div>
+        ) : (
+          <>
+            {/* スマホ: カード表示 */}
+            <ul className="md:hidden space-y-2">
+              {rows.map((r) => {
+                const late = r.rewardStatus !== "PAID" && r.paymentDueAt && r.paymentDueAt < today;
+                return (
+                  <li key={r.id} className={cn("card p-3", late && "border-rose-300")}>
+                    <div className="flex items-start justify-between gap-2">
+                      <Link href={`/referrals/${r.id}`} className="min-w-0">
+                        <VendorTag id={r.vendor.id} name={r.vendor.name} link={false} />
+                        <div className="text-sm mt-1 truncate">
+                          {r.contact.name}
+                          <span className="text-xs text-gray-500 ml-1">{r.contact.company}</span>
+                        </div>
+                      </Link>
+                      <span className={cn("text-base whitespace-nowrap font-semibold", r.rewardUndetermined && "text-amber-700")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</span>
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-gray-600 mt-1.5">
+                      <div>面談実施 {fmtDate(r.meetingDoneAt)}</div>
+                      <div>承認 {fmtDate(r.rewardApprovedAt)}</div>
+                      <div>請求 {fmtDate(r.invoicedAt)}</div>
+                      <div className={cn(late && "text-rose-600 font-medium")}>
+                        入金予定 {fmtDate(r.paymentDueAt)}
+                        {late && " 遅延"}
+                      </div>
+                      <div>入金 {fmtDate(r.paidAt)}</div>
+                    </dl>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-500">状態</span>
+                      <StatusSelect action={setRewardStatusAction} id={r.id} value={r.rewardStatus} options={REWARD_ORDER.map((s) => ({ value: s, label: REWARD_LABEL[s] }))} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {/* PC: テーブル表示 */}
+            <div className="card overflow-x-auto hidden md:block">
             <table className="table">
               <thead>
                 <tr>
@@ -168,8 +215,9 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
                 })}
               </tbody>
             </table>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

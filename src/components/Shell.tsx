@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import type { CurrentUser } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,8 @@ import { FlashBanner } from "./FlashBanner";
 const I = {
   dash: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
   vendor: "M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6",
-  meeting: "M20 6L9 17l-5-5",
+  meeting: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
+  task: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
   referral: "M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7",
   contacts: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
   reward: "M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
@@ -50,6 +51,22 @@ export function Shell({ user, unread, openTasks = 0, children }: { user: Current
   const isAdmin = user.role === "ADMIN";
   const isActive = (n: { href: string; match?: (p: string) => boolean }) => (n.match ? n.match(pathname) : pathname.startsWith(n.href));
 
+  // ドロワー: 画面遷移で閉じる・Esc で閉じる・開いている間は背面をスクロールさせない
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   const sidebar = (
     <div className="flex flex-col h-full text-gray-100">
       <div className="px-4 py-4 flex items-center gap-3">
@@ -69,7 +86,7 @@ export function Shell({ user, unread, openTasks = 0, children }: { user: Current
       </div>
       <nav className="flex-1 overflow-y-auto px-3 space-y-0.5">
         <Link href="/tasks" onClick={() => setOpen(false)} className={cn("nav-link", isActive({ href: "/tasks" }) && "nav-link-active", openTasks > 0 && !isActive({ href: "/tasks" }) && "bg-rose-500/15 text-white font-semibold")}>
-          <Icon d={I.meeting} />
+          <Icon d={I.task} />
           タスク
           {openTasks > 0 && <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-bold flex items-center justify-center">{openTasks}</span>}
         </Link>
@@ -117,9 +134,9 @@ export function Shell({ user, unread, openTasks = 0, children }: { user: Current
       <aside className="hidden md:block w-60 shrink-0 bg-sidebar sticky top-0 h-screen">{sidebar}</aside>
 
       {open && (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="メニュー">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
-          <aside className="absolute left-0 top-0 h-full w-72 bg-sidebar shadow-xl">
+          <aside className="absolute left-0 top-0 h-dvh w-72 max-w-[85vw] bg-sidebar shadow-xl">
             <button className="absolute right-3 top-3 text-gray-300 text-2xl leading-none" onClick={() => setOpen(false)} aria-label="閉じる">
               ×
             </button>

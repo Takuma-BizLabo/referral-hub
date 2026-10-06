@@ -24,7 +24,7 @@ export function VendorChips({
   allHref: string;
 }) {
   return (
-    <div className="flex flex-wrap gap-2 mb-3">
+    <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar pb-1 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap md:overflow-visible md:pb-0">
       <Link href={allHref} className={cn("chip", !activeId && "chip-active")}>
         全案件 <span className="font-bold">{total}</span>
       </Link>

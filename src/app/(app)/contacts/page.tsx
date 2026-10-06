@@ -3,7 +3,8 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { EmptyState, PageHeader, Tabs } from "@/components/ui";
 import { VendorTag } from "@/components/VendorTag";
-import { fmtYen } from "@/lib/utils";
+import { cn, fmtYen } from "@/lib/utils";
+import { FilterPanel } from "@/components/FilterPanel";
 import type { Prisma } from "@prisma/client";
 
 export const metadata = { title: "繋がりリスト" };
@@ -81,6 +82,7 @@ export default async function ContactsPage({
           にまだ紹介していない繋がりを表示中（単価 {fmtYen(notVendor.referralFee)}）。右端の「紹介する」で紹介案件を作成できます。
         </div>
       )}
+      <FilterPanel activeCount={[sp.q, sp.notVendor, sp.industry, sp.region, sp.saleshub, sp.tag, sp.inactive].filter(Boolean).length}>
       <form className="card p-3 mb-3 flex flex-wrap gap-2 items-end">
         <div className="flex-1 min-w-48">
           <label className="label">検索</label>
@@ -146,71 +148,112 @@ export default async function ContactsPage({
           クリア
         </Link>
       </form>
+      </FilterPanel>
 
-      <div className="card overflow-x-auto">
-        {contacts.length === 0 ? (
+      {contacts.length === 0 ? (
+        <div className="card">
           <EmptyState message="該当する繋がりがありません" />
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>氏名</th>
-                <th>会社名</th>
-                <th>役職</th>
-                <th>業種</th>
-                <th>規模</th>
-                <th>地域</th>
-                <th>SH</th>
-                <th>タグ</th>
-                <th>紹介済みベンダー</th>
-                {notVendor && <th></th>}
-              </tr>
-            </thead>
-            <tbody>
-              {contacts.map((c) => (
-                <tr key={c.id} className={c.isActive ? "" : "opacity-50"}>
-                  <td className="whitespace-nowrap">
-                    <Link href={`/contacts/${c.id}`} className="text-blue-700 hover:underline font-medium">
-                      {c.name}
+        </div>
+      ) : (
+        <>
+          {/* スマホ: カード表示 */}
+          <ul className="md:hidden space-y-2">
+            {contacts.map((c) => {
+              const vids = Array.from(new Set(c.referrals.map((r) => r.vendorId)));
+              return (
+                <li key={c.id} className={cn("card p-3", !c.isActive && "opacity-50")}>
+                  <div className="flex items-start justify-between gap-2">
+                    <Link href={`/contacts/${c.id}`} className="min-w-0">
+                      <div className="font-medium text-blue-700">{c.company ?? c.name}</div>
+                      <div className="text-xs text-gray-600">{[c.company ? c.name : null, c.title].filter(Boolean).join(" / ") || "-"}</div>
                     </Link>
-                  </td>
-                  <td>{c.company ?? "-"}</td>
-                  <td className="whitespace-nowrap">{c.title ?? "-"}</td>
-                  <td className="whitespace-nowrap">{c.industry ?? "-"}</td>
-                  <td className="whitespace-nowrap">{c.employeeSize ?? "-"}</td>
-                  <td className="whitespace-nowrap">{c.region ?? "-"}</td>
-                  <td className="text-xs">{c.isOnSaleshub ? "済" : "-"}</td>
-                  <td>
-                    <div className="flex flex-wrap gap-1">
+                    {notVendor && (
+                      <Link href={`/referrals/new?vendorId=${notVendor.id}&contactId=${c.id}`} className="btn-primary btn-sm shrink-0">
+                        紹介する
+                      </Link>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">{[c.industry, c.employeeSize, c.region, c.isOnSaleshub ? "SH済" : null].filter(Boolean).join(" ／ ")}</div>
+                  {(c.tags.length > 0 || vids.length > 0) && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
                       {c.tags.map((t) => (
                         <span key={t.tagId} className="badge bg-gray-100 text-gray-600 border-gray-200">
                           {t.tag.name}
                         </span>
                       ))}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="flex flex-wrap gap-1">
-                      {Array.from(new Set(c.referrals.map((r) => r.vendorId))).map((vid) => {
+                      {vids.map((vid) => {
                         const v = vendors.find((x) => x.id === vid);
                         return v ? <VendorTag key={vid} id={v.id} name={v.name} /> : null;
                       })}
-                      {c.referrals.length === 0 && <span className="text-xs text-gray-400">未紹介</span>}
                     </div>
-                  </td>
-                  {notVendor && (
-                    <td className="text-right">
-                      <Link href={`/referrals/new?vendorId=${notVendor.id}&contactId=${c.id}`} className="btn-primary btn-sm">
-                        紹介する
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {/* PC: テーブル表示 */}
+          <div className="card overflow-x-auto hidden md:block">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>氏名</th>
+                  <th>会社名</th>
+                  <th>役職</th>
+                  <th>業種</th>
+                  <th>規模</th>
+                  <th>地域</th>
+                  <th>SH</th>
+                  <th>タグ</th>
+                  <th>紹介済みベンダー</th>
+                  {notVendor && <th></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {contacts.map((c) => (
+                  <tr key={c.id} className={c.isActive ? "" : "opacity-50"}>
+                    <td className="whitespace-nowrap">
+                      <Link href={`/contacts/${c.id}`} className="text-blue-700 hover:underline font-medium">
+                        {c.name}
                       </Link>
                     </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                    <td>{c.company ?? "-"}</td>
+                    <td className="whitespace-nowrap">{c.title ?? "-"}</td>
+                    <td className="whitespace-nowrap">{c.industry ?? "-"}</td>
+                    <td className="whitespace-nowrap">{c.employeeSize ?? "-"}</td>
+                    <td className="whitespace-nowrap">{c.region ?? "-"}</td>
+                    <td className="text-xs">{c.isOnSaleshub ? "済" : "-"}</td>
+                    <td>
+                      <div className="flex flex-wrap gap-1">
+                        {c.tags.map((t) => (
+                          <span key={t.tagId} className="badge bg-gray-100 text-gray-600 border-gray-200">
+                            {t.tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="flex flex-wrap gap-1">
+                        {Array.from(new Set(c.referrals.map((r) => r.vendorId))).map((vid) => {
+                          const v = vendors.find((x) => x.id === vid);
+                          return v ? <VendorTag key={vid} id={v.id} name={v.name} /> : null;
+                        })}
+                        {c.referrals.length === 0 && <span className="text-xs text-gray-400">未紹介</span>}
+                      </div>
+                    </td>
+                    {notVendor && (
+                      <td className="text-right">
+                        <Link href={`/referrals/new?vendorId=${notVendor.id}&contactId=${c.id}`} className="btn-primary btn-sm">
+                          紹介する
+                        </Link>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

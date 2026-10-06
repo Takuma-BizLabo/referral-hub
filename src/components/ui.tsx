@@ -124,7 +124,7 @@ export function ProgressBar({ value, target }: { value: number; target: number }
 
 export function Tabs({ items }: { items: { href: string; label: string; active: boolean }[] }) {
   return (
-    <div className="flex gap-1 border-b border-gray-200 mb-4 overflow-x-auto">
+    <div className="flex gap-1 border-b border-gray-200 mb-4 overflow-x-auto no-scrollbar">
       {items.map((t) => (
         <Link
           key={t.href}

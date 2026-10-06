@@ -5,6 +5,7 @@ import { Badge, EmptyState, PageHeader, Tabs } from "@/components/ui";
 import { StatusSelect } from "@/components/StatusSelect";
 import { VendorChips, VendorTag } from "@/components/VendorTag";
 import { CountChips } from "@/components/CountChips";
+import { FilterPanel } from "@/components/FilterPanel";
 import { REFERRAL_LABEL, REFERRAL_ORDER, REWARD_LABEL, REWARD_ORDER } from "@/lib/labels";
 import { cn, fmtDate, fmtDateTime, fmtReward } from "@/lib/utils";
 import { setReferralStatusAction } from "./actions";
@@ -89,6 +90,7 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
         total={Object.values(statusCounts).reduce((a, b) => a + b, 0)}
         allHref={linkWith({ status: undefined })}
       />
+      <FilterPanel activeCount={[sp.q, sp.vendor, sp.status, sp.reward].filter(Boolean).length}>
       <form className="card p-3 mb-3 flex flex-wrap gap-2 items-end">
         <input type="hidden" name="view" value={view} />
         <div className="min-w-40">
@@ -135,68 +137,107 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
           クリア
         </Link>
       </form>
+      </FilterPanel>
 
       {view === "list" ? (
-        <div className="card overflow-x-auto">
-          {referrals.length === 0 ? (
+        referrals.length === 0 ? (
+          <div className="card">
             <EmptyState message="該当する紹介案件がありません" />
-          ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>紹介先</th>
-                  <th>ベンダー</th>
-                  <th>ステータス</th>
-                  <th>面談日時</th>
-                  <th>次アクション</th>
-                  <th>期限</th>
-                  <th className="text-right">報酬</th>
-                  <th>報酬状態</th>
-                </tr>
-              </thead>
-              <tbody>
-                {referrals.map((r) => {
-                  const overdue = r.nextActionDue && r.nextActionDue < today && !["MEETING_DONE", "DECLINED"].includes(r.status);
-                  return (
-                    <tr key={r.id}>
-                      <td className="whitespace-nowrap">
-                        <Link href={`/referrals/${r.id}`} className="text-blue-700 hover:underline font-medium">
-                          {r.contact.name}
-                        </Link>
-                        <div className="text-xs text-gray-500">{r.contact.company}</div>
-                      </td>
-                      <td>
-                        <VendorTag id={r.vendor.id} name={r.vendor.name} />
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-1">
-                          <StatusSelect
-                            action={setReferralStatusAction}
-                            id={r.id}
-                            value={r.status}
-                            options={REFERRAL_ORDER.map((s) => ({ value: s, label: REFERRAL_LABEL[s] }))}
-                          />
-                          {isStagnant(r) && (
-                            <span className="badge bg-amber-100 text-amber-800 border-amber-200" title={`${stagnationDays}日以上停滞`}>
-                              停滞
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="whitespace-nowrap">{fmtDateTime(r.meetingAt)}</td>
-                      <td className="text-gray-600 max-w-xs truncate">{r.nextAction ?? "-"}</td>
-                      <td className={cn("whitespace-nowrap", overdue && "text-rose-600 font-medium")}>{fmtDate(r.nextActionDue)}</td>
-                      <td className={cn("text-right whitespace-nowrap", r.rewardUndetermined && "text-amber-700 font-medium")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</td>
-                      <td>
-                        <Badge value={r.rewardStatus} label={REWARD_LABEL[r.rewardStatus]} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+          </div>
+        ) : (
+          <>
+            {/* スマホ: カード表示 */}
+            <ul className="md:hidden space-y-2">
+              {referrals.map((r) => {
+                const overdue = r.nextActionDue && r.nextActionDue < today && !["MEETING_DONE", "DECLINED"].includes(r.status);
+                return (
+                  <li key={r.id} className={cn("card p-3", isStagnant(r) && "border-amber-300")}>
+                    <div className="flex items-start justify-between gap-2">
+                      <Link href={`/referrals/${r.id}`} className="min-w-0">
+                        <div className="font-medium text-blue-700 truncate">{r.contact.name}</div>
+                        <div className="text-xs text-gray-500 truncate">{r.contact.company}</div>
+                      </Link>
+                      <span className={cn("text-sm whitespace-nowrap font-medium", r.rewardUndetermined && "text-amber-700")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</span>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <VendorTag id={r.vendor.id} name={r.vendor.name} />
+                      <Badge value={r.rewardStatus} label={`報酬 ${REWARD_LABEL[r.rewardStatus]}`} />
+                      {isStagnant(r) && <span className="badge bg-amber-100 text-amber-800 border-amber-200">停滞</span>}
+                    </div>
+                    {r.meetingAt && <div className="text-xs text-gray-600 mt-1.5">面談 {fmtDateTime(r.meetingAt)}</div>}
+                    {r.nextAction && (
+                      <div className="text-xs text-gray-600 mt-1 line-clamp-2">
+                        次: {r.nextAction}
+                        {r.nextActionDue && <span className={cn("ml-1", overdue && "text-rose-600 font-medium")}>（{fmtDate(r.nextActionDue)}）</span>}
+                      </div>
+                    )}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-500">ステータス</span>
+                      <StatusSelect action={setReferralStatusAction} id={r.id} value={r.status} options={REFERRAL_ORDER.map((s) => ({ value: s, label: REFERRAL_LABEL[s] }))} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {/* PC: テーブル表示 */}
+            <div className="card overflow-x-auto hidden md:block">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>紹介先</th>
+                    <th>ベンダー</th>
+                    <th>ステータス</th>
+                    <th>面談日時</th>
+                    <th>次アクション</th>
+                    <th>期限</th>
+                    <th className="text-right">報酬</th>
+                    <th>報酬状態</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {referrals.map((r) => {
+                    const overdue = r.nextActionDue && r.nextActionDue < today && !["MEETING_DONE", "DECLINED"].includes(r.status);
+                    return (
+                      <tr key={r.id}>
+                        <td className="whitespace-nowrap">
+                          <Link href={`/referrals/${r.id}`} className="text-blue-700 hover:underline font-medium">
+                            {r.contact.name}
+                          </Link>
+                          <div className="text-xs text-gray-500">{r.contact.company}</div>
+                        </td>
+                        <td>
+                          <VendorTag id={r.vendor.id} name={r.vendor.name} />
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-1">
+                            <StatusSelect
+                              action={setReferralStatusAction}
+                              id={r.id}
+                              value={r.status}
+                              options={REFERRAL_ORDER.map((s) => ({ value: s, label: REFERRAL_LABEL[s] }))}
+                            />
+                            {isStagnant(r) && (
+                              <span className="badge bg-amber-100 text-amber-800 border-amber-200" title={`${stagnationDays}日以上停滞`}>
+                                停滞
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap">{fmtDateTime(r.meetingAt)}</td>
+                        <td className="text-gray-600 max-w-xs truncate">{r.nextAction ?? "-"}</td>
+                        <td className={cn("whitespace-nowrap", overdue && "text-rose-600 font-medium")}>{fmtDate(r.nextActionDue)}</td>
+                        <td className={cn("text-right whitespace-nowrap", r.rewardUndetermined && "text-amber-700 font-medium")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</td>
+                        <td>
+                          <Badge value={r.rewardStatus} label={REWARD_LABEL[r.rewardStatus]} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )
       ) : (
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           {REFERRAL_ORDER.map((status) => {
