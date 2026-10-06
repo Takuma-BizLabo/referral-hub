@@ -124,7 +124,7 @@ export function looksLikeMeetingRequest(body: string) {
   return /打ち?合わ?せ|お時間|日程|ミーティング|MTG|面談|ご説明の時間|お話|ご都合|候補日|予約/i.test(body);
 }
 
-export const COMPANY_RE = /((?:株式会社|有限会社|合同会社|一般社団法人|公益財団法人)[^\s\/／（(、。,．・「」『』]+|[^\s\/／（(、。,．「」『』]{1,30}?(?:株式会社|有限会社|合同会社|ホールディングス|Inc\.?|Co\.,? ?Ltd\.?))/g;
+export const COMPANY_RE = /((?:株式会社|有限会社|合同会社|一般社団法人|公益財団法人)[^\s\/／（(、。,．「」『』]+|[^\s\/／（(、。,．「」『』]{1,30}?(?:株式会社|有限会社|合同会社|ホールディングス|Inc\.?|Co\.,? ?Ltd\.?))/g;
 
 /** 本文中の会社名候補（「株式会社○○ / 部署(役職)」の部署情報付き） */
 export function extractCompanies(body: string, exclude: string[] = []): { company: string; dept: string | null }[] {
@@ -134,7 +134,7 @@ export function extractCompanies(body: string, exclude: string[] = []): { compan
     const matches = line.match(COMPANY_RE);
     if (!matches) continue;
     for (const c of matches) {
-      const name = c.trim();
+      const name = trimCompanyTail(c.trim());
       const n = normalizeCompanyName(name);
       if (!n || n.length < 2) continue;
       if (ex.some((e) => e && (n === e || n.includes(e) || e.includes(n)))) continue;
@@ -145,6 +145,18 @@ export function extractCompanies(body: string, exclude: string[] = []): { compan
     }
   }
   return out;
+}
+
+/** 「株式会社○○さまもご興味…」のように後続の助詞・敬称まで拾った場合に切り落とす */
+export function trimCompanyTail(name: string) {
+  const m = name.match(/^(株式会社|有限会社|合同会社|一般社団法人|公益財団法人)?(.*)$/);
+  if (!m) return name;
+  const prefix = m[1] ?? "";
+  let rest = m[2];
+  // 先頭2文字は固有名として残し、それ以降で助詞・敬称・活用語尾が出たら切る
+  const cut = rest.slice(2).search(/(さま|様|さん|殿|御中|も|の|が|は|を|に|と|で|へ|から|まで|です|にて|より)/);
+  if (cut >= 0) rest = rest.slice(0, 2 + cut);
+  return prefix + rest;
 }
 
 export function normalizeCompanyName(s: string) {
