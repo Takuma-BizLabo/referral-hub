@@ -1,5 +1,6 @@
 "use client";
-import { useActionState, useMemo, useState } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createReferralAction, updateReferralAction } from "./actions";
 import { ErrorMessage, Field } from "@/components/ui";
@@ -30,7 +31,7 @@ export function ReferralForm({
   defaultUndetermined?: boolean;
   defaultPickupNote?: string;
 }) {
-  const [state, action] = useActionState(referral ? updateReferralAction : createReferralAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(referral ? updateReferralAction : createReferralAction, undefined);
   const [vendorId, setVendorId] = useState<number | "">(referral?.vendorId ?? defaultVendorId ?? "");
   const [contactId, setContactId] = useState<number | "">(referral?.contactId ?? defaultContactId ?? "");
   const [filter, setFilter] = useState("");
@@ -51,7 +52,7 @@ export function ReferralForm({
   }, [contacts, filter]);
 
   return (
-    <form action={action} className="card p-4 space-y-4 max-w-3xl">
+    <form action={action} onSubmit={actionSubmit} className="card p-4 space-y-4 max-w-3xl">
       {referral && <input type="hidden" name="id" value={referral.id} />}
       <div className="grid gap-4 sm:grid-cols-2">
         {referral ? (
@@ -141,7 +142,7 @@ export function ReferralForm({
         </label>
       )}
       <div className="flex gap-2">
-        <SubmitButton>{referral ? "保存" : "登録"}</SubmitButton>
+        <SubmitButton pending={actionPending}>{referral ? "保存" : "登録"}</SubmitButton>
         <Link href={referral ? `/referrals/${referral.id}` : "/referrals"} className="btn-secondary">
           キャンセル
         </Link>

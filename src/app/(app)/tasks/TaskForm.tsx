@@ -1,18 +1,19 @@
 "use client";
-import { useActionState, useEffect, useRef } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+import { useEffect, useRef } from "react";
 import { createTaskAction } from "./actions";
 import { ErrorMessage, Field, SuccessMessage } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 
 export function TaskForm({ users, meId, defaultLink, defaultTitle }: { users: { id: number; name: string }[]; meId: number; defaultLink?: string; defaultTitle?: string }) {
-  const [state, action] = useActionState(createTaskAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(createTaskAction, undefined);
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (state?.success) ref.current?.reset();
   }, [state]);
   const others = users.filter((u) => u.id !== meId);
   return (
-    <form ref={ref} action={action} className="space-y-3">
+    <form ref={ref} action={action} onSubmit={actionSubmit} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="宛先" required>
           <select name="assigneeId" className="input" defaultValue={others[0]?.id ?? ""} required>
@@ -42,7 +43,7 @@ export function TaskForm({ users, meId, defaultLink, defaultTitle }: { users: { 
       </label>
       <ErrorMessage message={state?.error} />
       <SuccessMessage message={state?.success} />
-      <SubmitButton>タスクを依頼する</SubmitButton>
+      <SubmitButton pending={actionPending}>タスクを依頼する</SubmitButton>
     </form>
   );
 }

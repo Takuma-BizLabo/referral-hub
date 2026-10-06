@@ -1,13 +1,14 @@
 "use client";
-import { useActionState } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+
 import { loginAction } from "./actions";
 import { ErrorMessage, Field } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 
 export function LoginForm({ next }: { next: string }) {
-  const [state, action] = useActionState(loginAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(loginAction, undefined);
   return (
-    <form action={action} className="card p-5 space-y-4">
+    <form action={action} onSubmit={actionSubmit} className="card p-5 space-y-4">
       <input type="hidden" name="next" value={next} />
       <Field label="ログインID" required>
         <input name="loginId" className="input" autoComplete="username" autoFocus required />
@@ -16,7 +17,7 @@ export function LoginForm({ next }: { next: string }) {
         <input name="password" type="password" className="input" autoComplete="current-password" required />
       </Field>
       <ErrorMessage message={state?.error} />
-      <SubmitButton className="btn-primary w-full py-2">ログイン</SubmitButton>
+      <SubmitButton pending={actionPending} className="btn-primary w-full py-2">ログイン</SubmitButton>
     </form>
   );
 }

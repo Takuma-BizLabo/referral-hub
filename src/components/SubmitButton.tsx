@@ -8,6 +8,7 @@ export function SubmitButton({
   pendingText = "処理中...",
   confirm,
   disabled,
+  pending: pendingProp,
   ...rest
 }: {
   children: ReactNode;
@@ -15,11 +16,14 @@ export function SubmitButton({
   pendingText?: string;
   confirm?: string;
   disabled?: boolean;
+  /** useStickyAction の pending（onSubmit で送信するフォーム用）。省略時は useFormStatus */
+  pending?: boolean;
   name?: string;
   value?: string;
   formAction?: (formData: FormData) => void | Promise<void>;
 }) {
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const pending = pendingProp ?? status.pending;
   return (
     <button
       type="submit"

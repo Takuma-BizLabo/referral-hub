@@ -1,5 +1,6 @@
 "use client";
-import { useActionState } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+
 import { saveRewardAction } from "../actions";
 import { ErrorMessage, Field, SuccessMessage } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -21,9 +22,9 @@ export function RewardForm({
   paidAt: string;
   approvedAt: string | null;
 }) {
-  const [state, action] = useActionState(saveRewardAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(saveRewardAction, undefined);
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} onSubmit={actionSubmit} className="space-y-3">
       <input type="hidden" name="id" value={id} />
       <div className="grid gap-3 sm:grid-cols-4">
         <Field label="報酬額（円）">
@@ -45,7 +46,7 @@ export function RewardForm({
       {approvedAt && <p className="text-xs text-gray-500">計上承認日時：{approvedAt}</p>}
       <ErrorMessage message={state?.error} />
       <SuccessMessage message={state?.success} />
-      <SubmitButton className="btn-secondary">保存</SubmitButton>
+      <SubmitButton pending={actionPending} className="btn-secondary">保存</SubmitButton>
     </form>
   );
 }

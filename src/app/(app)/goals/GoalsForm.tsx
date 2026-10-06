@@ -1,5 +1,6 @@
 "use client";
-import { useActionState } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+
 import { saveGoalsAction } from "./actions";
 import { ErrorMessage, Field, SuccessMessage } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -14,9 +15,9 @@ export function GoalsForm({
   overall: MonthlyGoal | null;
   users: { id: number; name: string; target: number }[];
 }) {
-  const [state, action] = useActionState(saveGoalsAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(saveGoalsAction, undefined);
   return (
-    <form action={action} className="space-y-4" key={yearMonth}>
+    <form action={action} onSubmit={actionSubmit} className="space-y-4" key={yearMonth}>
       <input type="hidden" name="yearMonth" value={yearMonth} />
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="ベンダーMTG件数（全体）">
@@ -44,7 +45,7 @@ export function GoalsForm({
       </div>
       <ErrorMessage message={state?.error} />
       <SuccessMessage message={state?.success} />
-      <SubmitButton>保存</SubmitButton>
+      <SubmitButton pending={actionPending}>保存</SubmitButton>
     </form>
   );
 }

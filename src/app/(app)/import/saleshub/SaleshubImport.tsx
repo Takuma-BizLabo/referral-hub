@@ -1,5 +1,6 @@
 "use client";
-import { useActionState, useState, useTransition } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+import { useState, useTransition } from "react";
 import { analyzeSaleshubAction, registerSaleshubAction, type AnalyzeResult } from "./actions";
 import { Card, ErrorMessage, Field } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -37,7 +38,7 @@ export function SaleshubImport({
   const [text, setText] = useState(initialText);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [pending, start] = useTransition();
-  const [state, action] = useActionState(registerSaleshubAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(registerSaleshubAction, undefined);
   const [vendorId, setVendorId] = useState<string>("");
 
   const analyze = () => {
@@ -72,7 +73,7 @@ export function SaleshubImport({
       </Card>
 
       {result && (
-        <form action={action} className="space-y-4">
+        <form action={action} onSubmit={actionSubmit} className="space-y-4">
           <input type="hidden" name="rawText" value={text} />
           <Card title="3. ベンダー（サービス提供企業）">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -203,7 +204,7 @@ export function SaleshubImport({
           </Card>
 
           <ErrorMessage message={state?.error} />
-          <SubmitButton className="btn-primary px-6 py-2.5">6. まとめて登録する</SubmitButton>
+          <SubmitButton pending={actionPending} className="btn-primary px-6 py-2.5">6. まとめて登録する</SubmitButton>
         </form>
       )}
     </div>

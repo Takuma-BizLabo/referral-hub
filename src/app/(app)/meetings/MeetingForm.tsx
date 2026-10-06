@@ -1,5 +1,6 @@
 "use client";
-import { useActionState } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+
 import Link from "next/link";
 import { createMeetingAction, updateMeetingAction } from "./actions";
 import { ErrorMessage, Field } from "@/components/ui";
@@ -23,9 +24,9 @@ export function MeetingForm({
   defaultVendorId?: number;
   defaultAssigneeId?: number;
 }) {
-  const [state, action] = useActionState(meeting ? updateMeetingAction : createMeetingAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(meeting ? updateMeetingAction : createMeetingAction, undefined);
   return (
-    <form action={action} className="card p-4 space-y-4 max-w-3xl">
+    <form action={action} onSubmit={actionSubmit} className="card p-4 space-y-4 max-w-3xl">
       {meeting && <input type="hidden" name="id" value={meeting.id} />}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="ベンダー" required>
@@ -91,7 +92,7 @@ export function MeetingForm({
       )}
       <ErrorMessage message={state?.error} />
       <div className="flex gap-2">
-        <SubmitButton>{meeting ? "保存" : "登録して承認申請"}</SubmitButton>
+        <SubmitButton pending={actionPending}>{meeting ? "保存" : "登録して承認申請"}</SubmitButton>
         <Link href={meeting ? `/meetings/${meeting.id}` : "/meetings"} className="btn-secondary">
           キャンセル
         </Link>

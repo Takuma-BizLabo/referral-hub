@@ -1,5 +1,6 @@
 "use client";
-import { useActionState, useState } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+import { useState } from "react";
 import { createUserAction, resetPasswordAction, updateUserAction } from "./actions";
 import { ErrorMessage, Field, SuccessMessage, Badge } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -7,9 +8,9 @@ import { ROLE_LABEL } from "@/lib/labels";
 import type { Role } from "@prisma/client";
 
 export function CreateUserForm() {
-  const [state, action] = useActionState(createUserAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(createUserAction, undefined);
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} onSubmit={actionSubmit} className="space-y-3">
       <Field label="ログインID" required hint="半角英数字 3文字以上">
         <input name="loginId" className="input" required />
       </Field>
@@ -27,7 +28,7 @@ export function CreateUserForm() {
       </Field>
       <ErrorMessage message={state?.error} />
       <SuccessMessage message={state?.success} />
-      <SubmitButton>作成</SubmitButton>
+      <SubmitButton pending={actionPending}>作成</SubmitButton>
     </form>
   );
 }
@@ -36,14 +37,14 @@ type U = { id: number; loginId: string; name: string; role: Role; isActive: bool
 
 export function UserRow({ user }: { user: U }) {
   const [mode, setMode] = useState<"view" | "edit" | "password">("view");
-  const [editState, editAction] = useActionState(updateUserAction, undefined);
-  const [pwState, pwAction] = useActionState(resetPasswordAction, undefined);
+  const [editState, editAction, editActionPending, editActionSubmit] = useStickyAction(updateUserAction, undefined);
+  const [pwState, pwAction, pwActionPending, pwActionSubmit] = useStickyAction(resetPasswordAction, undefined);
 
   if (mode === "edit") {
     return (
       <tr>
         <td colSpan={6}>
-          <form action={editAction} className="flex flex-wrap items-end gap-3">
+          <form action={editAction} onSubmit={editActionSubmit} className="flex flex-wrap items-end gap-3">
             <input type="hidden" name="id" value={user.id} />
             <div className="text-sm text-gray-500 self-center">{user.loginId}</div>
             <Field label="氏名">
@@ -58,7 +59,7 @@ export function UserRow({ user }: { user: U }) {
             <label className="flex items-center gap-1 text-sm pb-2">
               <input type="checkbox" name="isActive" defaultChecked={user.isActive} /> 有効
             </label>
-            <SubmitButton>保存</SubmitButton>
+            <SubmitButton pending={editActionPending}>保存</SubmitButton>
             <button type="button" className="btn-secondary" onClick={() => setMode("view")}>
               キャンセル
             </button>
@@ -75,7 +76,7 @@ export function UserRow({ user }: { user: U }) {
     return (
       <tr>
         <td colSpan={6}>
-          <form action={pwAction} className="flex flex-wrap items-end gap-3">
+          <form action={pwAction} onSubmit={pwActionSubmit} className="flex flex-wrap items-end gap-3">
             <input type="hidden" name="id" value={user.id} />
             <div className="text-sm text-gray-500 self-center">
               {user.loginId}（{user.name}）
@@ -83,7 +84,7 @@ export function UserRow({ user }: { user: U }) {
             <Field label="新しいパスワード" hint="8文字以上">
               <input name="password" className="input" required minLength={8} />
             </Field>
-            <SubmitButton>再設定</SubmitButton>
+            <SubmitButton pending={pwActionPending}>再設定</SubmitButton>
             <button type="button" className="btn-secondary" onClick={() => setMode("view")}>
               キャンセル
             </button>

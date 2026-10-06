@@ -1,5 +1,6 @@
 "use client";
-import { useActionState } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+
 import Link from "next/link";
 import { createContactAction, updateContactAction } from "./actions";
 import { ErrorMessage, Field } from "@/components/ui";
@@ -17,9 +18,9 @@ export function ContactForm({
   allTags: string[];
   defaultCompany?: string;
 }) {
-  const [state, action] = useActionState(contact ? updateContactAction : createContactAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(contact ? updateContactAction : createContactAction, undefined);
   return (
-    <form action={action} className="card p-4 space-y-4 max-w-3xl">
+    <form action={action} onSubmit={actionSubmit} className="card p-4 space-y-4 max-w-3xl">
       {contact && <input type="hidden" name="id" value={contact.id} />}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="氏名" required>
@@ -71,7 +72,7 @@ export function ContactForm({
         </label>
       )}
       <div className="flex gap-2">
-        <SubmitButton>{contact ? "保存" : "登録"}</SubmitButton>
+        <SubmitButton pending={actionPending}>{contact ? "保存" : "登録"}</SubmitButton>
         <Link href={contact ? `/contacts/${contact.id}` : "/contacts"} className="btn-secondary">
           キャンセル
         </Link>

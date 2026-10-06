@@ -1,5 +1,6 @@
 "use client";
-import { useActionState } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+
 import { saveThresholdsAction } from "./actions";
 import { ErrorMessage, Field, SuccessMessage } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -16,9 +17,9 @@ export function ThresholdsForm({
   minutesMissingHours: string;
   lineMap: Record<string, boolean>;
 }) {
-  const [state, action] = useActionState(saveThresholdsAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(saveThresholdsAction, undefined);
   return (
-    <form action={action} className="space-y-5 max-w-2xl">
+    <form action={action} onSubmit={actionSubmit} className="space-y-5 max-w-2xl">
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="紹介案件の停滞日数" hint="同じステータスでこの日数以上なら通知">
           <input name="stagnationDays" type="number" min={1} max={90} className="input" defaultValue={stagnationDays} />
@@ -44,7 +45,7 @@ export function ThresholdsForm({
       </div>
       <ErrorMessage message={state?.error} />
       <SuccessMessage message={state?.success} />
-      <SubmitButton>保存</SubmitButton>
+      <SubmitButton pending={actionPending}>保存</SubmitButton>
     </form>
   );
 }

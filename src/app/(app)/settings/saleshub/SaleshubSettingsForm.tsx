@@ -1,5 +1,6 @@
 "use client";
-import { useActionState } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+
 import { saveSaleshubSettingsAction } from "./actions";
 import { ErrorMessage, Field, SuccessMessage } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -15,9 +16,9 @@ export function SaleshubSettingsForm({
   staleMinutes: number;
   users: { id: number; name: string }[];
 }) {
-  const [state, action] = useActionState(saveSaleshubSettingsAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(saveSaleshubSettingsAction, undefined);
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} onSubmit={actionSubmit} className="space-y-3">
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="enabled" defaultChecked={enabled} /> セールスハブ連携を有効にする
       </label>
@@ -36,7 +37,7 @@ export function SaleshubSettingsForm({
       </Field>
       <ErrorMessage message={state?.error} />
       <SuccessMessage message={state?.success} />
-      <SubmitButton className="btn-secondary">保存</SubmitButton>
+      <SubmitButton pending={actionPending} className="btn-secondary">保存</SubmitButton>
     </form>
   );
 }

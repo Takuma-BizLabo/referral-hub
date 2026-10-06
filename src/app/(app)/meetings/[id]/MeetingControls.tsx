@@ -1,5 +1,6 @@
 "use client";
-import { useActionState, useState } from "react";
+import { useStickyAction } from "@/lib/use-sticky-action";
+import { useState } from "react";
 import { rejectMeetingAction, saveMinutesAction, setExecutionStatusAction } from "../actions";
 import { ErrorMessage, Field, SuccessMessage } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -33,15 +34,15 @@ export function ExecutionControls({ id, current, vendorDone }: { id: number; cur
 }
 
 export function RejectForm({ id }: { id: number }) {
-  const [state, action] = useActionState(rejectMeetingAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(rejectMeetingAction, undefined);
   return (
-    <form action={action} className="space-y-2">
+    <form action={action} onSubmit={actionSubmit} className="space-y-2">
       <input type="hidden" name="id" value={id} />
       <Field label="差し戻し理由" required>
         <textarea name="reason" className="input" rows={2} required />
       </Field>
       <ErrorMessage message={state?.error} />
-      <SubmitButton className="btn-danger w-full">差し戻す</SubmitButton>
+      <SubmitButton pending={actionPending} className="btn-danger w-full">差し戻す</SubmitButton>
     </form>
   );
 }
@@ -57,9 +58,9 @@ export function MinutesForm({
   nextAction: string;
   nextActionDue: string;
 }) {
-  const [state, action] = useActionState(saveMinutesAction, undefined);
+  const [state, action, actionPending, actionSubmit] = useStickyAction(saveMinutesAction, undefined);
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} onSubmit={actionSubmit} className="space-y-3">
       <input type="hidden" name="id" value={id} />
       <Field label="議事メモ" hint="実施後24時間以内に入力しないとリマインドされます">
         <textarea name="minutes" className="input" rows={6} defaultValue={minutes} />
@@ -74,7 +75,7 @@ export function MinutesForm({
       </div>
       <ErrorMessage message={state?.error} />
       <SuccessMessage message={state?.success} />
-      <SubmitButton>保存</SubmitButton>
+      <SubmitButton pending={actionPending}>保存</SubmitButton>
     </form>
   );
 }
