@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
   const where: Prisma.ReferralWhereInput =
-    status && status in REWARD_LABEL ? { rewardStatus: status as RewardStatus } : { rewardStatus: { not: "UNFIXED" } };
+    status && Object.hasOwn(REWARD_LABEL, status) ? { rewardStatus: status as RewardStatus } : { rewardStatus: { not: "UNFIXED" } };
   const rows = await prisma.referral.findMany({ where, include: { vendor: true, contact: true }, orderBy: { id: "asc" } });
 
   const header = ["案件ID", "ベンダー", "紹介先氏名", "紹介先会社", "紹介ステータス", "面談実施日", "報酬額", "報酬ステータス", "承認日", "請求日", "入金予定日", "入金日"];

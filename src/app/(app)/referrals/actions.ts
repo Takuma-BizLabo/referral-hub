@@ -166,7 +166,7 @@ export async function setReferralStatusAction(formData: FormData) {
     const user = await assertUser();
     const id = Number(formData.get("id"));
     const status = String(formData.get("status")) as ReferralStatus;
-    if (!(status in REFERRAL_LABEL)) throw new Error("不正なステータスです");
+    if (!Object.hasOwn(REFERRAL_LABEL, status)) throw new Error("不正なステータスです");
     const result = await changeReferralStatus(user, id, status);
     if (result === "blocked") redirect(`/referrals/${id}?blocked=${status}`);
   });
@@ -248,7 +248,7 @@ export async function setRewardStatusAction(formData: FormData) {
     const user = await assertUser();
     const id = Number(formData.get("id"));
     const status = String(formData.get("status")) as RewardStatus;
-    if (!(status in REWARD_LABEL)) throw new Error("不正なステータスです");
+    if (!Object.hasOwn(REWARD_LABEL, status)) throw new Error("不正なステータスです");
     const r = await prisma.referral.findUniqueOrThrow({ where: { id } });
     if (r.rewardStatus === status) return;
     if ((status === "APPROVED" || (r.rewardStatus === "APPROVED" && status === "APPLIED")) && user.role !== "ADMIN") {

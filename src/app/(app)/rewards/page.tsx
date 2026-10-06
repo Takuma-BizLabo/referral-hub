@@ -24,7 +24,7 @@ const SORTS: Record<string, { label: string; orderBy: Prisma.ReferralOrderByWith
 export default async function RewardsPage({ searchParams }: { searchParams: Promise<{ status?: string; month?: string; sort?: string }> }) {
   await requireUser();
   const sp = cleanParams(await searchParams, { sort: Object.keys(SORTS) });
-  const status = sp.status && sp.status in REWARD_LABEL ? (sp.status as RewardStatus) : undefined;
+  const status = sp.status && Object.hasOwn(REWARD_LABEL, sp.status) ? (sp.status as RewardStatus) : undefined;
   const where: Prisma.ReferralWhereInput = status ? { rewardStatus: status } : { rewardStatus: { not: "UNFIXED" } };
   const today = new Date();
   today.setHours(0, 0, 0, 0);

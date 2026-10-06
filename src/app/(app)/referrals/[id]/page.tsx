@@ -58,7 +58,7 @@ export default async function ReferralDetailPage({
         }
       />
 
-      {blocked && blocked in REFERRAL_LABEL && (
+      {blocked && Object.hasOwn(REFERRAL_LABEL, blocked) && (
         <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <div className="font-medium">「{REFERRAL_LABEL[blocked as keyof typeof REFERRAL_LABEL]}」へ進められません</div>
           <div className="mt-1">

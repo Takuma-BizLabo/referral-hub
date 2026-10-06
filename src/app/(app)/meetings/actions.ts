@@ -48,7 +48,7 @@ export async function createMeetingAction(_prev: ActionState, formData: FormData
     const user = await assertUser();
     const data = meetingData(formData);
     const executionStatus = (str(formData.get("executionStatus")) ?? "SCHEDULING") as ExecutionStatus;
-    if (!(executionStatus in EXECUTION_LABEL)) throw new Error("不正なステータスです");
+    if (!Object.hasOwn(EXECUTION_LABEL, executionStatus)) throw new Error("不正なステータスです");
     const m = await prisma.$transaction(async (tx) => {
       const created = await tx.vendorMeeting.create({
         data: { ...data, executionStatus, approvalStatus: "PENDING" },
@@ -142,7 +142,7 @@ export async function setExecutionStatusAction(formData: FormData) {
     const user = await assertUser();
     const id = Number(formData.get("id"));
     const status = String(formData.get("status")) as ExecutionStatus;
-    if (!(status in EXECUTION_LABEL)) throw new Error("不正なステータスです");
+    if (!Object.hasOwn(EXECUTION_LABEL, status)) throw new Error("不正なステータスです");
     const markVendorDone = formData.get("markVendorDone") === "on";
     const m = await prisma.vendorMeeting.findUniqueOrThrow({ where: { id } });
     await prisma.$transaction(async (tx) => {
