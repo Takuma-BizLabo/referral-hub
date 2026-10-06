@@ -5,11 +5,14 @@ import { prisma } from "@/lib/db";
 import { Badge, Card, Description, PageHeader } from "@/components/ui";
 import { HistoryList } from "@/components/HistoryList";
 import { APPROVAL_LABEL, EXECUTION_LABEL, FORMAT_LABEL, VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
-import { fmtDate, fmtDateTime, fmtReward, fmtYen, toInputDate } from "@/lib/utils";
+import { cn, fmtDate, fmtDateTime, fmtReward, fmtYen, toInputDate } from "@/lib/utils";
 import { REFERRAL_LABEL } from "@/lib/labels";
 import { formatTargetAmount, formatTargetsTotal, meetingTargets } from "@/lib/meeting-targets";
 import { proposedCompaniesForVendor } from "@/lib/saleshub/proposed";
 import { approveMeetingAction } from "../actions";
+import { advanceToContactingAction } from "../../referrals/actions";
+import { setVendorMeetingStatusAction } from "../../vendors/actions";
+import { SubmitButton } from "@/components/SubmitButton";
 import { ExecutionControls, MinutesForm, RejectForm } from "./MeetingControls";
 
 export default async function MeetingDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,6 +31,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
     orderBy: { changedAt: "desc" },
   });
   const isAdmin = user.role === "ADMIN";
+  const receivedReferrals = m.vendor.referrals.filter((r) => r.status === "RECEIVED");
 
   return (
     <div className="space-y-4">
@@ -52,6 +56,45 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
           <div className="mt-1">理由：{m.rejectReason}</div>
           <div className="mt-1 text-xs">内容を修正して「編集 → 保存」すると再申請になります。</div>
         </div>
+      )}
+
+      {m.executionStatus === "DONE" && receivedReferrals.length > 0 && (
+        <section className="rounded-xl border-2 border-blue-200 bg-blue-50/60 p-4">
+          <h2 className="font-semibold text-blue-950">次のステップ：ピックアップ受付の紹介案件を「紹介先に打診中」へ</h2>
+          <p className="text-xs text-blue-900/80 mt-1">MTGが実施済になりました。このベンダーの「ピックアップ受付」の案件 {receivedReferrals.length} 件を、紹介先への打診に進められます。</p>
+          {m.vendor.meetingStatus !== "DONE" && (
+            <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 flex flex-wrap items-center gap-2">
+              <span className="flex-1 min-w-48">ベンダーの「MTG状態」が未実施のため、このままでは打診中へ進められません。</span>
+              <form action={setVendorMeetingStatusAction}>
+                <input type="hidden" name="id" value={m.vendor.id} />
+                <input type="hidden" name="status" value="DONE" />
+                <SubmitButton className="btn-secondary btn-sm">ベンダーのMTG状態を実施済にする</SubmitButton>
+              </form>
+            </div>
+          )}
+          <form action={advanceToContactingAction} className="mt-3 space-y-2">
+            <ul className="divide-y divide-blue-100 rounded-lg border border-blue-100 bg-white">
+              {receivedReferrals.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
+                  <label className="flex items-center gap-2 min-w-0 flex-1">
+                    <input type="checkbox" name="ids" value={r.id} defaultChecked />
+                    <span className="truncate">
+                      {r.contact.company ?? "-"}
+                      <span className="text-xs text-gray-500 ml-1">{r.contact.name}</span>
+                    </span>
+                  </label>
+                  <span className={cn("text-xs whitespace-nowrap", r.rewardUndetermined && "text-amber-700 font-medium")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</span>
+                  <Link href={`/referrals/${r.id}`} className="text-xs text-blue-700 hover:underline whitespace-nowrap">
+                    詳細
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <SubmitButton className="btn-primary" pendingText="更新中..." disabled={m.vendor.meetingStatus !== "DONE"}>
+              選んだ案件を「紹介先に打診中」へ進める
+            </SubmitButton>
+          </form>
+        </section>
       )}
 
       <div className="grid gap-4 lg:grid-cols-3">

@@ -7,12 +7,14 @@ export function SubmitButton({
   className = "btn-primary",
   pendingText = "処理中...",
   confirm,
+  disabled,
   ...rest
 }: {
   children: ReactNode;
   className?: string;
   pendingText?: string;
   confirm?: string;
+  disabled?: boolean;
   name?: string;
   value?: string;
   formAction?: (formData: FormData) => void | Promise<void>;
@@ -22,7 +24,8 @@ export function SubmitButton({
     <button
       type="submit"
       className={className}
-      disabled={pending}
+      disabled={pending || disabled}
+      aria-busy={pending}
       onClick={(e) => {
         if (confirm && !window.confirm(confirm)) e.preventDefault();
       }}

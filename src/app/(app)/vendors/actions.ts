@@ -71,6 +71,8 @@ export async function setVendorMeetingStatusAction(formData: FormData) {
     });
     revalidatePath(`/vendors/${id}`);
     revalidatePath("/vendors");
+    revalidatePath("/meetings", "layout");
+    revalidatePath("/referrals", "layout");
   });
 }
 

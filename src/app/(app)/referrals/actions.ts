@@ -109,6 +109,58 @@ export async function updateReferralAction(_prev: ActionState, formData: FormDat
   redirect(`/referrals/${id}`);
 }
 
+/**
+ * 紹介ステータス変更の本体。ベンダーMTG未実施（かつ強制解除なし）なら打診中以降へ進めず "blocked" を返す。
+ */
+async function changeReferralStatus(user: { id: number }, id: number, status: ReferralStatus): Promise<"ok" | "unchanged" | "blocked"> {
+  const r = await prisma.referral.findUniqueOrThrow({ where: { id }, include: { vendor: true, contact: true } });
+  if (r.status === status) return "unchanged";
+  if (REFERRAL_REQUIRES_VENDOR_DONE.includes(status) && r.vendor.meetingStatus !== "DONE" && !r.forceUnlocked) return "blocked";
+
+  const becameDone = status === "MEETING_DONE" && r.status !== "MEETING_DONE";
+  const applyReward = becameDone && r.rewardStatus === "UNFIXED";
+  await prisma.$transaction(async (tx) => {
+    await tx.referral.update({
+      where: { id },
+      data: {
+        status,
+        statusChangedAt: new Date(),
+        ...(becameDone ? { meetingDoneAt: r.meetingDoneAt ?? new Date() } : {}),
+        ...(applyReward ? { rewardStatus: "APPLIED" } : {}),
+      },
+    });
+    await recordHistory(tx, {
+      entityType: "REFERRAL",
+      entityId: id,
+      field: "status",
+      fromValue: r.status,
+      toValue: status,
+      changedById: user.id,
+    });
+    if (applyReward) {
+      await recordHistory(tx, {
+        entityType: "REFERRAL",
+        entityId: id,
+        field: "rewardStatus",
+        fromValue: "UNFIXED",
+        toValue: "APPLIED",
+        note: "面談実施済に伴い自動で計上申請",
+        changedById: user.id,
+      });
+    }
+  });
+  if (applyReward) {
+    await notifyAdmins({
+      type: "APPROVAL_PENDING",
+      title: `【計上申請】${r.vendor.name} × ${r.contact.name} の報酬 ${fmtReward(r.rewardAmount, r.rewardUndetermined)}`,
+      body: r.rewardUndetermined ? "面談実施済になりました。単価が未定です。紹介案件で金額を入力してから承認してください。" : "面談実施済になりました。承認キューで確認してください。",
+      linkUrl: `/referrals/${id}`,
+    });
+  }
+  revalidateReferral(id, r.vendorId, r.contactId);
+  return "ok";
+}
+
 /** 紹介ステータス変更。ベンダーMTG未実施なら打診中以降へ進めない。 */
 export async function setReferralStatusAction(formData: FormData) {
   await runWithFlash(formData, async () => {
@@ -116,54 +168,32 @@ export async function setReferralStatusAction(formData: FormData) {
     const id = Number(formData.get("id"));
     const status = String(formData.get("status")) as ReferralStatus;
     if (!(status in REFERRAL_LABEL)) throw new Error("不正なステータスです");
-    const r = await prisma.referral.findUniqueOrThrow({ where: { id }, include: { vendor: true, contact: true } });
-    if (r.status === status) return;
+    const result = await changeReferralStatus(user, id, status);
+    if (result === "blocked") redirect(`/referrals/${id}?blocked=${status}`);
+  });
+}
 
-    if (REFERRAL_REQUIRES_VENDOR_DONE.includes(status) && r.vendor.meetingStatus !== "DONE" && !r.forceUnlocked) {
-      redirect(`/referrals/${id}?blocked=${status}`);
+/** ベンダーMTG実施後に「ピックアップ受付」の案件をまとめて「紹介先に打診中」へ進める */
+export async function advanceToContactingAction(formData: FormData) {
+  await runWithFlash(formData, async () => {
+    const user = await assertUser();
+    const ids = formData
+      .getAll("ids")
+      .map((v) => Number(v))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    if (ids.length === 0) throw new Error("進める紹介案件を選んでください");
+    let done = 0;
+    let blocked = 0;
+    for (const id of ids) {
+      const r = await prisma.referral.findUnique({ where: { id }, select: { status: true } });
+      if (!r || r.status !== "RECEIVED") continue; // 他の人が先に進めた場合などは触らない
+      const result = await changeReferralStatus(user, id, "CONTACTING");
+      if (result === "ok") done++;
+      if (result === "blocked") blocked++;
     }
-
-    const becameDone = status === "MEETING_DONE" && r.status !== "MEETING_DONE";
-    const applyReward = becameDone && r.rewardStatus === "UNFIXED";
-    await prisma.$transaction(async (tx) => {
-      await tx.referral.update({
-        where: { id },
-        data: {
-          status,
-          statusChangedAt: new Date(),
-          ...(becameDone ? { meetingDoneAt: r.meetingDoneAt ?? new Date() } : {}),
-          ...(applyReward ? { rewardStatus: "APPLIED" } : {}),
-        },
-      });
-      await recordHistory(tx, {
-        entityType: "REFERRAL",
-        entityId: id,
-        field: "status",
-        fromValue: r.status,
-        toValue: status,
-        changedById: user.id,
-      });
-      if (applyReward) {
-        await recordHistory(tx, {
-          entityType: "REFERRAL",
-          entityId: id,
-          field: "rewardStatus",
-          fromValue: "UNFIXED",
-          toValue: "APPLIED",
-          note: "面談実施済に伴い自動で計上申請",
-          changedById: user.id,
-        });
-      }
-    });
-    if (applyReward) {
-      await notifyAdmins({
-        type: "APPROVAL_PENDING",
-        title: `【計上申請】${r.vendor.name} × ${r.contact.name} の報酬 ${fmtReward(r.rewardAmount, r.rewardUndetermined)}`,
-        body: r.rewardUndetermined ? "面談実施済になりました。単価が未定です。紹介案件で金額を入力してから承認してください。" : "面談実施済になりました。承認キューで確認してください。",
-        linkUrl: `/referrals/${id}`,
-      });
-    }
-    revalidateReferral(id, r.vendorId, r.contactId);
+    revalidatePath("/meetings", "layout");
+    if (blocked > 0 && done === 0) throw new Error("ベンダーの「MTG状態」が実施済になっていないため進められません。ベンダー詳細でMTG状態を実施済にしてください。");
+    return { notice: `${done} 件を「紹介先に打診中」へ進めました${blocked ? `（${blocked} 件はベンダーMTG未実施のため保留）` : ""}` };
   });
 }
 
