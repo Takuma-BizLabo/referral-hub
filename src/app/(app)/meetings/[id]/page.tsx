@@ -7,7 +7,7 @@ import { HistoryList } from "@/components/HistoryList";
 import { APPROVAL_LABEL, EXECUTION_LABEL, FORMAT_LABEL, VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
 import { fmtDate, fmtDateTime, fmtReward, fmtYen, toInputDate } from "@/lib/utils";
 import { REFERRAL_LABEL } from "@/lib/labels";
-import { meetingTargets } from "@/lib/meeting-targets";
+import { formatTargetAmount, formatTargetsTotal, meetingTargets } from "@/lib/meeting-targets";
 import { proposedCompaniesForVendor } from "@/lib/saleshub/proposed";
 import { approveMeetingAction } from "../actions";
 import { ExecutionControls, MinutesForm, RejectForm } from "./MeetingControls";
@@ -21,6 +21,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
   });
   if (!m) notFound();
   const proposed = (await proposedCompaniesForVendor(m.vendor.id)).map((c) => c.company);
+  const targets = meetingTargets(m.requestNote, m.vendor.referrals, proposed, m.fee ?? m.vendor.referralFee);
   const histories = await prisma.statusHistory.findMany({
     where: { entityType: "VENDOR_MEETING", entityId: m.id },
     include: { changedBy: true },
@@ -82,6 +83,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
               { label: "実施", value: <Badge value={m.executionStatus} label={EXECUTION_LABEL[m.executionStatus]} /> },
               { label: "実施日時", value: m.doneAt ? fmtDateTime(m.doneAt) : null },
               { label: "この依頼の紹介単価（協力金）", value: m.fee !== null ? fmtYen(m.fee) : `${fmtYen(m.vendor.referralFee)}（ベンダー共通）` },
+              { label: "お繋ぎ先の合計単価", value: formatTargetsTotal(targets, m.fee ?? m.vendor.referralFee) },
               { label: "ベンダーからの依頼内容", value: m.requestNote },
               { label: "次アクション", value: m.nextAction },
               { label: "期限", value: fmtDate(m.nextActionDue) },
@@ -107,11 +109,11 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
                     </li>
                   ))}
               </ul>
-            ) : meetingTargets(m.requestNote, [], proposed).length > 0 ? (
+            ) : targets.length > 0 ? (
               <div className="text-sm">
-                {meetingTargets(m.requestNote, [], proposed).map((t) => (
-                  <span key={t} className="badge bg-indigo-50 text-indigo-800 border-indigo-200 mr-1">
-                    {t}
+                {targets.map((t) => (
+                  <span key={t.name} className="badge bg-indigo-50 text-indigo-800 border-indigo-200 mr-1">
+                    {t.name} ({formatTargetAmount(t.amount)})
                   </span>
                 ))}
                 <p className="text-xs text-gray-500 mt-2">繋がりリストに該当がないため紹介案件は未作成です。</p>

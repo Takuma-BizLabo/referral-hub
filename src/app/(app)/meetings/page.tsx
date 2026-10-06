@@ -6,8 +6,8 @@ import { StatusSelect } from "@/components/StatusSelect";
 import { VendorChips, VendorTag } from "@/components/VendorTag";
 import { CountChips } from "@/components/CountChips";
 import { APPROVAL_LABEL, EXECUTION_LABEL, EXECUTION_ORDER, FORMAT_LABEL } from "@/lib/labels";
-import { cn, fmtDate, fmtDateTime, fmtYen } from "@/lib/utils";
-import { meetingTargets } from "@/lib/meeting-targets";
+import { cn, fmtDate, fmtDateTime } from "@/lib/utils";
+import { formatTargetAmount, formatTargetsTotal, meetingTargets } from "@/lib/meeting-targets";
 import { proposedCompaniesByVendor } from "@/lib/saleshub/proposed";
 import { setExecutionStatusAction } from "./actions";
 import type { ApprovalStatus, ExecutionStatus, Prisma } from "@prisma/client";
@@ -187,23 +187,30 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                       <td>
                         <VendorTag id={m.vendor.id} name={m.vendor.name} />
                       </td>
-                      <td className="text-right whitespace-nowrap font-medium">{fmtYen(m.fee ?? m.vendor.referralFee)}</td>
-                      <td className="max-w-xs">
-                        {(() => {
-                          const targets = meetingTargets(m.requestNote, m.vendor.referrals, proposedByVendor[m.vendor.id] ?? []);
-                          return targets.length ? (
-                            <div className="flex flex-wrap gap-1">
-                              {targets.map((t) => (
-                                <span key={t} className="badge bg-indigo-50 text-indigo-800 border-indigo-200">
-                                  {t}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400">未定</span>
-                          );
-                        })()}
-                      </td>
+                      {(() => {
+                        const targets = meetingTargets(m.requestNote, m.vendor.referrals, proposedByVendor[m.vendor.id] ?? [], m.fee ?? m.vendor.referralFee);
+                        return (
+                          <>
+                            <td className={cn("text-right whitespace-nowrap font-medium", targets.some((t) => t.amount === null) && "text-amber-700")}>
+                              {formatTargetsTotal(targets, m.fee ?? m.vendor.referralFee)}
+                            </td>
+                            <td className="max-w-sm">
+                              {targets.length ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {targets.map((t) => (
+                                    <span key={t.name} className={cn("badge", t.amount === null ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-indigo-50 text-indigo-800 border-indigo-200")}>
+                                      {t.name}
+                                      <span className="ml-1 font-normal opacity-80">({formatTargetAmount(t.amount)})</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-400">未定</span>
+                              )}
+                            </td>
+                          </>
+                        );
+                      })()}
                       <td className="whitespace-nowrap">{m.assignee.name}</td>
                       <td className="whitespace-nowrap">{FORMAT_LABEL[m.format]}</td>
                       <td>
@@ -243,18 +250,25 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                         <VendorTag id={m.vendor.id} name={m.vendor.name} link={false} />
                       </Link>
                       <div className="text-xs text-gray-500 mt-1">{m.scheduledAt ? fmtDateTime(m.scheduledAt) : "日時未定"}</div>
-                      <div className="text-xs text-gray-500">
-                        {m.assignee.name} ／ {FORMAT_LABEL[m.format]} ／ {fmtYen(m.fee ?? m.vendor.referralFee)}
-                      </div>
-                      {meetingTargets(m.requestNote, m.vendor.referrals, proposedByVendor[m.vendor.id] ?? []).length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {meetingTargets(m.requestNote, m.vendor.referrals, proposedByVendor[m.vendor.id] ?? []).map((t) => (
-                            <span key={t} className="badge bg-indigo-50 text-indigo-800 border-indigo-200">
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      {(() => {
+                        const targets = meetingTargets(m.requestNote, m.vendor.referrals, proposedByVendor[m.vendor.id] ?? [], m.fee ?? m.vendor.referralFee);
+                        return (
+                          <>
+                            <div className="text-xs text-gray-500">
+                              {m.assignee.name} ／ {FORMAT_LABEL[m.format]} ／ 合計 {formatTargetsTotal(targets, m.fee ?? m.vendor.referralFee)}
+                            </div>
+                            {targets.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {targets.map((t) => (
+                                  <span key={t.name} className={cn("badge", t.amount === null ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-indigo-50 text-indigo-800 border-indigo-200")}>
+                                    {t.name} ({formatTargetAmount(t.amount)})
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                       <div className="flex items-center justify-between mt-2 gap-1">
                         <Badge value={m.approvalStatus} label={APPROVAL_LABEL[m.approvalStatus]} />
                         <StatusSelect
