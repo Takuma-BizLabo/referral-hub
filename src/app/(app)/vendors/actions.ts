@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { assertUser } from "@/lib/auth";
 import { recordHistory } from "@/lib/history";
 import { errorState, type ActionState } from "@/lib/action-state";
-import { num, str } from "@/lib/utils";
+import { money, str } from "@/lib/utils";
 import type { VendorMeetingStatus } from "@prisma/client";
 
 function vendorData(formData: FormData) {
@@ -18,7 +18,7 @@ function vendorData(formData: FormData) {
     contactEmail: str(formData.get("contactEmail")),
     contactPhone: str(formData.get("contactPhone")),
     serviceSummary: str(formData.get("serviceSummary")),
-    referralFee: num(formData.get("referralFee")),
+    referralFee: money(formData.get("referralFee")),
     saleshubUrl: str(formData.get("saleshubUrl")),
     memo: str(formData.get("memo")),
   };

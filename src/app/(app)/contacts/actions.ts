@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { assertUser } from "@/lib/auth";
 import { errorState, type ActionState } from "@/lib/action-state";
 import { str } from "@/lib/utils";
-import { findDuplicate, parseBool, parseTags, writeContact, type ContactInput } from "@/lib/contacts";
+import { findDuplicate, normalizeCompany, normalizeName, parseBool, parseTags, writeContact, type ContactInput } from "@/lib/contacts";
 
 function contactInput(formData: FormData): ContactInput {
   const name = str(formData.get("name"));
@@ -110,6 +110,12 @@ export async function importContactsAction(
     updated = 0,
     skipped = 0;
   const errors: string[] = [];
+  // このCSV内で既に登録した行（同じファイルに同じ人が2回載っている場合の重複防止）
+  const seenInFile = new Set<string>();
+  const fileKeys = (name: string, company: string | null, email: string | null) => [
+    email ? `e:${email.trim().toLowerCase()}` : null,
+    `n:${normalizeName(name)}|${normalizeCompany(company)}`,
+  ].filter((k): k is string => !!k);
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const name = r.name?.trim();
@@ -137,6 +143,13 @@ export async function importContactsAction(
       relationMemo: r.relationMemo?.trim() || null,
       tags: parseTags(r.tags),
     };
+    // 重複確認で「両方登録」を選んだ行以外は、ファイル内の先行行と重複していたらスキップ
+    const keys = fileKeys(name, input.company, input.email);
+    if (d?.decision !== "create" && keys.some((k) => seenInFile.has(k))) {
+      errors.push(`${i + 1}行目: このファイル内の別の行と重複しているためスキップ（${name}）`);
+      skipped++;
+      continue;
+    }
     try {
       if (d?.decision === "overwrite" && d.existingId) {
         await prisma.$transaction((tx) => writeContact(tx, input, d.existingId));
@@ -145,6 +158,7 @@ export async function importContactsAction(
         await prisma.$transaction((tx) => writeContact(tx, input));
         created++;
       }
+      keys.forEach((k) => seenInFile.add(k));
     } catch (e) {
       errors.push(`${i + 1}行目: ${e instanceof Error ? e.message : "エラー"}`);
     }

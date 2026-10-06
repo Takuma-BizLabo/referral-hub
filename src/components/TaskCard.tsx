@@ -31,7 +31,7 @@ export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; 
               <span className={cn("badge", task.important ? "bg-rose-100 text-rose-800 border-rose-200" : "bg-blue-50 text-blue-800 border-blue-200")}>{task.important ? "重要" : "未完了"}</span>
             )}
             {overdue && <span className="badge bg-rose-600 text-white border-rose-600">期限超過</span>}
-            <h3 className={cn("font-semibold text-gray-900 text-base", task.status === "DONE" && "line-through text-gray-500")}>{task.title}</h3>
+            <h3 className={cn("font-semibold text-gray-900 text-base break-words min-w-0", task.status === "DONE" && "line-through text-gray-500")}>{task.title}</h3>
           </div>
           <div className="text-xs text-gray-500 mt-1">
             {task.requester.name} → <span className={cn("font-medium", mine && task.status === "OPEN" && "text-rose-700")}>{task.assignee.name}{mine ? "（あなた）" : ""}</span>
@@ -45,7 +45,7 @@ export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; 
           </Link>
         )}
       </div>
-      {task.body && <p className="text-sm text-gray-800 whitespace-pre-wrap mt-3">{task.body}</p>}
+      {task.body && <p className="text-sm text-gray-800 whitespace-pre-wrap break-words mt-3">{task.body}</p>}
       {task.status === "DONE" && (
         <div className="mt-3 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-sm text-emerald-900">
           {fmtDateTime(task.doneAt)} に {task.assignee.name} が完了{task.doneComment ? `：${task.doneComment}` : ""}

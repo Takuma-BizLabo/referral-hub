@@ -7,7 +7,7 @@ import { assertAdmin, assertUser } from "@/lib/auth";
 import { recordHistory } from "@/lib/history";
 import { notifyAdmins } from "@/lib/notifications";
 import { errorState, type ActionState } from "@/lib/action-state";
-import { fmtReward, num, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
+import { fmtReward, money, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
 import { REFERRAL_LABEL, REFERRAL_REQUIRES_VENDOR_DONE, REWARD_LABEL } from "@/lib/labels";
 import type { MeetingFormat, ReferralStatus, RewardStatus } from "@prisma/client";
 
@@ -58,9 +58,8 @@ export async function createReferralAction(_prev: ActionState, formData: FormDat
         };
       }
     }
-    const rewardRaw = str(formData.get("rewardAmount"));
     const rewardUndetermined = formData.get("rewardUndetermined") === "on";
-    const rewardAmount = rewardUndetermined ? 0 : rewardRaw === null ? vendor.referralFee : num(rewardRaw, vendor.referralFee);
+    const rewardAmount = rewardUndetermined ? 0 : money(formData.get("rewardAmount"), vendor.referralFee);
     const r = await prisma.$transaction(async (tx) => {
       const created = await tx.referral.create({
         data: {
@@ -99,7 +98,7 @@ export async function updateReferralAction(_prev: ActionState, formData: FormDat
       ...meetingFields(formData),
       pickedUpAt: parseDateInput(formData.get("pickedUpAt")) ?? before.pickedUpAt,
       rewardUndetermined: formData.get("rewardUndetermined") === "on",
-      rewardAmount: formData.get("rewardUndetermined") === "on" ? 0 : num(formData.get("rewardAmount"), before.rewardAmount),
+      rewardAmount: formData.get("rewardUndetermined") === "on" ? 0 : money(formData.get("rewardAmount"), before.rewardAmount),
     };
     await prisma.referral.update({ where: { id }, data });
     revalidateReferral(id, before.vendorId, before.contactId);
@@ -255,6 +254,14 @@ export async function setRewardStatusAction(formData: FormData) {
     if ((status === "APPROVED" || (r.rewardStatus === "APPROVED" && status === "APPLIED")) && user.role !== "ADMIN") {
       throw new Error("報酬の承認・取消は管理者のみ行えます");
     }
+    // 承認を飛ばした請求・入金は管理者のみ（商談担当者が「計上申請」から直接「請求済」「入金済」へ進めない）
+    if ((status === "INVOICED" || status === "PAID") && (r.rewardStatus === "UNFIXED" || r.rewardStatus === "APPLIED") && user.role !== "ADMIN") {
+      throw new Error("管理者の承認（計上確定）が済んでいないため、請求済・入金済にはできません");
+    }
+    // 単価が未定（または0円）の報酬は、承認・請求・入金のいずれにも進められない
+    if ((status === "APPROVED" || status === "INVOICED" || status === "PAID") && (r.rewardUndetermined || r.rewardAmount <= 0)) {
+      throw new Error("報酬額が未定です。紹介案件で金額を入力してから進めてください");
+    }
     const now = new Date();
     await prisma.$transaction(async (tx) => {
       await tx.referral.update({
@@ -287,7 +294,7 @@ export async function saveRewardAction(_prev: ActionState, formData: FormData): 
     await prisma.referral.update({
       where: { id },
       data: {
-        rewardAmount: formData.get("rewardUndetermined") === "on" ? 0 : num(formData.get("rewardAmount"), r.rewardAmount),
+        rewardAmount: formData.get("rewardUndetermined") === "on" ? 0 : money(formData.get("rewardAmount"), r.rewardAmount),
         rewardUndetermined: formData.get("rewardUndetermined") === "on",
         invoicedAt: parseDateInput(formData.get("invoicedAt")),
         paymentDueAt: parseDateInput(formData.get("paymentDueAt")),

@@ -82,3 +82,24 @@ export function yearMonthOf(d: Date) {
 export function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
+
+/** 金額（円）の入力値。空なら fallback。負の値・DB の整数上限を超える値はエラー */
+export const MAX_YEN = 2_000_000_000;
+export function money(v: FormDataEntryValue | null, fallback = 0): number {
+  const n = num(v, fallback);
+  if (!Number.isInteger(n)) throw new Error("金額は整数で入力してください");
+  if (n < 0 || n > MAX_YEN) throw new Error("金額は 0〜2,000,000,000 円の範囲で入力してください");
+  return n;
+}
+
+/** 関連ページURLとして使ってよい値か（アプリ内パス、または http(s) の URL）。javascript: などは不可 */
+export function safeLinkUrl(v: string | null): string | null {
+  if (!v) return null;
+  if (v.startsWith("/") && !v.startsWith("//") && !v.startsWith("/\\")) return v;
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:" ? v : null;
+  } catch {
+    return null;
+  }
+}

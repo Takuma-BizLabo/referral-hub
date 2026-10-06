@@ -91,19 +91,27 @@ export function ImportWizard() {
       return;
     }
     start(async () => {
-      const d = await checkDuplicatesAction(rows);
-      setDups(d);
-      const init: Record<number, ImportDecision> = {};
-      for (const x of d) init[x.index] = "skip";
-      setDecisions(init);
+      try {
+        const d = await checkDuplicatesAction(rows);
+        setDups(d);
+        const init: Record<number, ImportDecision> = {};
+        for (const x of d) init[x.index] = "skip";
+        setDecisions(init);
+      } catch (e) {
+        setError(`重複の確認に失敗しました。${e instanceof Error ? e.message : ""}（ファイルが大きすぎる場合は分割してください）`);
+      }
     });
   };
 
   const runImport = () => {
     start(async () => {
-      const decs = (dups ?? []).map((d) => ({ index: d.index, decision: decisions[d.index] ?? "skip", existingId: d.existingId }));
-      const r = await importContactsAction(rows, decs);
-      setResult(r);
+      try {
+        const decs = (dups ?? []).map((d) => ({ index: d.index, decision: decisions[d.index] ?? "skip", existingId: d.existingId }));
+        const r = await importContactsAction(rows, decs);
+        setResult(r);
+      } catch (e) {
+        setError(`取込に失敗しました。${e instanceof Error ? e.message : ""}（ファイルが大きすぎる場合は分割してください）`);
+      }
     });
   };
 
@@ -202,7 +210,7 @@ export function ImportWizard() {
               </tbody>
             </table>
           </div>
-          <ErrorMessage message={error} />
+          <ErrorMessage message={dups ? null : error} />
           <div className="mt-4">
             <button className="btn-primary" onClick={runCheck} disabled={pending}>
               {pending && !dups ? "確認中..." : "3. 重複を確認する"}
@@ -253,6 +261,7 @@ export function ImportWizard() {
               </table>
             </div>
           )}
+          <ErrorMessage message={dups ? error : null} />
           <div className="mt-4 flex items-center gap-3">
             <button className="btn-primary" onClick={runImport} disabled={pending}>
               {pending ? "取込中..." : `4. ${rows.length} 行を取り込む`}

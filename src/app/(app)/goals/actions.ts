@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { assertAdmin } from "@/lib/auth";
 import { errorState, type ActionState } from "@/lib/action-state";
-import { num } from "@/lib/utils";
+import { money as num } from "@/lib/utils";
 
 export async function saveGoalsAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   try {

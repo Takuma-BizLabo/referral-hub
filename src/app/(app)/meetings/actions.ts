@@ -7,7 +7,7 @@ import { assertAdmin, assertUser } from "@/lib/auth";
 import { recordHistory } from "@/lib/history";
 import { notify, notifyAdmins } from "@/lib/notifications";
 import { errorState, type ActionState } from "@/lib/action-state";
-import { fmtDateTime, int, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
+import { fmtDateTime, int, MAX_YEN, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
 import type { ExecutionStatus, MeetingFormat } from "@prisma/client";
 import { EXECUTION_LABEL } from "@/lib/labels";
 
@@ -17,6 +17,9 @@ function meetingData(formData: FormData) {
   if (!vendorId) throw new Error("ベンダーを選んでください");
   if (!assigneeId) throw new Error("商談担当者を選んでください");
   const format = (str(formData.get("format")) ?? "ONLINE") as MeetingFormat;
+  if (format !== "ONLINE" && format !== "VISIT") throw new Error("形式が不正です");
+  const fee = int(formData.get("fee"));
+  if (fee !== null && (fee < 0 || fee > MAX_YEN)) throw new Error("紹介単価は 0〜2,000,000,000 円の範囲で入力してください");
   return {
     vendorId,
     assigneeId,
@@ -26,7 +29,7 @@ function meetingData(formData: FormData) {
     nextAction: str(formData.get("nextAction")),
     nextActionDue: parseDateInput(formData.get("nextActionDue")),
     requestNote: str(formData.get("requestNote")),
-    fee: int(formData.get("fee")),
+    fee,
   };
 }
 
@@ -45,6 +48,7 @@ export async function createMeetingAction(_prev: ActionState, formData: FormData
     const user = await assertUser();
     const data = meetingData(formData);
     const executionStatus = (str(formData.get("executionStatus")) ?? "SCHEDULING") as ExecutionStatus;
+    if (!(executionStatus in EXECUTION_LABEL)) throw new Error("不正なステータスです");
     const m = await prisma.$transaction(async (tx) => {
       const created = await tx.vendorMeeting.create({
         data: { ...data, executionStatus, approvalStatus: "PENDING" },
@@ -198,6 +202,7 @@ export async function approveMeetingAction(formData: FormData) {
     const admin = await assertAdmin();
     const id = Number(formData.get("id"));
     const m = await prisma.vendorMeeting.findUniqueOrThrow({ where: { id }, include: { vendor: true } });
+    if (m.approvalStatus === "APPROVED") return; // 二重クリック・同時承認で通知と履歴が重複しないように
     await prisma.$transaction(async (tx) => {
       await tx.vendorMeeting.update({ where: { id }, data: { approvalStatus: "APPROVED", rejectReason: null } });
       await recordHistory(tx, {

@@ -6,7 +6,9 @@ import { toInputDate } from "@/lib/utils";
 import type { Prisma, RewardStatus } from "@prisma/client";
 
 function csvCell(v: string | number | null | undefined) {
-  const s = v === null || v === undefined ? "" : String(v);
+  let s = v === null || v === undefined ? "" : String(v);
+  // Excel で開いたときに数式として実行されないよう、= + - @ で始まる文字列には ' を付ける（数値は対象外）
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

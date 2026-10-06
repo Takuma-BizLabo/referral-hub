@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { assertUser } from "@/lib/auth";
 import { notify } from "@/lib/notifications";
 import { errorState, type ActionState } from "@/lib/action-state";
-import { fmtDate, parseDateInput, str } from "@/lib/utils";
+import { fmtDate, parseDateInput, safeLinkUrl, str } from "@/lib/utils";
 
 function revalidateTasks() {
   revalidatePath("/tasks");
@@ -18,6 +18,10 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
     const title = str(formData.get("title"));
     const assigneeId = Number(formData.get("assigneeId"));
     if (!title) throw new Error("タイトルを入力してください");
+    if (title.length > 200) throw new Error("タイトルは200文字以内にしてください");
+    const linkRaw = str(formData.get("linkUrl"));
+    const linkUrl = safeLinkUrl(linkRaw);
+    if (linkRaw && !linkUrl) throw new Error("関連ページURLは「/meetings/12」のようなパス、または http(s):// から始まるURLで入力してください");
     if (!assigneeId) throw new Error("宛先を選んでください");
     const assignee = await prisma.user.findFirst({ where: { id: assigneeId, isActive: true } });
     if (!assignee) throw new Error("宛先のユーザーが見つかりません");
@@ -29,7 +33,7 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
         assigneeId,
         important: formData.get("important") === "on",
         dueDate: parseDateInput(formData.get("dueDate")),
-        linkUrl: str(formData.get("linkUrl")),
+        linkUrl,
       },
     });
     if (assigneeId !== me.id) {
@@ -56,7 +60,9 @@ export async function completeTaskAction(formData: FormData) {
     const task = await prisma.task.findUniqueOrThrow({ where: { id }, include: { requester: true, assignee: true } });
     if (task.assigneeId !== me.id && task.requesterId !== me.id && me.role !== "ADMIN") throw new Error("このタスクを完了にする権限がありません");
     if (task.status === "DONE") return;
-    await prisma.task.update({ where: { id }, data: { status: "DONE", doneAt: new Date(), doneComment: comment } });
+    // 同時に2人が完了を押しても、通知が二重に出ないよう「未完了のものだけ」更新する
+    const upd = await prisma.task.updateMany({ where: { id, status: "OPEN" }, data: { status: "DONE", doneAt: new Date(), doneComment: comment } });
+    if (upd.count === 0) return;
     if (task.requesterId !== me.id) {
       await notify({
         userId: task.requesterId,
@@ -76,7 +82,9 @@ export async function reopenTaskAction(formData: FormData) {
     const id = Number(formData.get("id"));
     const task = await prisma.task.findUniqueOrThrow({ where: { id } });
     if (task.assigneeId !== me.id && task.requesterId !== me.id && me.role !== "ADMIN") throw new Error("権限がありません");
-    await prisma.task.update({ where: { id }, data: { status: "OPEN", doneAt: null, doneComment: null } });
+    if (task.status === "OPEN") return;
+    const upd = await prisma.task.updateMany({ where: { id, status: "DONE" }, data: { status: "OPEN", doneAt: null, doneComment: null } });
+    if (upd.count === 0) return;
     if (task.assigneeId !== me.id) {
       await notify({ userId: task.assigneeId, type: "TASK_ASSIGNED", title: `【再開】${me.name} がタスクを未完了に戻しました: ${task.title}`, linkUrl: `/tasks?focus=${task.id}` });
     }

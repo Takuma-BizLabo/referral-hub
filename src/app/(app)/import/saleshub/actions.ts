@@ -6,7 +6,7 @@ import { assertUser } from "@/lib/auth";
 import { recordHistory } from "@/lib/history";
 import { notify, notifyAdmins } from "@/lib/notifications";
 import { errorState, type ActionState } from "@/lib/action-state";
-import { num, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
+import { money, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
 import { normalizeCompanyName, parseSaleshubText, type ParsedSaleshub } from "@/lib/saleshub-parse";
 import type { MeetingFormat } from "@prisma/client";
 
@@ -71,7 +71,7 @@ export async function registerSaleshubAction(_prev: ActionState, formData: FormD
           data: {
             name: vendorName,
             contactName: str(formData.get("vendorContactName")),
-            referralFee: num(formData.get("referralFee")),
+            referralFee: money(formData.get("referralFee")),
             saleshubUrl: str(formData.get("saleshubUrl")),
             serviceSummary: str(formData.get("serviceSummary")),
           },
@@ -115,6 +115,8 @@ export async function registerSaleshubAction(_prev: ActionState, formData: FormD
       const pickupNote = str(formData.get("pickupNote"));
       const referralIds: number[] = [];
       for (const contactId of contactIds) {
+        // 同じベンダー×繋がりの紹介案件が既にあれば作らない（二重送信・再取込での重複防止）
+        if (await tx.referral.findFirst({ where: { vendorId, contactId }, select: { id: true } })) continue;
         const r = await tx.referral.create({
           data: { vendorId, contactId, rewardAmount: vendor.referralFee, pickupNote, memo: "セールスハブ取込" },
         });
