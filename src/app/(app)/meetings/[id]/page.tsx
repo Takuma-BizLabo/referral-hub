@@ -140,14 +140,16 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      <Card title="議事メモ・次アクション">
-        <MinutesForm
-          id={m.id}
-          minutes={m.minutes ?? ""}
-          nextAction={m.nextAction ?? ""}
-          nextActionDue={toInputDate(m.nextActionDue)}
-        />
-      </Card>
+      <div id="minutes" className="scroll-mt-16">
+        <Card title="議事メモ・次アクション">
+          <MinutesForm
+            id={m.id}
+            minutes={m.minutes ?? ""}
+            nextAction={m.nextAction ?? ""}
+            nextActionDue={toInputDate(m.nextActionDue)}
+          />
+        </Card>
+      </div>
 
       <Card title="変更履歴">
         <HistoryList histories={histories} />
