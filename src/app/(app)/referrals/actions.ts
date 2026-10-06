@@ -268,7 +268,8 @@ export async function setRewardStatusAction(formData: FormData) {
         where: { id },
         data: {
           rewardStatus: status,
-          ...(status === "APPROVED" && !r.rewardApprovedAt ? { rewardApprovedAt: now } : {}),
+          // 管理者が承認を飛ばして請求済・入金済にした場合も、月次の計上集計に載るよう承認日時を入れる
+          ...((status === "APPROVED" || status === "INVOICED" || status === "PAID") && !r.rewardApprovedAt ? { rewardApprovedAt: now } : {}),
           ...(status === "INVOICED" && !r.invoicedAt ? { invoicedAt: now } : {}),
           ...(status === "PAID" && !r.paidAt ? { paidAt: now } : {}),
         },

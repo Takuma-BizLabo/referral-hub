@@ -16,9 +16,11 @@ export type ParsedSaleshub = {
 const COMPANY_RE = /((?:株式会社|有限会社|合同会社|一般社団法人)[^\s\/／（(、。]+|[^\s\/／（(、。]+(?:株式会社|有限会社|合同会社|Inc\.?|Co\.,? ?Ltd\.?))/g;
 
 export function parseSaleshubText(text: string): ParsedSaleshub {
+  // 極端に長い行は正規表現が二次的に遅くなるため、1行2000文字・全体20万文字で打ち切る
   const lines = text
+    .slice(0, 200_000)
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map((l) => l.trim().slice(0, 2000))
     .filter(Boolean);
 
   const result: ParsedSaleshub = {

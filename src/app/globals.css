@@ -27,6 +27,14 @@ body {
     "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans JP", sans-serif;
 }
 
+/* グリッドの子要素は既定で min-width:auto のため、横スクロールするタブ列や長い文字列があると
+   スマホ幅でカードが画面の外へはみ出す。子要素の最小幅を 0 にしてグリッド幅に収める。 */
+@layer base {
+  .grid > * {
+    min-width: 0;
+  }
+}
+
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-1 rounded-lg border px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed;

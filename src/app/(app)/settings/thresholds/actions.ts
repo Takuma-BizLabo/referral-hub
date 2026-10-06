@@ -12,8 +12,9 @@ export async function saveThresholdsAction(_prev: ActionState, formData: FormDat
     const stagnation = num(formData.get("stagnationDays"), 7);
     const hour = num(formData.get("dailyDigestHour"), 8);
     const minutesHours = num(formData.get("minutesMissingHours"), 24);
-    if (stagnation < 1 || stagnation > 90) throw new Error("停滞日数は1〜90で指定してください");
-    if (hour < 0 || hour > 23) throw new Error("通知時刻は0〜23で指定してください");
+    if (!Number.isInteger(stagnation) || stagnation < 1 || stagnation > 90) throw new Error("停滞日数は1〜90の整数で指定してください");
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) throw new Error("通知時刻は0〜23の整数で指定してください");
+    if (!Number.isInteger(minutesHours) || minutesHours < 1 || minutesHours > 720) throw new Error("議事メモの猶予時間は1〜720の整数で指定してください");
     await setSetting("stagnationDays", String(stagnation));
     await setSetting("dailyDigestHour", String(hour));
     await setSetting("minutesMissingHours", String(minutesHours));
