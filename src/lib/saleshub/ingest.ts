@@ -1,6 +1,6 @@
 import { prisma } from "../db";
 import { notify, notifyAdmins } from "../notifications";
-import { setSetting } from "../settings";
+import { getSettingRaw, setSetting } from "../settings";
 import { applyRules } from "./rules";
 import { formatThreadAsText, messageKey, normalizeCompanyName, parseProposalFee, parseThreadList, parseThreadMessages } from "./parse";
 import { format } from "date-fns";
@@ -43,6 +43,7 @@ export async function ingestFromExtension(payload: IngestPayload): Promise<Inges
 
   const firstRun = (await prisma.saleshubMessage.count()) === 0;
   const needDetails: string[] = [];
+  const needFeeOnly: string[] = []; // 協力金だけ取り直したいスレッド（優先度は低い）
   let threadsCount = 0;
   let newMessages = 0;
 
@@ -50,6 +51,11 @@ export async function ingestFromExtension(payload: IngestPayload): Promise<Inges
   if (payload.listHtml) {
     const threads = parseThreadList(payload.listHtml);
     threadsCount = threads.length;
+    // 初回同期：拡張は1回に最大15スレッドずつ詳細を送るので、スレッドが多いと過去分の取り込みが複数回に分かれる。
+    // 最初の一覧に載っていたスレッドを覚えておき、その過去分は後の回でも「初回分（通知なし）」として扱う。
+    if (threads.length > 0 && (await prisma.saleshubThread.count()) === 0) {
+      await setSetting("saleshub.backfill", JSON.stringify(threads.map((t) => t.proposalId)));
+    }
     const vendors = await prisma.vendor.findMany({ where: { isActive: true } });
     // 既存スレッドとメッセージ件数はまとめて取得する（スレッドごとの問い合わせをしない）
     const existingRows = await prisma.saleshubThread.findMany({ where: { proposalId: { in: threads.map((t) => t.proposalId) } } });
@@ -74,15 +80,30 @@ export async function ingestFromExtension(payload: IngestPayload): Promise<Inges
         create: { proposalId: t.proposalId, vendorName: t.vendorName, requestTitle: t.requestTitle, lastSnippet: t.lastSnippet, vendorId: vendorMatch },
       });
       const msgCount = existing ? (countBy.get(existing.id) ?? 0) : 0;
-      if (!existing || existing.lastSnippet !== t.lastSnippet || msgCount === 0 || existing.fee === null) needDetails.push(t.proposalId);
+      if (!existing || existing.lastSnippet !== t.lastSnippet || msgCount === 0) needDetails.push(t.proposalId);
+      else if (existing.fee === null) needFeeOnly.push(t.proposalId);
     }
+    // 新着の可能性があるスレッドを先に（拡張は先頭から15件だけ取りに行く）
+    needDetails.push(...needFeeOnly);
   }
 
   // ---- 詳細 ----
   const users = await prisma.user.findMany({ where: { isActive: true } });
+  let backfillIds: Set<string> | null = null;
+  if (payload.details?.length) {
+    try {
+      backfillIds = new Set(JSON.parse((await getSettingRaw("saleshub.backfill")) ?? "[]") as string[]);
+    } catch {
+      backfillIds = new Set();
+    }
+  }
+  const backfillBefore = backfillIds?.size ?? 0;
   for (const d of payload.details ?? []) {
     const thread = await prisma.saleshubThread.findUnique({ where: { proposalId: d.proposalId } });
     if (!thread) continue;
+    // 初回同期の過去分（通知を出さない）か。最初の一覧に載っていて、まだ1件も取り込んでいないスレッドも含む
+    const backfill = firstRun || (!!backfillIds?.has(d.proposalId) && (await prisma.saleshubMessage.count({ where: { threadId: thread.id } })) === 0);
+    backfillIds?.delete(d.proposalId);
     const parsed = parseThreadMessages(d.html);
     // 依頼ページの協力金（紹介単価）
     const fee = parseProposalFee(d.html);
@@ -117,7 +138,7 @@ export async function ingestFromExtension(payload: IngestPayload): Promise<Inges
             isMine: m.isMine,
             sentAt: m.sentAt,
             body: m.body,
-            notifiedAt: firstRun || m.isMine ? now : null,
+            notifiedAt: backfill || m.isMine ? now : null,
           },
         });
       } catch (e) {
@@ -156,12 +177,13 @@ export async function ingestFromExtension(payload: IngestPayload): Promise<Inges
       const all = await prisma.saleshubMessage.findMany({ where: { threadId: thread.id }, orderBy: { sentAt: "asc" } });
       const fresh = await prisma.saleshubThread.findUniqueOrThrow({ where: { id: thread.id } });
       try {
-        await applyRules(fresh, firstRun ? all : created, all, { quiet: firstRun });
+        await applyRules(fresh, backfill ? all : created, all, { quiet: backfill });
       } catch (e) {
         console.error("[saleshub] rules error", e);
       }
     }
   }
+  if (backfillIds && backfillIds.size !== backfillBefore) await setSetting("saleshub.backfill", JSON.stringify([...backfillIds]));
   return { ok: true, needDetails, threads: threadsCount, newMessages };
 }
 
