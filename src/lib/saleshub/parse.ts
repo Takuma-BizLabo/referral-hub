@@ -136,29 +136,63 @@ export function looksLikeMeetingRequest(body: string) {
 
 export const COMPANY_RE = /((?:株式会社|有限会社|合同会社|一般社団法人|公益財団法人)[^\s\/／（(、。,．「」『』]+|[^\s\/／（(、。,．「」『』]{1,30}?(?:株式会社|有限会社|合同会社|ホールディングス|Inc\.?|Co\.,? ?Ltd\.?))/g;
 
+const LEGAL_PREFIX_RE = /^(株式会社|有限会社|合同会社|一般社団法人|公益財団法人)/;
+const LEGAL_SUFFIX_RE = /(株式会社|有限会社|合同会社|ホールディングス|Inc\.?|Co\.,? ?Ltd\.?)$/;
+
+/**
+ * 法人格のない会社名（「カネ美食品さまの件」など）。業種を表す語で終わり、直後に敬称が付くものだけを拾う。
+ * 人名（「松田さま」）を拾わないよう、業種語で終わることを必須にしている。
+ */
+const INDUSTRY_NAME_RE =
+  /([一-龯々ァ-ヶーA-Za-z0-9・&]{1,20}?(?:食品|工業|商事|物産|製作所|製薬|化学|電機|電気|電工|建設|工務店|不動産|産業|興業|技研|銀行|証券|保険|生命|運輸|物流|倉庫|自動車|鉄道|航空|商会|商店|印刷|出版|新聞|放送|百貨店|製菓|酒造|製紙|鉄鋼|重工|精機|薬品|ホールディングス|グループ|ジャパン))(?=さま|様|さん|社|御中|殿)/g;
+
+/** 自社・相手を指す語（会社名として扱わない） */
+const SELF_WORD_RE = /^(弊社|御社|貴社|当社|同社|他社|各社|自社)/;
+
 /** 本文中の会社名候補（「株式会社○○ / 部署(役職)」の部署情報付き） */
 export function extractCompanies(body: string, exclude: string[] = []): { company: string; dept: string | null }[] {
   const out: { company: string; dept: string | null }[] = [];
   const ex = exclude.map(normalizeCompanyName);
+  const add = (line: string, raw: string) => {
+    const name = trimCompanyTail(trimCompanyHead(raw.trim()));
+    if (SELF_WORD_RE.test(name) && !LEGAL_SUFFIX_RE.test(name)) return;
+    const n = normalizeCompanyName(name);
+    if (!n || n.length < 2) return;
+    if (ex.some((e) => e && (n === e || n.includes(e) || e.includes(n)))) return;
+    if (out.some((o) => {
+      const on = normalizeCompanyName(o.company);
+      return on === n || on.includes(n) || n.includes(on);
+    })) return;
+    const after = line.slice(line.indexOf(name) + name.length);
+    const dept = after.match(/[\/／]\s*([^\s、。]+)/)?.[1] ?? null;
+    out.push({ company: name, dept });
+  };
   for (const line of body.split("\n")) {
-    const matches = line.match(COMPANY_RE);
-    if (!matches) continue;
-    for (const c of matches) {
-      const name = trimCompanyTail(c.trim());
-      const n = normalizeCompanyName(name);
-      if (!n || n.length < 2) continue;
-      if (ex.some((e) => e && (n === e || n.includes(e) || e.includes(n)))) continue;
-      if (out.some((o) => normalizeCompanyName(o.company) === n)) continue;
-      const after = line.slice(line.indexOf(name) + name.length);
-      const dept = after.match(/[\/／]\s*([^\s、。]+)/)?.[1] ?? null;
-      out.push({ company: name, dept });
-    }
+    for (const c of line.match(COMPANY_RE) ?? []) add(line, c);
+    for (const c of line.match(INDUSTRY_NAME_RE) ?? []) add(line, c);
   }
   return out;
 }
 
+/**
+ * 「弊社はアデコ株式会社」のように、法人格が後ろに付く会社名の前に文が付いてしまった場合に切り落とす。
+ * 直前が漢字・カタカナなどの「は・が・を・へ・から・より・では・には・とは・、」で区切る
+ * （「がくまるくん株式会社」のように先頭がひらがなの社名は切らない）。
+ */
+export function trimCompanyHead(name: string) {
+  if (LEGAL_PREFIX_RE.test(name)) return name;
+  const re = /(?<=[一-龯々ァ-ヶーA-Za-z0-9])(?:は|が|を|へ|から|より|では|には|とは)|[、。:：」』）)]/g;
+  let cut = -1;
+  for (const m of name.matchAll(re)) cut = m.index! + m[0].length;
+  if (cut <= 0) return name;
+  const rest = name.slice(cut);
+  return normalizeCompanyName(rest).length >= 2 ? rest : name;
+}
+
 /** 「株式会社○○さまもご興味…」のように後続の助詞・敬称まで拾った場合に切り落とす */
 export function trimCompanyTail(name: string) {
+  // 法人格で終わる社名（「ほけんの窓口グループ株式会社」）は途中の助詞で切らない
+  if (LEGAL_SUFFIX_RE.test(name) && !LEGAL_PREFIX_RE.test(name)) return name;
   const m = name.match(/^(株式会社|有限会社|合同会社|一般社団法人|公益財団法人)?(.*)$/);
   if (!m) return name;
   const prefix = m[1] ?? "";
@@ -177,41 +211,68 @@ export function normalizeCompanyName(s: string) {
 }
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+const DOW = "[月火水木金土日]";
+/** 時刻: 11:40 / 午前11:00 / 15時 / 13時半 / 9時30分 */
+const TIME = String.raw`(午前|午後|AM|PM)?\s*(\d{1,2})(?::(\d{2})|時(?:\s*(\d{1,2})\s*分|(半))?)`;
+
+type TimeMatch = { h: number; mi: number } | null;
+function readTime(ampm: string | undefined, h: string, m1: string | undefined, m2: string | undefined, han: string | undefined): TimeMatch {
+  let hh = Number(h);
+  const mi = m1 !== undefined ? Number(m1) : m2 !== undefined ? Number(m2) : han ? 30 : 0;
+  if (ampm && /午後|PM/i.test(ampm) && hh < 12) hh += 12;
+  if (ampm && /午前|AM/i.test(ampm) && hh === 12) hh = 0;
+  if (hh > 23 || mi > 59) return null;
+  return { h: hh, mi };
+}
 
 /**
  * 本文から打ち合わせ日時を読み取る（JST）。例:
  *  "10月9日（金）11:40-12:10" / "10/13 16:00-" / "13日16:00-" / "木曜日 · 午前11:00～11:30" / "明日15時"
+ *  "来週火曜 14:00" / "今週金曜 10時" / "2027年1月8日 9:30" / 全角数字
  * base は発言日時。見つからなければ null。
+ * 年の省略時は、発言日の45日前以降で最も近い年を採る（12月の発言で「1月5日」→翌年、1月の発言で「12/30」→前年）。
  */
 export function extractMeetingDateTime(body: string, base: Date): Date | null {
+  const text = body.normalize("NFKC"); // 全角数字・全角コロン・全角括弧を半角に
   const jst = new Date(base.getTime() + 9 * 3600 * 1000); // JST 基準の年月日計算用
   const baseY = jst.getUTCFullYear();
   const baseM = jst.getUTCMonth(); // 0-based
   const baseD = jst.getUTCDate();
   const baseDow = jst.getUTCDay();
 
-  const time = (h: number, mi: number, ampm?: string) => {
-    if (ampm && /午後|PM/i.test(ampm) && h < 12) h += 12;
-    return { h, mi };
-  };
-  const timeRe = /(午前|午後|AM|PM)?\s*(\d{1,2})(?::|時)(\d{2})?分?/i;
   const make = (y: number, mo: number, d: number, h: number, mi: number) => new Date(Date.UTC(y, mo, d, h - 9, mi));
+  /** 存在する日付か（2/30 などを弾く） */
+  const valid = (y: number, mo: number, d: number) => {
+    const t = new Date(Date.UTC(y, mo, d));
+    return mo >= 0 && mo <= 11 && t.getUTCFullYear() === y && t.getUTCMonth() === mo && t.getUTCDate() === d;
+  };
+  const dowParen = String.raw`(?:\s*\(${DOW}(?:曜日?)?\))?`;
 
-  // 1) 月日あり: 10月9日 / 10/9
-  let m = body.match(/(\d{1,2})\s*[月\/]\s*(\d{1,2})\s*日?\s*(?:[（(][月火水木金土日][)）])?\s*(?:の)?\s*(午前|午後|AM|PM)?\s*(\d{1,2})(?::|時)(\d{2})?/i);
+  // 1) 月日あり: 10月9日 / 10/9 / 2027年1月8日 / 2027/1/8
+  let m = text.match(new RegExp(String.raw`(?<!\d)(?:(\d{4})\s*[年/]\s*)?(\d{1,2})\s*[月/]\s*(\d{1,2})(?!\d)\s*日?${dowParen}[\s,、]*(?:の)?\s*${TIME}`, "i"));
   if (m) {
-    const mo = Number(m[1]) - 1;
-    const d = Number(m[2]);
-    const { h, mi } = time(Number(m[4]), Number(m[5] ?? 0), m[3]);
-    let y = baseY;
-    if (mo < baseM - 1) y += 1; // 年またぎ
-    return make(y, mo, d, h, mi);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const t = readTime(m[4], m[5], m[6], m[7], m[8]);
+    if (!t) return null;
+    if (m[1]) {
+      const y = Number(m[1]);
+      return valid(y, mo, d) ? make(y, mo, d, t.h, t.mi) : null;
+    }
+    const floor = base.getTime() - 45 * 86400_000;
+    for (const y of [baseY - 1, baseY, baseY + 1]) {
+      if (!valid(y, mo, d)) continue;
+      const at = make(y, mo, d, t.h, t.mi);
+      if (at.getTime() >= floor) return at;
+    }
+    return null;
   }
-  // 2) 日のみ: 13日16:00
-  m = body.match(/(?<![\d月\/])(\d{1,2})\s*日\s*(?:[（(][月火水木金土日][)）])?\s*(午前|午後|AM|PM)?\s*(\d{1,2})(?::|時)(\d{2})?/i);
+  // 2) 日のみ: 13日16:00（過ぎた日なら翌月）
+  m = text.match(new RegExp(String.raw`(?<![\d月/])(\d{1,2})\s*日${dowParen}[\s,、]*(?:の)?\s*${TIME}`, "i"));
   if (m) {
     const d = Number(m[1]);
-    const { h, mi } = time(Number(m[3]), Number(m[4] ?? 0), m[2]);
+    const t = readTime(m[2], m[3], m[4], m[5], m[6]);
+    if (!t) return null;
     let mo = baseM;
     let y = baseY;
     if (d < baseD) {
@@ -221,26 +282,35 @@ export function extractMeetingDateTime(body: string, base: Date): Date | null {
         y += 1;
       }
     }
-    return make(y, mo, d, h, mi);
+    return valid(y, mo, d) ? make(y, mo, d, t.h, t.mi) : null;
   }
-  // 3) 曜日: 木曜日 · 午前11:00
-  m = body.match(/([月火水木金土日])曜日?[^\d]{0,6}(午前|午後|AM|PM)?\s*(\d{1,2})(?::|時)(\d{2})?/i);
+  // 3) 曜日: 木曜日 · 午前11:00 / 来週火曜 14:00 / 今週金曜 10時
+  m = text.match(new RegExp(String.raw`(再来週|来週|今週)?\s*(?:の)?\s*(${DOW})曜(?:日)?[^\d]{0,8}?${TIME}`, "i"));
   if (m) {
-    const dow = WEEKDAYS.indexOf(m[1]);
-    const { h, mi } = time(Number(m[3]), Number(m[4] ?? 0), m[2]);
-    let diff = (dow - baseDow + 7) % 7;
-    if (diff === 0) diff = 7; // 同じ曜日なら翌週扱い
-    const d = new Date(Date.UTC(baseY, baseM, baseD + diff));
-    return make(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, mi);
-  }
-  // 4) 明日 / 明後日
-  m = body.match(/(明日|明後日)[^\d]{0,6}(午前|午後|AM|PM)?\s*(\d{1,2})(?::|時)(\d{2})?/i);
-  if (m) {
-    const add = m[1] === "明日" ? 1 : 2;
-    const { h, mi } = time(Number(m[3]), Number(m[4] ?? 0), m[2]);
+    const dow = WEEKDAYS.indexOf(m[2]);
+    const t = readTime(m[3], m[4], m[5], m[6], m[7]);
+    if (!t) return null;
+    let add: number;
+    if (m[1]) {
+      // 週は月曜はじまり。今週=今週の該当曜日、来週=翌週、再来週=翌々週
+      const toMonday = (baseDow + 6) % 7;
+      const weeks = m[1] === "再来週" ? 2 : m[1] === "来週" ? 1 : 0;
+      add = -toMonday + weeks * 7 + ((dow + 6) % 7);
+    } else {
+      add = (dow - baseDow + 7) % 7;
+      if (add === 0) add = 7; // 同じ曜日なら翌週扱い
+    }
     const d = new Date(Date.UTC(baseY, baseM, baseD + add));
-    return make(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, mi);
+    return make(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), t.h, t.mi);
   }
-  void timeRe;
+  // 4) 今日 / 明日 / 明後日
+  m = text.match(new RegExp(String.raw`(本日|今日|明日|あす|明後日|あさって)[^\d]{0,6}?${TIME}`, "i"));
+  if (m) {
+    const add = m[1] === "明後日" || m[1] === "あさって" ? 2 : m[1] === "明日" || m[1] === "あす" ? 1 : 0;
+    const t = readTime(m[2], m[3], m[4], m[5], m[6]);
+    if (!t) return null;
+    const d = new Date(Date.UTC(baseY, baseM, baseD + add));
+    return make(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), t.h, t.mi);
+  }
   return null;
 }
