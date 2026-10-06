@@ -29,7 +29,9 @@ export async function ensureVendor(thread: Thread): Promise<number> {
   if (thread.vendorId) return thread.vendorId;
   const n = normalizeCompanyName(thread.vendorName);
   const vendors = await prisma.vendor.findMany({ where: { isActive: true } });
-  let v = vendors.find((x) => normalizeCompanyName(x.name) === n) ?? vendors.find((x) => normalizeCompanyName(x.name).includes(n) || n.includes(normalizeCompanyName(x.name)));
+  // 完全一致を優先。部分一致は、短い名前（2文字以下）が別のベンダー名に含まれて誤って紐付かないよう3文字以上に限る
+  const partial = (a: string, b: string) => a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a));
+  let v = vendors.find((x) => normalizeCompanyName(x.name) === n) ?? vendors.find((x) => partial(normalizeCompanyName(x.name), n));
   if (!v) {
     v = await prisma.vendor.create({
       data: {
