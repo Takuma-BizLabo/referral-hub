@@ -8,7 +8,18 @@ import { startTransition, useActionState, type FormEvent } from "react";
  *   <form action={action} onSubmit={onSubmit}> ... <SubmitButton pending={pending}>
  */
 export function useStickyAction<S>(fn: (prev: Awaited<S>, formData: FormData) => S | Promise<S>, initial: Awaited<S>) {
-  const [state, dispatch, pending] = useActionState(fn, initial);
+  // サーバーに届かない・拒否された場合（本文が1MBを超える、通信エラーなど）に、画面全体のエラー表示にせず
+  // フォーム上にエラーを出す。redirect()・notFound() は Next が処理するのでそのまま投げ直す。
+  const safe = async (prev: Awaited<S>, formData: FormData): Promise<Awaited<S>> => {
+    try {
+      return await fn(prev, formData);
+    } catch (e) {
+      const digest = (e as { digest?: unknown } | null)?.digest;
+      if (typeof digest === "string" && /^NEXT_(REDIRECT|NOT_FOUND|HTTP_ERROR)/.test(digest)) throw e;
+      return { error: "送信できませんでした。入力内容が大きすぎる（1MBまで）か、通信に失敗した可能性があります。内容を確認してもう一度お試しください。" } as Awaited<S>;
+    }
+  };
+  const [state, dispatch, pending] = useActionState(safe, initial);
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (pending) return; // 二重送信防止
