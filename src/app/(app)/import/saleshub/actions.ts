@@ -6,7 +6,7 @@ import { assertUser } from "@/lib/auth";
 import { recordHistory } from "@/lib/history";
 import { notify, notifyAdmins } from "@/lib/notifications";
 import { errorState, type ActionState } from "@/lib/action-state";
-import { money, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
+import { httpUrl, money, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
 import { normalizeCompanyName, parseSaleshubText, type ParsedSaleshub } from "@/lib/saleshub-parse";
 import type { MeetingFormat } from "@prisma/client";
 
@@ -72,13 +72,13 @@ export async function registerSaleshubAction(_prev: ActionState, formData: FormD
             name: vendorName,
             contactName: str(formData.get("vendorContactName")),
             referralFee: money(formData.get("referralFee")),
-            saleshubUrl: str(formData.get("saleshubUrl")),
+            saleshubUrl: httpUrl(str(formData.get("saleshubUrl")), "セールスハブ案件URL"),
             serviceSummary: str(formData.get("serviceSummary")),
           },
         });
         vendorId = v.id;
       } else {
-        const url = str(formData.get("saleshubUrl"));
+        const url = httpUrl(str(formData.get("saleshubUrl")), "セールスハブ案件URL");
         if (url) await tx.vendor.update({ where: { id: vendorId }, data: { saleshubUrl: url } });
       }
       const vendor = await tx.vendor.findUniqueOrThrow({ where: { id: vendorId } });

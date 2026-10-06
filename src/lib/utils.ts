@@ -92,6 +92,13 @@ export function money(v: FormDataEntryValue | null, fallback = 0): number {
   return n;
 }
 
+/** http(s) の URL のみ許可（javascript: などをリンクに入れさせない）。空は null、不正はエラー */
+export function httpUrl(v: string | null, label: string): string | null {
+  if (!v) return null;
+  if (!/^https?:\/\/\S+$/i.test(v)) throw new Error(`${label}は http:// または https:// から始まるURLで入力してください`);
+  return v;
+}
+
 /** 関連ページURLとして使ってよい値か（アプリ内パス、または http(s) の URL）。javascript: などは不可 */
 export function safeLinkUrl(v: string | null): string | null {
   if (!v) return null;
