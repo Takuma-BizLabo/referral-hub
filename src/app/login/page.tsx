@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { LoginForm } from "./LoginForm";
 
 export const metadata = { title: "ログイン" };
@@ -7,6 +8,7 @@ export const metadata = { title: "ログイン" };
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const user = await getCurrentUser();
   if (user) redirect("/");
+  if ((await prisma.user.count()) === 0) redirect("/setup");
   const { next } = await searchParams;
   return (
     <main className="min-h-screen flex items-center justify-center p-4">
