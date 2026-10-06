@@ -123,7 +123,7 @@ export function formatThreadAsText(
 // ---------- 自動化ルール用の抽出 ----------
 
 /** 会社名抽出ロジックのバージョン。変更したら上げる（SaleshubThread.proposedCache が再計算される） */
-export const COMPANY_PARSER_VERSION = 2;
+export const COMPANY_PARSER_VERSION = 3;
 
 export const URL_RE = /https?:\/\/[^\s<>"'）)」』]+/g;
 
@@ -171,7 +171,19 @@ export function extractCompanies(body: string, exclude: string[] = []): { compan
     out.push({ company: name, dept });
   };
   for (const line of body.split("\n")) {
-    for (const c of line.match(COMPANY_RE) ?? []) add(line, c);
+    for (const mm of line.matchAll(COMPANY_RE)) {
+      let raw = mm[0];
+      // 「弊社は株式会社ファーストの…」「ご紹介は株式会社日本(JP)です」のように、助詞のあとに法人格が来て社名が後ろに続く場合、
+      // 「…は株式会社」全体を社名にせず、法人格から後ろを社名として読み直す（後ろが区切りなら社名ではないので捨てる）
+      const legal = raw.match(/(株式会社|有限会社|合同会社)$/);
+      if (legal && mm.index !== undefined && /[はがをもへにとで]$/.test(raw.slice(0, -legal[0].length))) {
+        const start = mm.index + raw.length - legal[0].length;
+        const reread = line.slice(start).match(/^(?:株式会社|有限会社|合同会社)[^\s\/／（(、。,．「」『』]+/);
+        if (!reread) continue;
+        raw = reread[0];
+      }
+      add(line, raw);
+    }
     for (const c of line.match(INDUSTRY_NAME_RE) ?? []) add(line, c);
   }
   return out;
