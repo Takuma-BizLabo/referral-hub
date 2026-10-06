@@ -81,6 +81,8 @@ model User {
   notifications Notification[]
   histories     StatusHistory[]
   goals         MonthlyGoal[]
+  requestedTasks Task[] @relation("taskRequester")
+  assignedTasks  Task[] @relation("taskAssignee")
 }
 
 model Session {
@@ -310,4 +312,32 @@ model SaleshubMessage {
   createdAt   DateTime       @default(now())
 
   @@index([threadId, sentAt])
+}
+
+// ---------- メンバー間タスク ----------
+
+enum TaskStatus {
+  OPEN // 未完了
+  DONE // 完了
+}
+
+model Task {
+  id          Int        @id @default(autoincrement())
+  title       String
+  body        String?
+  requesterId Int
+  requester   User       @relation("taskRequester", fields: [requesterId], references: [id])
+  assigneeId  Int
+  assignee    User       @relation("taskAssignee", fields: [assigneeId], references: [id])
+  status      TaskStatus @default(OPEN)
+  important   Boolean    @default(false)
+  dueDate     DateTime?
+  linkUrl     String? // 関連するMTG・紹介案件などのURL
+  doneComment String?
+  doneAt      DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([assigneeId, status])
+  @@index([requesterId, status])
 }

@@ -34,9 +34,14 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
         title={`ベンダーMTG：${m.vendor.name}`}
         description={`担当：${m.assignee.name}`}
         actions={
-          <Link href={`/meetings/${m.id}/edit`} className="btn-primary">
-            編集
-          </Link>
+          <>
+            <Link href={`/tasks?link=${encodeURIComponent(`/meetings/${m.id}`)}`} className="btn-secondary">
+              タスクを依頼
+            </Link>
+            <Link href={`/meetings/${m.id}/edit`} className="btn-primary">
+              編集
+            </Link>
+          </>
         }
       />
 

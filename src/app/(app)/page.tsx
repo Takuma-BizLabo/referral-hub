@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Badge, Card, EmptyState, PageHeader, ProgressBar } from "@/components/ui";
 import { VendorTag } from "@/components/VendorTag";
+import { TaskCard } from "@/components/TaskCard";
 import { REFERRAL_LABEL } from "@/lib/labels";
 import { monthlyActuals, monthlyGoals } from "@/lib/stats";
 import { getSettingNumber } from "@/lib/settings";
@@ -68,15 +69,39 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       prisma.user.findMany({ where: { isActive: true }, orderBy: { id: "asc" } }),
     ]);
 
-  const todoCount = todayMeetings.length + todayReferralMeetings.length + overdueMeetings.length + overdueReferrals.length + rejectedMine.length + minutesMissing.length;
+  const myTasks = await prisma.task.findMany({
+    where: { assigneeId: user.id, status: "OPEN" },
+    include: { requester: true, assignee: true },
+    orderBy: [{ important: "desc" }, { dueDate: "asc" }, { createdAt: "desc" }],
+    take: 5,
+  });
+  const myTaskCount = await prisma.task.count({ where: { assigneeId: user.id, status: "OPEN" } });
+  const todoCount = myTaskCount + todayMeetings.length + todayReferralMeetings.length + overdueMeetings.length + overdueReferrals.length + rejectedMine.length + minutesMissing.length;
 
   return (
     <div className="space-y-4">
       <PageHeader title="ダッシュボード" description={`${fmtDate(now)} ／ ${user.name} さん`} />
       {error === "forbidden" && <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">その画面は管理者のみ利用できます。</div>}
 
+      {myTaskCount > 0 && (
+        <section className="rounded-xl border-2 border-rose-300 bg-rose-50 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-rose-900">あなた宛の未完了タスク {myTaskCount} 件</h2>
+            <Link href="/tasks" className="btn-dark btn-sm">
+              タスク一覧へ
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {myTasks.map((t) => (
+              <TaskCard key={t.id} task={t} meId={user.id} isAdmin={isAdmin} />
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="card flex flex-wrap overflow-x-auto">
-        <Kpi label="今日やること" value={todoCount} sub="予定・期限切れ・差し戻し・メモ未入力" accent={todoCount > 0 ? "text-rose-600" : undefined} />
+        <Kpi label="今日やること" value={todoCount} sub="タスク・予定・期限切れ・差し戻し" accent={todoCount > 0 ? "text-rose-600" : undefined} />
+        <Kpi label="あなた宛タスク" value={myTaskCount} sub="未完了" href="/tasks" accent={myTaskCount > 0 ? "text-rose-600" : undefined} />
         <Kpi label="今日の予定" value={todayMeetings.length + todayReferralMeetings.length} sub="MTG・面談" href="/meetings/calendar" />
         <Kpi label="期限切れ" value={overdueMeetings.length + overdueReferrals.length} sub="次アクション超過" accent={overdueMeetings.length + overdueReferrals.length > 0 ? "text-rose-600" : undefined} />
         <Kpi label="メモ未入力" value={minutesMissing.length} sub="実施済MTG" accent={minutesMissing.length > 0 ? "text-amber-600" : undefined} />

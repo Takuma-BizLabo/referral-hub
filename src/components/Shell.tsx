@@ -43,7 +43,7 @@ const ADMIN_NAV = [
   { href: "/goals", label: "目標設定", icon: I.goals },
 ];
 
-export function Shell({ user, unread, children }: { user: CurrentUser; unread: number; children: ReactNode }) {
+export function Shell({ user, unread, openTasks = 0, children }: { user: CurrentUser; unread: number; openTasks?: number; children: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const isAdmin = user.role === "ADMIN";
@@ -67,6 +67,11 @@ export function Shell({ user, unread, children }: { user: CurrentUser; unread: n
         </Link>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 space-y-0.5">
+        <Link href="/tasks" onClick={() => setOpen(false)} className={cn("nav-link", isActive({ href: "/tasks" }) && "nav-link-active", openTasks > 0 && !isActive({ href: "/tasks" }) && "bg-rose-500/15 text-white font-semibold")}>
+          <Icon d={I.meeting} />
+          タスク
+          {openTasks > 0 && <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-bold flex items-center justify-center">{openTasks}</span>}
+        </Link>
         {NAV.map((n) => (
           <Link key={n.href} href={n.href} onClick={() => setOpen(false)} className={cn("nav-link", isActive(n) && "nav-link-active")}>
             <Icon d={n.icon} />

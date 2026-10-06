@@ -39,9 +39,14 @@ export default async function ReferralDetailPage({
         title={`${r.contact.name} × ${r.vendor.name}`}
         description={[r.contact.company, r.contact.title].filter(Boolean).join(" / ")}
         actions={
-          <Link href={`/referrals/${r.id}/edit`} className="btn-primary">
-            編集
-          </Link>
+          <>
+            <Link href={`/tasks?link=${encodeURIComponent(`/referrals/${r.id}`)}`} className="btn-secondary">
+              タスクを依頼
+            </Link>
+            <Link href={`/referrals/${r.id}/edit`} className="btn-primary">
+              編集
+            </Link>
+          </>
         }
       />
 
