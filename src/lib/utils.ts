@@ -71,7 +71,7 @@ export function num(v: FormDataEntryValue | null, fallback = 0): number {
 
 export function int(v: FormDataEntryValue | null): number | null {
   if (v === null || typeof v !== "string" || v.trim() === "") return null;
-  const n = parseInt(v, 10);
+  const n = parseInt(v.replace(/[,¥\s]/g, ""), 10);
   return Number.isFinite(n) ? n : null;
 }
 

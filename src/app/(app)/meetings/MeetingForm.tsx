@@ -8,6 +8,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { EXECUTION_LABEL, EXECUTION_ORDER } from "@/lib/labels";
 import { toInputDate, toInputDateTime } from "@/lib/utils";
 import type { VendorMeeting } from "@prisma/client";
+import { MoneyInput } from "@/components/MoneyInput";
 
 type Opt = { id: number; name: string };
 
@@ -73,7 +74,7 @@ export function MeetingForm({
           </Field>
         )}
         <Field label="この依頼の紹介単価（円）" hint="セールスハブ依頼ページの「ご協力金」。ベンダー共通の単価と異なる場合に入力">
-          <input name="fee" type="number" min={0} step={1000} className="input" defaultValue={meeting?.fee ?? ""} />
+          <MoneyInput name="fee" defaultValue={meeting?.fee ?? ""} placeholder="未入力ならベンダー共通の単価" />
         </Field>
         <Field label="ベンダーからの依頼内容" className="sm:col-span-2" hint="セールスハブのチャット内容など">
           <textarea name="requestNote" className="input" rows={3} defaultValue={meeting?.requestNote ?? ""} />

@@ -5,6 +5,7 @@ import { analyzeSaleshubAction, registerSaleshubAction, type AnalyzeResult } fro
 import { Card, ErrorMessage, Field } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { fmtYen } from "@/lib/utils";
+import { MoneyInput } from "@/components/MoneyInput";
 
 type Opt = { id: number; name: string };
 
@@ -96,7 +97,7 @@ export function SaleshubImport({
                     <input name="vendorContactName" className="input" defaultValue={result.parsed.vendorContactName ?? ""} />
                   </Field>
                   <Field label="紹介報酬単価（円）" hint="セールスハブの案件ページに記載の金額">
-                    <input name="referralFee" type="number" min={0} step={1000} className="input" defaultValue={0} />
+                    <MoneyInput name="referralFee" defaultValue={0} />
                   </Field>
                   <Field label="サービス概要" className="sm:col-span-2">
                     <input name="serviceSummary" className="input" />

@@ -14,12 +14,19 @@ import { advanceToContactingAction } from "../../referrals/actions";
 import { setVendorMeetingStatusAction } from "../../vendors/actions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ExecutionControls, MinutesForm, RejectForm } from "./MeetingControls";
+import { idOrNull, idParam } from "@/lib/params";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const id = idOrNull((await params).id);
+  const m = id ? await prisma.vendorMeeting.findUnique({ where: { id }, select: { vendor: { select: { name: true } } } }) : null;
+  return { title: m ? `MTG：${m.vendor.name}` : "ベンダーMTG" };
+}
 
 export default async function MeetingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
   const m = await prisma.vendorMeeting.findUnique({
-    where: { id: Number(id) },
+    where: { id: idParam(id) },
     include: { vendor: { include: { referrals: { include: { contact: true }, orderBy: { id: "desc" } } } }, assignee: true },
   });
   if (!m) notFound();

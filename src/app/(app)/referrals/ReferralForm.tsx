@@ -7,6 +7,7 @@ import { ErrorMessage, Field } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { toInputDate, toInputDateTime } from "@/lib/utils";
 import type { Referral } from "@prisma/client";
+import { MoneyInput } from "@/components/MoneyInput";
 
 type VendorOpt = { id: number; name: string; referralFee: number; meetingStatus: string };
 type ContactOpt = { id: number; name: string; company: string | null; title: string | null };
@@ -99,7 +100,7 @@ export function ReferralForm({
           <input name="pickedUpAt" type="date" className="input" defaultValue={toInputDate(referral?.pickedUpAt ?? new Date())} />
         </Field>
         <Field label="報酬額（円）" hint="ベンダー単価から自動入力。変更可">
-          <input name="rewardAmount" type="number" min={0} step={1000} className="input" value={reward} onChange={(e) => setReward(e.target.value)} />
+          <MoneyInput name="rewardAmount" value={reward} onChange={setReward} />
           <label className="flex items-center gap-2 text-sm mt-2">
             <input type="checkbox" name="rewardUndetermined" defaultChecked={referral?.rewardUndetermined ?? defaultUndetermined ?? false} /> 単価未定（ベンダーに確認中）
           </label>

@@ -6,6 +6,7 @@ import { createVendorAction, updateVendorAction } from "./actions";
 import { ErrorMessage, Field } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { Vendor } from "@prisma/client";
+import { MoneyInput } from "@/components/MoneyInput";
 
 export function VendorForm({ vendor }: { vendor?: Vendor }) {
   const [state, action, actionPending, actionSubmit] = useStickyAction(vendor ? updateVendorAction : createVendorAction, undefined);
@@ -20,7 +21,7 @@ export function VendorForm({ vendor }: { vendor?: Vendor }) {
           <input name="contactName" className="input" defaultValue={vendor?.contactName ?? ""} />
         </Field>
         <Field label="紹介報酬単価（円）" required>
-          <input name="referralFee" type="number" min={0} step={1000} className="input" defaultValue={vendor?.referralFee ?? 0} required />
+          <MoneyInput name="referralFee" defaultValue={vendor?.referralFee ?? 0} required />
         </Field>
         <Field label="メールアドレス">
           <input name="contactEmail" type="email" className="input" defaultValue={vendor?.contactEmail ?? ""} />

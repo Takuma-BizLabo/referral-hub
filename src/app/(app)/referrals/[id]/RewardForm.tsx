@@ -4,6 +4,7 @@ import { useStickyAction } from "@/lib/use-sticky-action";
 import { saveRewardAction } from "../actions";
 import { ErrorMessage, Field, SuccessMessage } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
+import { MoneyInput } from "@/components/MoneyInput";
 
 export function RewardForm({
   id,
@@ -28,7 +29,7 @@ export function RewardForm({
       <input type="hidden" name="id" value={id} />
       <div className="grid gap-3 sm:grid-cols-4">
         <Field label="報酬額（円）">
-          <input name="rewardAmount" type="number" min={0} step={1000} className="input" defaultValue={rewardAmount} />
+          <MoneyInput name="rewardAmount" defaultValue={rewardAmount} />
           <label className="flex items-center gap-2 text-xs mt-2">
             <input type="checkbox" name="rewardUndetermined" defaultChecked={undetermined} /> 単価未定
           </label>

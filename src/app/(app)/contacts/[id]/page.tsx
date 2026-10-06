@@ -8,12 +8,19 @@ import { VendorTag } from "@/components/VendorTag";
 import { fmtDate, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import { toggleContactActiveAction } from "../actions";
 import { SubmitButton } from "@/components/SubmitButton";
+import { idOrNull, idParam } from "@/lib/params";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const id = idOrNull((await params).id);
+  const c = id ? await prisma.contact.findUnique({ where: { id }, select: { name: true, company: true } }) : null;
+  return { title: c ? `${c.company ?? ""} ${c.name}`.trim() : "繋がり" };
+}
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireUser();
   const { id } = await params;
   const contact = await prisma.contact.findUnique({
-    where: { id: Number(id) },
+    where: { id: idParam(id) },
     include: {
       tags: { include: { tag: true } },
       referrals: { include: { vendor: true }, orderBy: { id: "desc" } },

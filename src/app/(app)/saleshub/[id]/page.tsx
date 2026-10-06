@@ -8,12 +8,18 @@ import { cn, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import { proposedCompaniesForVendor } from "@/lib/saleshub/proposed";
 import { threadCandidates } from "@/lib/saleshub/candidates";
 import { MarkThreadRead } from "./MarkRead";
+import { idOrNull, idParam } from "@/lib/params";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const id = idOrNull((await params).id);
+  const t = id ? await prisma.saleshubThread.findUnique({ where: { id }, select: { vendorName: true } }) : null;
+  return { title: t ? `受信箱：${t.vendorName}` : "セールスハブ受信箱" };
+}
 
 export default async function SaleshubThreadPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await params;
-  const threadId = Number(id);
-  if (!Number.isInteger(threadId)) notFound();
+  const threadId = idParam(id);
   const t = await prisma.saleshubThread.findUnique({ where: { id: threadId }, include: { messages: { orderBy: { sentAt: "asc" } } } });
   if (!t) notFound();
   const [meeting, vendor, referrals, proposed, unread] = await Promise.all([

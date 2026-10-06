@@ -8,8 +8,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   const base = new URL(req.url);
   if (!user) return NextResponse.redirect(new URL("/login", base));
-  const n = await prisma.notification.findFirst({ where: { id: Number(id), userId: user.id } });
+  const nid = Number(id);
+  if (!Number.isSafeInteger(nid) || nid <= 0 || nid > 2147483647) return NextResponse.redirect(new URL("/notifications", base));
+  const n = await prisma.notification.findFirst({ where: { id: nid, userId: user.id } });
   if (!n) return NextResponse.redirect(new URL("/notifications", base));
   if (!n.readAt) await prisma.notification.update({ where: { id: n.id }, data: { readAt: new Date() } });
-  return NextResponse.redirect(new URL(n.linkUrl ?? "/notifications", base));
+  const target = n.linkUrl && n.linkUrl.startsWith("/") && !n.linkUrl.startsWith("//") ? n.linkUrl : "/notifications";
+  return NextResponse.redirect(new URL(target, base));
 }

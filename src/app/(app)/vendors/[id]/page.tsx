@@ -15,12 +15,19 @@ import { fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import { setVendorMeetingStatusAction, toggleVendorActiveAction } from "../actions";
 import { HistoryList } from "@/components/HistoryList";
 import { SubmitButton } from "@/components/SubmitButton";
+import { idOrNull, idParam } from "@/lib/params";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const id = idOrNull((await params).id);
+  const v = id ? await prisma.vendor.findUnique({ where: { id }, select: { name: true } }) : null;
+  return { title: v ? v.name : "ベンダー" };
+}
 
 export default async function VendorDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireUser();
   const { id } = await params;
   const vendor = await prisma.vendor.findUnique({
-    where: { id: Number(id) },
+    where: { id: idParam(id) },
     include: {
       meetings: { include: { assignee: true }, orderBy: [{ scheduledAt: "desc" }, { id: "desc" }] },
       referrals: { include: { contact: true }, orderBy: { id: "desc" } },

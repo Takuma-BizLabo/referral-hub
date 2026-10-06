@@ -10,6 +10,13 @@ import { cn, fmtDate, fmtDateTime, fmtReward, toInputDate } from "@/lib/utils";
 import { forceUnlockAction, setReferralStatusAction, setRewardStatusAction } from "../actions";
 import { RewardForm } from "./RewardForm";
 import { SubmitButton } from "@/components/SubmitButton";
+import { idOrNull, idParam } from "@/lib/params";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const id = idOrNull((await params).id);
+  const r = id ? await prisma.referral.findUnique({ where: { id }, select: { contact: { select: { name: true, company: true } }, vendor: { select: { name: true } } } }) : null;
+  return { title: r ? `紹介：${r.contact.company ?? r.contact.name} × ${r.vendor.name}` : "紹介案件" };
+}
 
 export default async function ReferralDetailPage({
   params,
@@ -22,7 +29,7 @@ export default async function ReferralDetailPage({
   const { id } = await params;
   const { blocked } = await searchParams;
   const r = await prisma.referral.findUnique({
-    where: { id: Number(id) },
+    where: { id: idParam(id) },
     include: { vendor: { include: { meetings: { where: { executionStatus: "DONE" }, take: 1 } } }, contact: true },
   });
   if (!r) notFound();

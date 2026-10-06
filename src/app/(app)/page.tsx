@@ -10,6 +10,8 @@ import { monthlyActuals, monthlyGoals } from "@/lib/stats";
 import { getSettingNumber } from "@/lib/settings";
 import { cn, fmtDate, fmtMonthDay, fmtYen, yearMonthOf } from "@/lib/utils";
 
+export const metadata = { title: "ダッシュボード" };
+
 export default async function DashboardPage() {
   const user = await requireUser();
   const isAdmin = user.role === "ADMIN";
