@@ -6,7 +6,8 @@ import { StatusSelect } from "@/components/StatusSelect";
 import { VendorChips, VendorTag } from "@/components/VendorTag";
 import { CountChips } from "@/components/CountChips";
 import { APPROVAL_LABEL, EXECUTION_LABEL, EXECUTION_ORDER, FORMAT_LABEL } from "@/lib/labels";
-import { cn, fmtDate, fmtDateTime } from "@/lib/utils";
+import { cn, fmtDate, fmtDateTime, fmtYen } from "@/lib/utils";
+import { meetingTargets } from "@/lib/meeting-targets";
 import { setExecutionStatusAction } from "./actions";
 import type { ApprovalStatus, ExecutionStatus, Prisma } from "@prisma/client";
 
@@ -28,7 +29,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
   const [meetings, users, vendors, allForCounts] = await Promise.all([
     prisma.vendorMeeting.findMany({
       where,
-      include: { vendor: true, assignee: true },
+      include: { vendor: { include: { referrals: { include: { contact: true } } } }, assignee: true },
       orderBy: [{ scheduledAt: "asc" }, { id: "desc" }],
       take: 500,
     }),
@@ -161,6 +162,8 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                 <tr>
                   <th>日時</th>
                   <th>ベンダー</th>
+                  <th className="text-right">単価</th>
+                  <th>お繋ぎ先</th>
                   <th>担当</th>
                   <th>形式</th>
                   <th>承認</th>
@@ -181,6 +184,23 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                       </td>
                       <td>
                         <VendorTag id={m.vendor.id} name={m.vendor.name} />
+                      </td>
+                      <td className="text-right whitespace-nowrap font-medium">{fmtYen(m.fee ?? m.vendor.referralFee)}</td>
+                      <td className="max-w-xs">
+                        {(() => {
+                          const targets = meetingTargets(m.requestNote, m.vendor.referrals);
+                          return targets.length ? (
+                            <div className="flex flex-wrap gap-1">
+                              {targets.map((t) => (
+                                <span key={t} className="badge bg-indigo-50 text-indigo-800 border-indigo-200">
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">未定</span>
+                          );
+                        })()}
                       </td>
                       <td className="whitespace-nowrap">{m.assignee.name}</td>
                       <td className="whitespace-nowrap">{FORMAT_LABEL[m.format]}</td>
@@ -222,8 +242,17 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                       </Link>
                       <div className="text-xs text-gray-500 mt-1">{m.scheduledAt ? fmtDateTime(m.scheduledAt) : "日時未定"}</div>
                       <div className="text-xs text-gray-500">
-                        {m.assignee.name} ／ {FORMAT_LABEL[m.format]}
+                        {m.assignee.name} ／ {FORMAT_LABEL[m.format]} ／ {fmtYen(m.fee ?? m.vendor.referralFee)}
                       </div>
+                      {meetingTargets(m.requestNote, m.vendor.referrals).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {meetingTargets(m.requestNote, m.vendor.referrals).map((t) => (
+                            <span key={t} className="badge bg-indigo-50 text-indigo-800 border-indigo-200">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mt-2 gap-1">
                         <Badge value={m.approvalStatus} label={APPROVAL_LABEL[m.approvalStatus]} />
                         <StatusSelect

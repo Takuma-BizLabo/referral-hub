@@ -221,6 +221,15 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
  * 繋がりリストを後から取り込んだ場合（過去メッセージの会社名が未照合）に使う。
  */
 export async function rebuildCandidates(): Promise<{ threads: number; created: number; unmatched: string[] }> {
+  // 確定済みなのに「日程調整」の次アクションが残っているMTGを直す
+  const stale = await prisma.vendorMeeting.findMany({ where: { executionStatus: "CONFIRMED", scheduledAt: { not: null }, nextAction: { contains: "日程調整" } } });
+  for (const m of stale) {
+    const at = m.scheduledAt!;
+    await prisma.vendorMeeting.update({
+      where: { id: m.id },
+      data: { nextAction: "MTGを実施し、議事メモと結果（繋げる人物の確認）を入力する", nextActionDue: new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate() + 1, -9, 0)) },
+    });
+  }
   const threads = await prisma.saleshubThread.findMany({ include: { messages: { orderBy: { sentAt: "asc" } } } });
   let created = 0;
   const unmatched = new Set<string>();
