@@ -5,7 +5,7 @@ import { Badge, EmptyState, PageHeader } from "@/components/ui";
 import { VendorTag } from "@/components/VendorTag";
 import { EXECUTION_LABEL } from "@/lib/labels";
 import { getSettingRaw } from "@/lib/settings";
-import { fmtDateTime } from "@/lib/utils";
+import { fmtDateTime, fmtYen } from "@/lib/utils";
 
 export const metadata = { title: "セールスハブ受信箱" };
 
@@ -45,6 +45,7 @@ export default async function SaleshubInboxPage() {
               <tr>
                 <th>ベンダー</th>
                 <th>依頼</th>
+                <th className="text-right">協力金</th>
                 <th>最新メッセージ</th>
                 <th>日時</th>
                 <th>ベンダーMTG</th>
@@ -68,6 +69,7 @@ export default async function SaleshubInboxPage() {
                       )}
                     </td>
                     <td className="max-w-xs truncate text-gray-600 text-xs">{t.requestTitle ?? "-"}</td>
+                    <td className="text-right whitespace-nowrap text-sm">{t.fee ? fmtYen(t.fee) : <span className="text-gray-400 text-xs">未取得</span>}</td>
                     <td className="max-w-md">
                       {last ? (
                         <div className="text-sm">

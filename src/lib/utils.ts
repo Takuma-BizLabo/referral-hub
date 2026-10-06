@@ -22,6 +22,12 @@ export function fmtMonthDay(d: Date | string | null | undefined) {
   return format(date, "M/d(E) HH:mm", { locale: ja });
 }
 
+/** 報酬額の表示（単価未定なら「未定」） */
+export function fmtReward(n: number | null | undefined, undetermined?: boolean) {
+  if (undetermined) return "未定";
+  return fmtYen(n);
+}
+
 export function fmtYen(n: number | null | undefined) {
   if (n === null || n === undefined) return "-";
   return "¥" + n.toLocaleString("ja-JP");

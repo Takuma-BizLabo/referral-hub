@@ -11,7 +11,7 @@ import {
   REWARD_LABEL,
   VENDOR_MEETING_STATUS_LABEL,
 } from "@/lib/labels";
-import { fmtDateTime, fmtYen } from "@/lib/utils";
+import { fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import { setVendorMeetingStatusAction, toggleVendorActiveAction } from "../actions";
 import { HistoryList } from "@/components/HistoryList";
 
@@ -180,7 +180,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
                       <Badge value={r.status} label={REFERRAL_LABEL[r.status]} />
                     </td>
                     <td className="whitespace-nowrap">{fmtDateTime(r.meetingAt)}</td>
-                    <td className="text-right whitespace-nowrap">{fmtYen(r.rewardAmount)}</td>
+                    <td className="text-right whitespace-nowrap">{fmtReward(r.rewardAmount, r.rewardUndetermined)}</td>
                     <td>
                       <Badge value={r.rewardStatus} label={REWARD_LABEL[r.rewardStatus]} />
                     </td>

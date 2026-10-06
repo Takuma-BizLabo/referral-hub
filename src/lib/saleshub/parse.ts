@@ -88,6 +88,16 @@ export function parseThreadMessages(html: string): ParsedMessage[] {
   return out;
 }
 
+/** 依頼ページの「ご協力金 ¥40,000」を読み取る（円） */
+export function parseProposalFee(html: string): number | null {
+  const $ = cheerio.load(html);
+  const text = $("body").text().replace(/\s+/g, " ");
+  const m = text.match(/協力金[^0-9¥￥]{0,40}[¥￥]?\s*([\d,]{4,})/);
+  if (!m) return null;
+  const n = Number(m[1].replace(/,/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export function messageKey(proposalId: string, m: ParsedMessage) {
   const h = createHash("sha1").update(m.body).digest("hex").slice(0, 10);
   return `${proposalId}:${m.sentAt.toISOString()}:${h}`;

@@ -6,7 +6,7 @@ import { assertAdmin, assertUser } from "@/lib/auth";
 import { recordHistory } from "@/lib/history";
 import { notify, notifyAdmins } from "@/lib/notifications";
 import { errorState, type ActionState } from "@/lib/action-state";
-import { fmtDateTime, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
+import { fmtDateTime, int, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
 import type { ExecutionStatus, MeetingFormat } from "@prisma/client";
 import { EXECUTION_LABEL } from "@/lib/labels";
 
@@ -25,6 +25,7 @@ function meetingData(formData: FormData) {
     nextAction: str(formData.get("nextAction")),
     nextActionDue: parseDateInput(formData.get("nextActionDue")),
     requestNote: str(formData.get("requestNote")),
+    fee: int(formData.get("fee")),
   };
 }
 

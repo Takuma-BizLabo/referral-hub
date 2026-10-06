@@ -11,9 +11,11 @@ export function RewardForm({
   paymentDueAt,
   paidAt,
   approvedAt,
+  undetermined,
 }: {
   id: number;
   rewardAmount: number;
+  undetermined: boolean;
   invoicedAt: string;
   paymentDueAt: string;
   paidAt: string;
@@ -26,6 +28,9 @@ export function RewardForm({
       <div className="grid gap-3 sm:grid-cols-4">
         <Field label="報酬額（円）">
           <input name="rewardAmount" type="number" min={0} step={1000} className="input" defaultValue={rewardAmount} />
+          <label className="flex items-center gap-2 text-xs mt-2">
+            <input type="checkbox" name="rewardUndetermined" defaultChecked={undetermined} /> 単価未定
+          </label>
         </Field>
         <Field label="請求日">
           <input name="invoicedAt" type="date" className="input" defaultValue={invoicedAt} />

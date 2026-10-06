@@ -6,7 +6,7 @@ import { Badge, Card, Description, PageHeader } from "@/components/ui";
 import { HistoryList } from "@/components/HistoryList";
 import { StatusSelect } from "@/components/StatusSelect";
 import { FORMAT_LABEL, REFERRAL_LABEL, REFERRAL_ORDER, REWARD_LABEL, REWARD_ORDER, VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
-import { fmtDate, fmtDateTime, fmtYen, toInputDate } from "@/lib/utils";
+import { cn, fmtDate, fmtDateTime, fmtReward, toInputDate } from "@/lib/utils";
 import { forceUnlockAction, setReferralStatusAction, setRewardStatusAction } from "../actions";
 import { RewardForm } from "./RewardForm";
 
@@ -138,7 +138,7 @@ export default async function ReferralDetailPage({
 
           <Card title="報酬">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-lg font-semibold">{fmtYen(r.rewardAmount)}</span>
+              <span className={cn("text-lg font-semibold", r.rewardUndetermined && "text-amber-700")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</span>
               <Badge value={r.rewardStatus} label={REWARD_LABEL[r.rewardStatus]} />
             </div>
             <StatusSelect
@@ -148,6 +148,7 @@ export default async function ReferralDetailPage({
               options={REWARD_ORDER.map((s) => ({ value: s, label: REWARD_LABEL[s] }))}
               className="input"
             />
+            {r.rewardUndetermined && <p className="text-xs text-amber-700 mt-2">単価が未定です。ベンダーに確認して下の「請求・入金」で金額を入力してください。</p>}
             <p className="text-xs text-gray-500 mt-2">承認は管理者のみ。請求・入金は誰でも更新できます。</p>
           </Card>
         </div>
@@ -156,6 +157,7 @@ export default async function ReferralDetailPage({
       <Card title="請求・入金">
         <RewardForm
           id={r.id}
+          undetermined={r.rewardUndetermined}
           rewardAmount={r.rewardAmount}
           invoicedAt={toInputDate(r.invoicedAt)}
           paymentDueAt={toInputDate(r.paymentDueAt)}

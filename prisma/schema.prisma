@@ -133,6 +133,7 @@ model VendorMeeting {
   nextActionDue     DateTime? // 日付（00:00）
   doneAt            DateTime?
   requestNote       String? // ベンダーからの依頼内容（セールスハブ取込時など）
+  fee               Int? // この依頼の紹介単価（セールスハブの協力金）
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -201,6 +202,7 @@ model Referral {
   nextAction        String?
   nextActionDue     DateTime?
   rewardAmount      Int            @default(0)
+  rewardUndetermined Boolean       @default(false) // 単価未定（途中でベンダーが挙げた会社など）
   rewardStatus      RewardStatus   @default(UNFIXED)
   rewardApprovedAt  DateTime?
   invoicedAt        DateTime?
@@ -286,6 +288,7 @@ model SaleshubThread {
   requestTitle   String?
   lastSnippet    String?
   lastMessageAt  DateTime?
+  fee            Int? // 依頼ページの協力金（紹介単価）
   vendorId       Int? // 紐付け済みベンダー
   importedMeetingId Int?
   createdAt      DateTime  @default(now())

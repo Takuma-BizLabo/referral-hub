@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { Badge, Card, Description, EmptyState, PageHeader } from "@/components/ui";
 import { REFERRAL_LABEL, REWARD_LABEL, VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
 import { VendorTag } from "@/components/VendorTag";
-import { fmtDate, fmtDateTime, fmtYen } from "@/lib/utils";
+import { fmtDate, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import { toggleContactActiveAction } from "../actions";
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -146,7 +146,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                       <Badge value={r.status} label={REFERRAL_LABEL[r.status]} />
                     </td>
                     <td className="whitespace-nowrap">{fmtDateTime(r.meetingAt)}</td>
-                    <td className="text-right whitespace-nowrap">{fmtYen(r.rewardAmount)}</td>
+                    <td className="text-right whitespace-nowrap">{fmtReward(r.rewardAmount, r.rewardUndetermined)}</td>
                     <td>
                       <Badge value={r.rewardStatus} label={REWARD_LABEL[r.rewardStatus]} />
                     </td>

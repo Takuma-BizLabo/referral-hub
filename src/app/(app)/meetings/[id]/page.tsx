@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { Badge, Card, Description, PageHeader } from "@/components/ui";
 import { HistoryList } from "@/components/HistoryList";
 import { APPROVAL_LABEL, EXECUTION_LABEL, FORMAT_LABEL, VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
-import { fmtDate, fmtDateTime, toInputDate } from "@/lib/utils";
+import { fmtDate, fmtDateTime, fmtYen, toInputDate } from "@/lib/utils";
 import { approveMeetingAction } from "../actions";
 import { ExecutionControls, MinutesForm, RejectForm } from "./MeetingControls";
 
@@ -72,6 +72,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
               { label: "承認", value: <Badge value={m.approvalStatus} label={APPROVAL_LABEL[m.approvalStatus]} /> },
               { label: "実施", value: <Badge value={m.executionStatus} label={EXECUTION_LABEL[m.executionStatus]} /> },
               { label: "実施日時", value: m.doneAt ? fmtDateTime(m.doneAt) : null },
+              { label: "この依頼の紹介単価（協力金）", value: m.fee !== null ? fmtYen(m.fee) : `${fmtYen(m.vendor.referralFee)}（ベンダー共通）` },
               { label: "ベンダーからの依頼内容", value: m.requestNote },
               { label: "次アクション", value: m.nextAction },
               { label: "期限", value: fmtDate(m.nextActionDue) },

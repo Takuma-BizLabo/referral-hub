@@ -6,7 +6,7 @@ import { Badge, Card, EmptyState, PageHeader, Tabs } from "@/components/ui";
 import { StatusSelect } from "@/components/StatusSelect";
 import { VendorTag } from "@/components/VendorTag";
 import { REWARD_LABEL, REWARD_ORDER } from "@/lib/labels";
-import { cn, fmtDate, fmtYen, yearMonthOf } from "@/lib/utils";
+import { cn, fmtDate, fmtReward, fmtYen, yearMonthOf } from "@/lib/utils";
 import { monthRange } from "@/lib/stats";
 import { setRewardStatusAction } from "../referrals/actions";
 import type { Prisma, RewardStatus } from "@prisma/client";
@@ -147,7 +147,7 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
                         <div className="text-xs text-gray-500">{r.contact.company}</div>
                       </td>
                       <td className="whitespace-nowrap">{fmtDate(r.meetingDoneAt)}</td>
-                      <td className="text-right whitespace-nowrap font-medium">{fmtYen(r.rewardAmount)}</td>
+                      <td className={cn("text-right whitespace-nowrap font-medium", r.rewardUndetermined && "text-amber-700")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</td>
                       <td>
                         <StatusSelect
                           action={setRewardStatusAction}

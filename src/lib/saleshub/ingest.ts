@@ -2,7 +2,7 @@ import { prisma } from "../db";
 import { notify, notifyAdmins } from "../notifications";
 import { setSetting } from "../settings";
 import { applyRules } from "./rules";
-import { formatThreadAsText, messageKey, normalizeCompanyName, parseThreadList, parseThreadMessages } from "./parse";
+import { formatThreadAsText, messageKey, normalizeCompanyName, parseProposalFee, parseThreadList, parseThreadMessages } from "./parse";
 import { format } from "date-fns";
 
 export type IngestPayload = {
@@ -58,7 +58,7 @@ export async function ingestFromExtension(payload: IngestPayload): Promise<Inges
         create: { proposalId: t.proposalId, vendorName: t.vendorName, requestTitle: t.requestTitle, lastSnippet: t.lastSnippet, vendorId: vendorMatch },
       });
       const msgCount = existing ? await prisma.saleshubMessage.count({ where: { threadId: existing.id } }) : 0;
-      if (!existing || existing.lastSnippet !== t.lastSnippet || msgCount === 0) needDetails.push(t.proposalId);
+      if (!existing || existing.lastSnippet !== t.lastSnippet || msgCount === 0 || existing.fee === null) needDetails.push(t.proposalId);
     }
   }
 
@@ -68,6 +68,19 @@ export async function ingestFromExtension(payload: IngestPayload): Promise<Inges
     const thread = await prisma.saleshubThread.findUnique({ where: { proposalId: d.proposalId } });
     if (!thread) continue;
     const parsed = parseThreadMessages(d.html);
+    // 依頼ページの協力金（紹介単価）
+    const fee = parseProposalFee(d.html);
+    if (fee !== null && thread.fee !== fee) {
+      await prisma.saleshubThread.update({ where: { id: thread.id }, data: { fee } });
+      if (thread.importedMeetingId) {
+        const m = await prisma.vendorMeeting.findUnique({ where: { id: thread.importedMeetingId } });
+        if (m && m.fee === null) await prisma.vendorMeeting.update({ where: { id: m.id }, data: { fee } });
+      }
+      if (thread.vendorId) {
+        const v = await prisma.vendor.findUnique({ where: { id: thread.vendorId } });
+        if (v && v.referralFee === 0) await prisma.vendor.update({ where: { id: v.id }, data: { referralFee: fee } });
+      }
+    }
     const created = [];
     let lastAt = thread.lastMessageAt;
     for (const m of parsed) {

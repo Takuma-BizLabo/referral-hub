@@ -91,6 +91,9 @@ export function ReferralForm({
         </Field>
         <Field label="報酬額（円）" hint="ベンダー単価から自動入力。変更可">
           <input name="rewardAmount" type="number" min={0} step={1000} className="input" value={reward} onChange={(e) => setReward(e.target.value)} />
+          <label className="flex items-center gap-2 text-sm mt-2">
+            <input type="checkbox" name="rewardUndetermined" defaultChecked={referral?.rewardUndetermined ?? false} /> 単価未定（ベンダーに確認中）
+          </label>
         </Field>
         <Field label="ピックアップ内容" className="sm:col-span-2" hint="セールスハブでベンダーが希望した相手の情報など">
           <textarea name="pickupNote" className="input" rows={2} defaultValue={referral?.pickupNote ?? ""} />

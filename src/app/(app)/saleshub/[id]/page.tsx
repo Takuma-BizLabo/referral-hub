@@ -74,6 +74,10 @@ export default async function SaleshubThreadPage({ params }: { params: Promise<{
               <p className="text-sm text-gray-500">まだMTGは作成されていません。ベンダーから打ち合わせの依頼が来ると自動で作成されます。</p>
             )}
           </Card>
+          <Card title="この依頼の紹介単価（協力金）">
+            <div className="text-lg font-semibold">{t.fee ? `¥${t.fee.toLocaleString()}` : <span className="text-sm text-gray-400">次回の同期で取得します</span>}</div>
+            <p className="text-xs text-gray-500 mt-1">初回メッセージで提示した人物の紹介案件にこの単価が入ります。ベンダーが途中で挙げた会社は「単価未定」で登録されます。</p>
+          </Card>
           <Card title="ベンダー">
             {vendor ? (
               <div className="text-sm">

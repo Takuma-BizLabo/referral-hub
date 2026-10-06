@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { EXECUTION_LABEL, FORMAT_LABEL } from "@/lib/labels";
-import { fmtDate, fmtDateTime, fmtYen } from "@/lib/utils";
+import { fmtDate, fmtDateTime, fmtReward } from "@/lib/utils";
 import { approveMeetingAction } from "../meetings/actions";
 import { approveRewardAction } from "../referrals/actions";
 import { RejectForm } from "../meetings/[id]/MeetingControls";
@@ -91,12 +91,18 @@ export default async function ApprovalsPage() {
                       <span className="text-gray-500 text-xs ml-1">{r.contact.company}</span>
                     </td>
                     <td className="whitespace-nowrap">{fmtDate(r.meetingDoneAt ?? r.meetingAt)}</td>
-                    <td className="text-right whitespace-nowrap font-medium">{fmtYen(r.rewardAmount)}</td>
+                    <td className="text-right whitespace-nowrap font-medium">{fmtReward(r.rewardAmount, r.rewardUndetermined)}</td>
                     <td className="text-right">
-                      <form action={approveRewardAction}>
-                        <input type="hidden" name="id" value={r.id} />
-                        <button className="btn-primary btn-sm">承認（計上確定）</button>
-                      </form>
+                      {r.rewardUndetermined || r.rewardAmount <= 0 ? (
+                        <Link href={`/referrals/${r.id}`} className="btn-secondary btn-sm">
+                          金額を入力してから承認
+                        </Link>
+                      ) : (
+                        <form action={approveRewardAction}>
+                          <input type="hidden" name="id" value={r.id} />
+                          <button className="btn-primary btn-sm">承認（計上確定）</button>
+                        </form>
+                      )}
                     </td>
                   </tr>
                 ))}

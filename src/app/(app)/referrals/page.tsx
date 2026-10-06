@@ -6,7 +6,7 @@ import { StatusSelect } from "@/components/StatusSelect";
 import { VendorChips, VendorTag } from "@/components/VendorTag";
 import { CountChips } from "@/components/CountChips";
 import { REFERRAL_LABEL, REFERRAL_ORDER, REWARD_LABEL, REWARD_ORDER } from "@/lib/labels";
-import { cn, fmtDate, fmtDateTime, fmtYen } from "@/lib/utils";
+import { cn, fmtDate, fmtDateTime, fmtReward } from "@/lib/utils";
 import { setReferralStatusAction } from "./actions";
 import type { Prisma, ReferralStatus, RewardStatus } from "@prisma/client";
 
@@ -186,7 +186,7 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                       <td className="whitespace-nowrap">{fmtDateTime(r.meetingAt)}</td>
                       <td className="text-gray-600 max-w-xs truncate">{r.nextAction ?? "-"}</td>
                       <td className={cn("whitespace-nowrap", overdue && "text-rose-600 font-medium")}>{fmtDate(r.nextActionDue)}</td>
-                      <td className="text-right whitespace-nowrap">{fmtYen(r.rewardAmount)}</td>
+                      <td className={cn("text-right whitespace-nowrap", r.rewardUndetermined && "text-amber-700 font-medium")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</td>
                       <td>
                         <Badge value={r.rewardStatus} label={REWARD_LABEL[r.rewardStatus]} />
                       </td>
@@ -219,7 +219,7 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                       </div>
                       {r.meetingAt && <div className="text-xs text-gray-500 mt-1">面談 {fmtDateTime(r.meetingAt)}</div>}
                       <div className="flex items-center justify-between mt-2 gap-1">
-                        <span className="text-xs text-gray-600">{fmtYen(r.rewardAmount)}</span>
+                        <span className={cn("text-xs", r.rewardUndetermined ? "text-amber-700 font-medium" : "text-gray-600")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</span>
                         <StatusSelect
                           action={setReferralStatusAction}
                           id={r.id}
