@@ -11,7 +11,7 @@ export const metadata = { title: "繋がりリスト" };
 export default async function ContactsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; industry?: string; region?: string; saleshub?: string; tag?: string; inactive?: string; notVendor?: string; imported?: string; updated?: string; candidates?: string }>;
+  searchParams: Promise<{ q?: string; industry?: string; region?: string; saleshub?: string; tag?: string; inactive?: string; notVendor?: string; imported?: string; updated?: string; candidates?: string; removed?: string }>;
 }) {
   await requireUser();
   const sp = await searchParams;
@@ -72,7 +72,7 @@ export default async function ContactsPage({
       />
       {sp.imported !== undefined && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900 mb-3">
-          会社リストを取り込みました：新規 {sp.imported} 件 / 更新 {sp.updated ?? 0} 件{sp.candidates ? `／ セールスハブの過去メッセージから紹介候補 ${sp.candidates} 件を登録` : ""}
+          会社リストを取り込みました：新規 {sp.imported} 件 / 更新 {sp.updated ?? 0} 件{sp.removed && sp.removed !== "0" ? ` / セールスハブ未掲載 ${sp.removed} 件を削除` : ""}{sp.candidates ? `／ セールスハブの過去メッセージから紹介候補 ${sp.candidates} 件を登録` : ""}
         </div>
       )}
       {notVendor && (
@@ -200,7 +200,7 @@ export default async function ContactsPage({
                   </td>
                   {sp.imported !== undefined && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900 mb-3">
-          会社リストを取り込みました：新規 {sp.imported} 件 / 更新 {sp.updated ?? 0} 件{sp.candidates ? `／ セールスハブの過去メッセージから紹介候補 ${sp.candidates} 件を登録` : ""}
+          会社リストを取り込みました：新規 {sp.imported} 件 / 更新 {sp.updated ?? 0} 件{sp.removed && sp.removed !== "0" ? ` / セールスハブ未掲載 ${sp.removed} 件を削除` : ""}{sp.candidates ? `／ セールスハブの過去メッセージから紹介候補 ${sp.candidates} 件を登録` : ""}
         </div>
       )}
       {notVendor && (

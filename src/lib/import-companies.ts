@@ -39,7 +39,7 @@ function col(row: Row, ...names: string[]) {
   return null;
 }
 
-export async function importCompanyLists(): Promise<{ registered: number; connections: number; created: number; updated: number }> {
+export async function importCompanyLists(): Promise<{ registered: number; connections: number; created: number; updated: number; removed: number }> {
   const registered = readCsv("data/saleshub_registered.csv");
   const connections = readCsv("data/connections.csv");
 
@@ -87,6 +87,8 @@ export async function importCompanyLists(): Promise<{ registered: number; connec
     const company = col(r, "会社名");
     if (!company) continue;
     const key = norm(company);
+    // セールスハブに掲載されていない会社は、情報が揃うまで取り込まない（担当者名などの補完だけに使う）
+    if (!map.has(key)) continue;
     const base = map.get(key) ?? blank(company);
     base.name = col(r, "担当氏名") ?? base.name;
     base.title = col(r, "担当者役職") ?? base.title;
@@ -98,6 +100,13 @@ export async function importCompanyLists(): Promise<{ registered: number; connec
     base.channel = col(r, "連絡手段", "列1");
     map.set(key, base);
   }
+
+  // 以前の取込で入った「セールスハブ未掲載」の繋がり（保有者タグ付き・紹介案件なし）は削除する
+  const stale = await prisma.contact.findMany({
+    where: { isOnSaleshub: false, referrals: { none: {} }, tags: { some: { tag: { name: { startsWith: "保有者:" } } } } },
+    select: { id: true },
+  });
+  if (stale.length) await prisma.contact.deleteMany({ where: { id: { in: stale.map((c) => c.id) } } });
 
   const existing = await prisma.contact.findMany();
   let created = 0;
@@ -137,5 +146,5 @@ export async function importCompanyLists(): Promise<{ registered: number; connec
       await prisma.contactTag.upsert({ where: { contactId_tagId: { contactId: contact.id, tagId: tag.id } }, update: {}, create: { contactId: contact.id, tagId: tag.id } });
     }
   }
-  return { registered: registered.length, connections: connections.length, created, updated };
+  return { registered: registered.length, connections: connections.length, created, updated, removed: stale.length };
 }

@@ -161,5 +161,5 @@ export async function importBundledCompaniesAction(): Promise<void> {
   const c = await rebuildCandidates().catch(() => ({ created: 0 }));
   revalidatePath("/contacts");
   revalidatePath("/referrals");
-  redirect(`/contacts?imported=${r.created}&updated=${r.updated}&candidates=${c.created}`);
+  redirect(`/contacts?imported=${r.created}&updated=${r.updated}&removed=${r.removed}&candidates=${c.created}`);
 }
