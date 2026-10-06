@@ -18,7 +18,7 @@ export function FlashBanner() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
   const isError = !!error;
-  const message = isError ? (ERROR_CODE_MESSAGE[error!] ?? error) : notice;
+  const message = isError ? (Object.hasOwn(ERROR_CODE_MESSAGE, error!) ? ERROR_CODE_MESSAGE[error!] : error) : notice;
   return (
     <div
       role={isError ? "alert" : "status"}
