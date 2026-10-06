@@ -163,7 +163,14 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
         const url = (found.msg.body.match(URL_RE) ?? [])[0];
         await prisma.vendorMeeting.update({
           where: { id: meeting.id },
-          data: { scheduledAt: found.at, executionStatus: "CONFIRMED", ...(url && !meeting.place ? { place: url } : {}) },
+          data: {
+            scheduledAt: found.at,
+            executionStatus: "CONFIRMED",
+            ...(url && !meeting.place ? { place: url } : {}),
+            // 日程が決まったので次アクションを「実施→議事メモ入力」に進める
+            nextAction: "MTGを実施し、議事メモと結果（繋げる人物の確認）を入力する",
+            nextActionDue: new Date(Date.UTC(found.at.getUTCFullYear(), found.at.getUTCMonth(), found.at.getUTCDate() + 1, -9, 0)),
+          },
         });
         await recordHistory(prisma, {
           entityType: "VENDOR_MEETING",
