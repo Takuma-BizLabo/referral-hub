@@ -15,7 +15,8 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     return { error: "IDまたはパスワードが正しくありません" };
   }
   await createSession(user.id);
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  // オープンリダイレクト防止：アプリ内パスのみ（「//host」や「/\host」はブラウザが外部URLとして解釈する）
+  redirect(next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") && !/[\r\n]/.test(next) ? next : "/");
 }
 
 export async function logoutAction() {
