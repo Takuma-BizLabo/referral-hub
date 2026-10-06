@@ -1,13 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f5f6f8;
+  --background: #f4f6fa;
   --foreground: #1f2937;
+  --sidebar: #1b2338;
+  --sidebar-hover: #273050;
+  --primary: #2f5bff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-primary: var(--primary);
 }
 
 html {
@@ -23,48 +29,60 @@ body {
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-1 rounded border px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-1 rounded-lg border px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-1 rounded border px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-blue-600 border-blue-600 text-white hover:bg-blue-700;
+    @apply inline-flex items-center justify-center gap-1 rounded-lg border px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-primary border-primary text-white hover:bg-blue-700 hover:border-blue-700;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-1 rounded border px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white border-gray-300 text-gray-700 hover:bg-gray-50;
+    @apply inline-flex items-center justify-center gap-1 rounded-lg border px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white border-gray-300 text-gray-800 hover:bg-gray-50;
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-1 rounded border px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white border-rose-300 text-rose-700 hover:bg-rose-50;
+    @apply inline-flex items-center justify-center gap-1 rounded-lg border px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white border-rose-300 text-rose-700 hover:bg-rose-50;
+  }
+  .btn-dark {
+    @apply inline-flex items-center justify-center gap-1 rounded-lg border px-3.5 py-2 text-sm font-semibold whitespace-nowrap transition-colors bg-gray-900 border-gray-900 text-white hover:bg-gray-800;
   }
   .btn-sm {
-    @apply px-2 py-1 text-xs;
+    @apply px-2.5 py-1 text-xs;
   }
   .input {
-    @apply w-full rounded border border-gray-300 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:bg-gray-100;
+    @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:bg-gray-100;
   }
   .label {
     @apply block text-xs font-medium text-gray-600 mb-1;
   }
   .card {
-    @apply bg-white border border-gray-200 rounded;
+    @apply bg-white border border-gray-200 rounded-xl;
   }
   .table {
     @apply w-full text-sm;
   }
   .table th {
-    @apply text-left text-xs font-medium text-gray-500 bg-gray-50 border-b border-gray-200 px-3 py-2 whitespace-nowrap;
+    @apply text-left text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-200 px-3 py-2.5 whitespace-nowrap;
   }
   .table td {
-    @apply border-b border-gray-100 px-3 py-2 align-top;
+    @apply border-b border-gray-100 px-3 py-3 align-middle;
   }
   .table tr:hover td {
     @apply bg-blue-50/40;
   }
   .badge {
-    @apply inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium whitespace-nowrap;
+    @apply inline-flex items-center rounded-md border px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 whitespace-nowrap;
+  }
+  .chip-active {
+    @apply bg-gray-900 border-gray-900 text-white hover:bg-gray-900;
   }
   .nav-link {
-    @apply flex items-center gap-2 rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100;
+    @apply flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-gray-200 hover:bg-sidebar-hover;
   }
   .nav-link-active {
-    @apply bg-blue-50 text-blue-700 font-medium;
+    @apply bg-primary text-white font-semibold hover:bg-primary;
+  }
+  .kpi {
+    @apply px-4 py-3 border-r border-gray-200 last:border-r-0 min-w-28;
   }
 }

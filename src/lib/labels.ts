@@ -106,6 +106,8 @@ export const NOTIFICATION_TYPES = [
   { key: "OVERDUE", label: "次アクション期限超過", defaultLine: false },
   { key: "APPROVAL_PENDING", label: "承認待ち発生（管理者へ）", defaultLine: true },
   { key: "REJECTED", label: "差し戻し（担当者へ）", defaultLine: true },
+  { key: "APPROVED", label: "承認完了（担当者へ）", defaultLine: false },
+  { key: "TASK_ASSIGNED", label: "新しいタスクの割当（担当者へ）", defaultLine: true },
   { key: "STAGNANT", label: "紹介案件の停滞", defaultLine: false },
   { key: "PAYMENT_LATE", label: "入金予定日超過（管理者へ）", defaultLine: true },
 ] as const;
