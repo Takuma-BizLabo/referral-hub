@@ -5,6 +5,7 @@ import { EmptyState, PageHeader, Tabs } from "@/components/ui";
 import { VendorTag } from "@/components/VendorTag";
 import { cn, fmtYen } from "@/lib/utils";
 import { FilterPanel } from "@/components/FilterPanel";
+import { cleanParams } from "@/lib/params";
 import type { Prisma } from "@prisma/client";
 
 export const metadata = { title: "繋がりリスト" };
@@ -15,7 +16,7 @@ export default async function ContactsPage({
   searchParams: Promise<{ q?: string; industry?: string; region?: string; saleshub?: string; tag?: string; inactive?: string; notVendor?: string; imported?: string; updated?: string; candidates?: string; removed?: string }>;
 }) {
   await requireUser();
-  const sp = await searchParams;
+  const sp = cleanParams(await searchParams, { notVendor: "int", saleshub: ["0", "1"], inactive: ["1"] });
   const where: Prisma.ContactWhereInput = {
     isActive: sp.inactive === "1" ? undefined : true,
     ...(sp.q

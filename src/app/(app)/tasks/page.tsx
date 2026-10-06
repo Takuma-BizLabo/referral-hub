@@ -27,7 +27,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     ]),
   ]);
   const list = tab === "mine" ? mine : tab === "requested" ? requested : tab === "done" ? done : all;
-  const focus = sp.focus ? Number(sp.focus) : undefined;
+  const focus = sp.focus && /^\d+$/.test(sp.focus) ? Number(sp.focus) : undefined;
 
   return (
     <div className="space-y-4">

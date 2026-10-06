@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { Badge, EmptyState, PageHeader } from "@/components/ui";
 import { VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
 import { fmtYen } from "@/lib/utils";
+import { cleanParams } from "@/lib/params";
 import type { Prisma } from "@prisma/client";
 
 export const metadata = { title: "ベンダー" };
@@ -14,7 +15,7 @@ export default async function VendorsPage({
   searchParams: Promise<{ q?: string; status?: string; inactive?: string }>;
 }) {
   await requireUser();
-  const { q, status, inactive } = await searchParams;
+  const { q, status, inactive } = cleanParams(await searchParams);
   const where: Prisma.VendorWhereInput = {
     isActive: inactive === "1" ? undefined : true,
     ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { contactName: { contains: q, mode: "insensitive" } }, { serviceSummary: { contains: q, mode: "insensitive" } }] } : {}),

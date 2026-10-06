@@ -6,6 +6,7 @@ import { StatusSelect } from "@/components/StatusSelect";
 import { VendorChips, VendorTag } from "@/components/VendorTag";
 import { CountChips } from "@/components/CountChips";
 import { FilterPanel } from "@/components/FilterPanel";
+import { cleanParams } from "@/lib/params";
 import { APPROVAL_LABEL, EXECUTION_LABEL, EXECUTION_ORDER, FORMAT_LABEL } from "@/lib/labels";
 import { cn, fmtDate, fmtDateTime } from "@/lib/utils";
 import { formatTargetAmount, formatTargetsTotal, meetingTargets } from "@/lib/meeting-targets";
@@ -26,7 +27,14 @@ const SORTS: Record<string, { label: string; orderBy: Prisma.VendorMeetingOrderB
 
 export default async function MeetingsPage({ searchParams }: { searchParams: Promise<SP> }) {
   await requireUser();
-  const sp = await searchParams;
+  const sp = cleanParams(await searchParams, {
+    assignee: "int",
+    vendor: "int",
+    approval: Object.keys(APPROVAL_LABEL),
+    execution: Object.keys(EXECUTION_LABEL),
+    view: ["list", "kanban"],
+    sort: Object.keys(SORTS),
+  });
   const view = sp.view === "kanban" ? "kanban" : "list";
   const where: Prisma.VendorMeetingWhereInput = {
     ...(sp.assignee ? { assigneeId: Number(sp.assignee) } : {}),

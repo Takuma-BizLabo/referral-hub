@@ -12,7 +12,7 @@ export const metadata = { title: "目標設定" };
 export default async function GoalsPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   await requireAdmin();
   const { month } = await searchParams;
-  const ym = month && /^\d{4}-\d{2}$/.test(month) ? month : yearMonthOf(new Date());
+  const ym = month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : yearMonthOf(new Date());
   const base = new Date(`${ym}-01T00:00:00`);
   const [users, goals, actuals] = await Promise.all([
     prisma.user.findMany({ where: { isActive: true }, orderBy: { id: "asc" } }),

@@ -6,6 +6,7 @@ import { Badge, Card, EmptyState, PageHeader, Tabs } from "@/components/ui";
 import { StatusSelect } from "@/components/StatusSelect";
 import { VendorTag } from "@/components/VendorTag";
 import { REWARD_LABEL, REWARD_ORDER } from "@/lib/labels";
+import { cleanParams } from "@/lib/params";
 import { cn, fmtDate, fmtReward, fmtYen, yearMonthOf } from "@/lib/utils";
 import { monthRange } from "@/lib/stats";
 import { setRewardStatusAction } from "../referrals/actions";
@@ -22,7 +23,7 @@ const SORTS: Record<string, { label: string; orderBy: Prisma.ReferralOrderByWith
 
 export default async function RewardsPage({ searchParams }: { searchParams: Promise<{ status?: string; month?: string; sort?: string }> }) {
   await requireUser();
-  const sp = await searchParams;
+  const sp = cleanParams(await searchParams, { sort: Object.keys(SORTS) });
   const status = sp.status && sp.status in REWARD_LABEL ? (sp.status as RewardStatus) : undefined;
   const where: Prisma.ReferralWhereInput = status ? { rewardStatus: status } : { rewardStatus: { not: "UNFIXED" } };
   const today = new Date();

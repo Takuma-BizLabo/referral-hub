@@ -4,13 +4,14 @@ import { prisma } from "@/lib/db";
 import { EmptyState, PageHeader, Tabs } from "@/components/ui";
 import { VendorTag } from "@/components/VendorTag";
 import { REFERRAL_LABEL, STATUS_COLOR, VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
+import { cleanParams } from "@/lib/params";
 import { cn, fmtYen } from "@/lib/utils";
 
 export const metadata = { title: "紹介マトリクス" };
 
 export default async function ContactMatrixPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   await requireUser();
-  const { q } = await searchParams;
+  const { q } = cleanParams(await searchParams);
   const [vendors, contacts] = await Promise.all([
     prisma.vendor.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
     prisma.contact.findMany({

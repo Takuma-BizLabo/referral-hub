@@ -4,13 +4,14 @@ import { ja } from "date-fns/locale";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/ui";
+import { cleanParams } from "@/lib/params";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "カレンダー" };
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   await requireUser();
-  const { month } = await searchParams;
+  const { month } = cleanParams(await searchParams);
   let base = month ? parse(month, "yyyy-MM", new Date()) : new Date();
   if (!isValid(base)) base = new Date();
   const mStart = startOfMonth(base);

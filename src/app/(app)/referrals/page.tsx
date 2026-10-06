@@ -6,6 +6,7 @@ import { StatusSelect } from "@/components/StatusSelect";
 import { VendorChips, VendorTag } from "@/components/VendorTag";
 import { CountChips } from "@/components/CountChips";
 import { FilterPanel } from "@/components/FilterPanel";
+import { cleanParams } from "@/lib/params";
 import { REFERRAL_LABEL, REFERRAL_ORDER, REWARD_LABEL, REWARD_ORDER } from "@/lib/labels";
 import { cn, fmtDate, fmtDateTime, fmtReward } from "@/lib/utils";
 import { setReferralStatusAction } from "./actions";
@@ -25,7 +26,14 @@ const SORTS: Record<string, { label: string; orderBy: Prisma.ReferralOrderByWith
 
 export default async function ReferralsPage({ searchParams }: { searchParams: Promise<SP> }) {
   await requireUser();
-  const sp = await searchParams;
+  const sp = cleanParams(await searchParams, {
+    vendor: "int",
+    status: Object.keys(REFERRAL_LABEL),
+    reward: Object.keys(REWARD_LABEL),
+    view: ["list", "kanban"],
+    sort: Object.keys(SORTS),
+    stagnant: ["1"],
+  });
   const view = sp.view === "kanban" ? "kanban" : "list";
   const where: Prisma.ReferralWhereInput = {
     ...(sp.vendor ? { vendorId: Number(sp.vendor) } : {}),
