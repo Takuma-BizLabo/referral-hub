@@ -114,3 +114,15 @@ export const NOTIFICATION_TYPES = [
   { key: "TASK_DONE", label: "依頼したタスクの完了（依頼者へ）", defaultLine: true },
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]["key"];
+
+/** 通知の種別グループ（通知一覧のフィルタ用） */
+export const NOTIFICATION_GROUPS: { key: string; label: string; types: string[] }[] = [
+  { key: "task", label: "タスク", types: ["TASK_ASSIGNED", "TASK_DONE"] },
+  { key: "approval", label: "承認・差し戻し", types: ["APPROVAL_PENDING", "APPROVED", "REJECTED"] },
+  { key: "remind", label: "リマインド", types: ["MEETING_1DAY", "MEETING_1HOUR", "MINUTES_MISSING", "DUE_TODAY", "OVERDUE", "STAGNANT", "PAYMENT_LATE"] },
+  { key: "saleshub", label: "セールスハブ", types: ["SALESHUB_MESSAGE"] },
+];
+
+export function notificationGroupOf(type: string) {
+  return NOTIFICATION_GROUPS.find((g) => g.types.includes(type));
+}
