@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { lineConfigured, pushLineText } from "./line";
 import { getLineEnabledMap } from "./settings";
@@ -27,16 +28,23 @@ export async function notify(input: NotifyInput): Promise<boolean> {
     const exists = await prisma.notification.findUnique({ where: { dedupeKey: input.dedupeKey } });
     if (exists) return false;
   }
-  const n = await prisma.notification.create({
-    data: {
-      userId: input.userId,
-      type: input.type,
-      title: input.title,
-      body: input.body ?? null,
-      linkUrl: input.linkUrl ?? null,
-      dedupeKey: input.dedupeKey ?? null,
-    },
-  });
+  let n;
+  try {
+    n = await prisma.notification.create({
+      data: {
+        userId: input.userId,
+        type: input.type,
+        title: input.title,
+        body: input.body ?? null,
+        linkUrl: input.linkUrl ?? null,
+        dedupeKey: input.dedupeKey ?? null,
+      },
+    });
+  } catch (e) {
+    // 確認と作成の間に同じ dedupeKey の通知が作られた（cron の同時実行・同じ payload の同時受信など）場合は作らない
+    if (input.dedupeKey && e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return false;
+    throw e;
+  }
 
   // LINE 送信
   try {
