@@ -11,7 +11,7 @@ export const metadata = { title: "繋がりリスト" };
 export default async function ContactsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; industry?: string; region?: string; saleshub?: string; tag?: string; inactive?: string; notVendor?: string }>;
+  searchParams: Promise<{ q?: string; industry?: string; region?: string; saleshub?: string; tag?: string; inactive?: string; notVendor?: string; imported?: string; updated?: string }>;
 }) {
   await requireUser();
   const sp = await searchParams;
@@ -70,6 +70,11 @@ export default async function ContactsPage({
           { href: "/contacts/matrix", label: "紹介マトリクス（誰をどこに紹介済みか）", active: false },
         ]}
       />
+      {sp.imported !== undefined && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900 mb-3">
+          会社リストを取り込みました：新規 {sp.imported} 件 / 更新 {sp.updated ?? 0} 件
+        </div>
+      )}
       {notVendor && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 mb-3 flex flex-wrap items-center gap-2">
           <VendorTag id={notVendor.id} name={notVendor.name} />
@@ -193,7 +198,12 @@ export default async function ContactsPage({
                       {c.referrals.length === 0 && <span className="text-xs text-gray-400">未紹介</span>}
                     </div>
                   </td>
-                  {notVendor && (
+                  {sp.imported !== undefined && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900 mb-3">
+          会社リストを取り込みました：新規 {sp.imported} 件 / 更新 {sp.updated ?? 0} 件
+        </div>
+      )}
+      {notVendor && (
                     <td className="text-right">
                       <Link href={`/referrals/new?vendorId=${notVendor.id}&contactId=${c.id}`} className="btn-primary btn-sm">
                         紹介する

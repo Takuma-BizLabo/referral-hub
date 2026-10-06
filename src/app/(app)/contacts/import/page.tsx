@@ -1,17 +1,29 @@
 import { requireUser } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { ImportWizard } from "./ImportWizard";
+import { importBundledCompaniesAction } from "../actions";
+import { Card } from "@/components/ui";
 
 export const metadata = { title: "CSV取込" };
 
 export default async function ImportPage() {
-  await requireUser();
+  const user = await requireUser();
   return (
     <div>
       <PageHeader
         title="繋がりリスト CSV取込"
         description="CSV（UTF-8 / Shift_JIS）を選び、列を対応付けて取り込みます。重複は取込前に確認できます。"
       />
+      {user.role === "ADMIN" && (
+        <Card title="スプレッドシートの会社リストを取り込む（管理者）" className="mb-4">
+          <p className="text-sm text-gray-700 mb-3">
+            ツールに同梱している「セールスハブ掲載済み 159社」と「繋がりリスト 58件」を繋がりリストへ取り込みます。会社名が一致する行はまとめ、既存の繋がりは更新します（何度実行しても重複しません）。
+          </p>
+          <form action={importBundledCompaniesAction}>
+            <button className="btn-primary">同梱の会社リストを取り込む</button>
+          </form>
+        </Card>
+      )}
       <ImportWizard />
     </div>
   );

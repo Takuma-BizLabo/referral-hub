@@ -149,3 +149,13 @@ export async function importContactsAction(
   revalidatePath("/contacts");
   return { created, updated, skipped, errors };
 }
+
+/** 同梱の会社リスト（data/*.csv）を取り込む（管理者） */
+export async function importBundledCompaniesAction(): Promise<void> {
+  const { assertAdmin } = await import("@/lib/auth");
+  await assertAdmin();
+  const { importCompanyLists } = await import("@/lib/import-companies");
+  const r = await importCompanyLists();
+  revalidatePath("/contacts");
+  redirect(`/contacts?imported=${r.created}&updated=${r.updated}`);
+}
