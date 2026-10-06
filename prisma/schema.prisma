@@ -1,0 +1,276 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- 列挙型 ----------
+
+enum Role {
+  ADMIN // 管理者
+  MEMBER // 商談担当者
+}
+
+enum MeetingFormat {
+  ONLINE // オンライン
+  VISIT // 訪問
+}
+
+enum VendorMeetingStatus {
+  NOT_DONE // 未実施
+  DONE // 実施済
+}
+
+enum ApprovalStatus {
+  PENDING // 承認待ち
+  APPROVED // 承認済
+  REJECTED // 差し戻し
+}
+
+enum ExecutionStatus {
+  SCHEDULING // 日程調整中
+  CONFIRMED // 確定
+  DONE // 実施済
+  RESCHEDULE // リスケ
+  CANCELLED // キャンセル
+}
+
+enum ReferralStatus {
+  RECEIVED // ピックアップ受付
+  CONTACTING // 紹介先に打診中
+  SCHEDULING // 日程調整中
+  MEETING_CONFIRMED // 面談確定
+  MEETING_DONE // 面談実施済
+  DECLINED // 紹介見送り
+}
+
+enum RewardStatus {
+  UNFIXED // 未確定
+  APPLIED // 計上申請
+  APPROVED // 承認済
+  INVOICED // 請求済
+  PAID // 入金済
+}
+
+enum HistoryEntity {
+  VENDOR
+  VENDOR_MEETING
+  REFERRAL
+}
+
+// ---------- ユーザー・認証 ----------
+
+model User {
+  id                    Int       @id @default(autoincrement())
+  loginId               String    @unique
+  name                  String
+  passwordHash          String
+  role                  Role      @default(MEMBER)
+  lineUserId            String?   @unique
+  lineLinkCode          String?   @unique
+  lineLinkCodeExpiresAt DateTime?
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  sessions      Session[]
+  meetings      VendorMeeting[]
+  notifications Notification[]
+  histories     StatusHistory[]
+  goals         MonthlyGoal[]
+}
+
+model Session {
+  id        String   @id
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------- ベンダー ----------
+
+model Vendor {
+  id             Int                 @id @default(autoincrement())
+  name           String
+  contactName    String?
+  contactEmail   String?
+  contactPhone   String?
+  serviceSummary String?
+  referralFee    Int                 @default(0) // 紹介報酬単価（円）
+  saleshubUrl    String?
+  meetingStatus  VendorMeetingStatus @default(NOT_DONE)
+  memo           String?
+  isActive       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  meetings  VendorMeeting[]
+  referrals Referral[]
+}
+
+// ---------- ベンダーMTG（フェーズ1） ----------
+
+model VendorMeeting {
+  id                Int             @id @default(autoincrement())
+  vendorId          Int
+  vendor            Vendor          @relation(fields: [vendorId], references: [id])
+  assigneeId        Int
+  assignee          User            @relation(fields: [assigneeId], references: [id])
+  scheduledAt       DateTime?
+  format            MeetingFormat   @default(ONLINE)
+  place             String? // 会議URL・場所
+  approvalStatus    ApprovalStatus  @default(PENDING)
+  rejectReason      String?
+  executionStatus   ExecutionStatus @default(SCHEDULING)
+  minutes           String? // 議事メモ
+  nextAction        String?
+  nextActionDue     DateTime? // 日付（00:00）
+  doneAt            DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([vendorId])
+  @@index([assigneeId])
+  @@index([scheduledAt])
+}
+
+// ---------- 繋がりリスト ----------
+
+model Contact {
+  id            Int      @id @default(autoincrement())
+  name          String
+  company       String?
+  title         String?
+  industry      String?
+  employeeSize  String?
+  region        String?
+  email         String?
+  phone         String?
+  otherContact  String?
+  isOnSaleshub  Boolean  @default(false)
+  relationMemo  String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tags      ContactTag[]
+  referrals Referral[]
+
+  @@index([name])
+  @@index([company])
+}
+
+model Tag {
+  id       Int          @id @default(autoincrement())
+  name     String       @unique
+  contacts ContactTag[]
+}
+
+model ContactTag {
+  contactId Int
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tagId     Int
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+}
+
+// ---------- 紹介案件（フェーズ2） ----------
+
+model Referral {
+  id                Int            @id @default(autoincrement())
+  vendorId          Int
+  vendor            Vendor         @relation(fields: [vendorId], references: [id])
+  contactId         Int
+  contact           Contact        @relation(fields: [contactId], references: [id])
+  pickedUpAt        DateTime       @default(now())
+  status            ReferralStatus @default(RECEIVED)
+  statusChangedAt   DateTime       @default(now())
+  meetingAt         DateTime?
+  meetingFormat     MeetingFormat?
+  meetingPlace      String?
+  meetingResult     String?
+  meetingDoneAt     DateTime?
+  nextAction        String?
+  nextActionDue     DateTime?
+  rewardAmount      Int            @default(0)
+  rewardStatus      RewardStatus   @default(UNFIXED)
+  rewardApprovedAt  DateTime?
+  invoicedAt        DateTime?
+  paymentDueAt      DateTime?
+  paidAt            DateTime?
+  forceUnlocked     Boolean        @default(false)
+  forceUnlockReason String?
+  memo              String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([vendorId])
+  @@index([contactId])
+  @@index([status])
+  @@index([rewardStatus])
+}
+
+// ---------- 履歴 ----------
+
+model StatusHistory {
+  id          Int           @id @default(autoincrement())
+  entityType  HistoryEntity
+  entityId    Int
+  field       String
+  fromValue   String?
+  toValue     String?
+  note        String?
+  changedById Int?
+  changedBy   User?         @relation(fields: [changedById], references: [id])
+  changedAt   DateTime      @default(now())
+
+  @@index([entityType, entityId])
+}
+
+// ---------- 通知 ----------
+
+model Notification {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String
+  title      String
+  body       String?
+  linkUrl    String?
+  dedupeKey  String?   @unique
+  readAt     DateTime?
+  lineSentAt DateTime?
+  lineError  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+// ---------- 目標 ----------
+
+model MonthlyGoal {
+  id                  Int   @id @default(autoincrement())
+  yearMonth           String // 例: 2026-10
+  userId              Int? // null = 全体
+  user                User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meetingTarget       Int   @default(0)
+  referralTarget      Int   @default(0)
+  rewardAccrualTarget Int   @default(0)
+  rewardPaidTarget    Int   @default(0)
+
+  @@index([yearMonth])
+}
+
+// ---------- 設定 ----------
+
+model Setting {
+  key   String @id
+  value String
+}
