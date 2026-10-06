@@ -5,6 +5,7 @@ import { getSettingRaw, getSetting } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/utils";
 import { issueIngestTokenAction, rebuildCandidatesAction } from "./actions";
 import { SaleshubSettingsForm } from "./SaleshubSettingsForm";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export const metadata = { title: "セールスハブ連携" };
 
@@ -69,7 +70,7 @@ export default async function SaleshubSettingsPage() {
             <p className="text-sm text-gray-500">未発行です。下のボタンで発行してください。</p>
           )}
           <form action={issueIngestTokenAction} className="mt-2">
-            <button className="btn-secondary btn-sm">{token ? "トークンを再発行（拡張側も貼り直し）" : "トークンを発行"}</button>
+            <SubmitButton className="btn-secondary btn-sm">{token ? "トークンを再発行（拡張側も貼り直し）" : "トークンを発行"}</SubmitButton>
           </form>
           <div className="label mt-4">ツールのURL（拡張に貼る）</div>
           <code className="block rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs break-all select-all">{appUrl || "APP_URL 未設定"}</code>
@@ -110,7 +111,7 @@ export default async function SaleshubSettingsPage() {
           繋がりリストを後から追加した場合などに、取り込み済みの全スレッドの会社名を繋がりリストと突き合わせ直し、紹介候補（ピックアップ受付）を登録します。登録済みの組み合わせは重複しません。
         </p>
         <form action={rebuildCandidatesAction} className="flex flex-wrap items-center gap-3">
-          <button className="btn-secondary">過去メッセージから紹介候補を再抽出</button>
+          <SubmitButton className="btn-secondary">過去メッセージから紹介候補を再抽出</SubmitButton>
           {lastRebuild && (
             <span className="text-xs text-gray-500">
               前回 {fmtDateTime(new Date(lastRebuild[0]))}：{lastRebuild[1]} スレッド → 候補 {lastRebuild[2]} 件を登録

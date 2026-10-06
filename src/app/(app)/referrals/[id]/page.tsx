@@ -9,6 +9,7 @@ import { FORMAT_LABEL, REFERRAL_LABEL, REFERRAL_ORDER, REWARD_LABEL, REWARD_ORDE
 import { cn, fmtDate, fmtDateTime, fmtReward, toInputDate } from "@/lib/utils";
 import { forceUnlockAction, setReferralStatusAction, setRewardStatusAction } from "../actions";
 import { RewardForm } from "./RewardForm";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function ReferralDetailPage({
   params,
@@ -67,7 +68,7 @@ export default async function ReferralDetailPage({
                 <label className="label">強制解除の理由（任意）</label>
                 <input name="reason" className="input" />
               </div>
-              <button className="btn-danger">管理者権限で強制解除</button>
+              <SubmitButton className="btn-danger" confirm="ベンダーMTG未実施のブロックを強制解除しますか？">管理者権限で強制解除</SubmitButton>
             </form>
           )}
         </div>

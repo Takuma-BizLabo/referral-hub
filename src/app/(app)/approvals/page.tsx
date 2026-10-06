@@ -7,6 +7,7 @@ import { fmtDate, fmtDateTime, fmtReward } from "@/lib/utils";
 import { approveMeetingAction } from "../meetings/actions";
 import { approveRewardAction } from "../referrals/actions";
 import { RejectForm } from "../meetings/[id]/MeetingControls";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export const metadata = { title: "承認キュー" };
 
@@ -53,7 +54,7 @@ export default async function ApprovalsPage() {
                 <div className="space-y-2">
                   <form action={approveMeetingAction}>
                     <input type="hidden" name="id" value={m.id} />
-                    <button className="btn-primary w-full">承認する</button>
+                    <SubmitButton className="btn-primary w-full">承認する</SubmitButton>
                   </form>
                   <RejectForm id={m.id} />
                 </div>
@@ -100,7 +101,7 @@ export default async function ApprovalsPage() {
                       ) : (
                         <form action={approveRewardAction}>
                           <input type="hidden" name="id" value={r.id} />
-                          <button className="btn-primary btn-sm">承認（計上確定）</button>
+                          <SubmitButton className="btn-primary btn-sm">承認（計上確定）</SubmitButton>
                         </form>
                       )}
                     </td>

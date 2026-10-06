@@ -3,6 +3,7 @@ import type { Task, User } from "@prisma/client";
 import { cn, fmtDate, fmtDateTime } from "@/lib/utils";
 import { completeTaskAction, deleteTaskAction, reopenTaskAction } from "@/app/(app)/tasks/actions";
 import { CompleteTaskForm } from "./TaskControls";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export type TaskWithUsers = Task & { requester: User; assignee: User };
 
@@ -57,13 +58,13 @@ export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; 
           ) : (
             <form action={reopenTaskAction}>
               <input type="hidden" name="id" value={task.id} />
-              <button className="btn-secondary btn-sm">未完了に戻す</button>
+              <SubmitButton className="btn-secondary btn-sm">未完了に戻す</SubmitButton>
             </form>
           )}
           {(task.requesterId === meId || isAdmin) && (
             <form action={deleteTaskAction}>
               <input type="hidden" name="id" value={task.id} />
-              <button className="btn-danger btn-sm">削除</button>
+              <SubmitButton className="btn-danger btn-sm" confirm="このタスクを削除しますか？">削除</SubmitButton>
             </form>
           )}
         </div>

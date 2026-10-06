@@ -15,7 +15,14 @@ import type { ApprovalStatus, ExecutionStatus, Prisma } from "@prisma/client";
 
 export const metadata = { title: "ベンダーMTG" };
 
-type SP = { view?: string; assignee?: string; approval?: string; execution?: string; vendor?: string; q?: string };
+type SP = { view?: string; assignee?: string; approval?: string; execution?: string; vendor?: string; q?: string; sort?: string };
+
+const SORTS: Record<string, { label: string; orderBy: Prisma.VendorMeetingOrderByWithRelationInput[] }> = {
+  date: { label: "日時が早い順", orderBy: [{ scheduledAt: { sort: "asc", nulls: "last" } }, { id: "desc" }] },
+  date_desc: { label: "日時が新しい順", orderBy: [{ scheduledAt: { sort: "desc", nulls: "last" } }, { id: "desc" }] },
+  due: { label: "期限が近い順", orderBy: [{ nextActionDue: { sort: "asc", nulls: "last" } }, { scheduledAt: { sort: "asc", nulls: "last" } }] },
+  created: { label: "登録が新しい順", orderBy: [{ createdAt: "desc" }] },
+};
 
 export default async function MeetingsPage({ searchParams }: { searchParams: Promise<SP> }) {
   await requireUser();
@@ -37,7 +44,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
         vendor: { include: { referrals: { select: { status: true, rewardAmount: true, rewardUndetermined: true, contact: { select: { company: true, name: true } } } } } },
         assignee: { select: { id: true, name: true } },
       },
-      orderBy: [{ scheduledAt: "asc" }, { id: "desc" }],
+      orderBy: (SORTS[sp.sort ?? ""] ?? SORTS.date).orderBy,
       take: 500,
     }),
     prisma.user.findMany({ where: { isActive: true }, orderBy: { id: "asc" } }),
@@ -151,6 +158,16 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">並び順</label>
+          <select name="sort" defaultValue={sp.sort ?? "date"} className="input">
+            {Object.entries(SORTS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v.label}
               </option>
             ))}
           </select>

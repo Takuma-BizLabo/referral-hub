@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/ui";
 import { ImportWizard } from "./ImportWizard";
 import { importBundledCompaniesAction } from "../actions";
 import { Card } from "@/components/ui";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export const metadata = { title: "CSV取込" };
 
@@ -20,7 +21,7 @@ export default async function ImportPage() {
             ツールに同梱している「セールスハブ掲載済み 159社」を繋がりリストへ取り込みます。スプレッドシートの繋がりリストは担当者名などの補完にだけ使い、セールスハブ未掲載の会社は取り込みません（何度実行しても重複しません）。
           </p>
           <form action={importBundledCompaniesAction}>
-            <button className="btn-primary">同梱の会社リストを取り込む</button>
+            <SubmitButton className="btn-primary">同梱の会社リストを取り込む</SubmitButton>
           </form>
         </Card>
       )}

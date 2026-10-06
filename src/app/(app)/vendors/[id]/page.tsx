@@ -14,6 +14,7 @@ import {
 import { fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import { setVendorMeetingStatusAction, toggleVendorActiveAction } from "../actions";
 import { HistoryList } from "@/components/HistoryList";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function VendorDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireUser();
@@ -85,20 +86,20 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
           <form action={setVendorMeetingStatusAction} className="flex gap-2">
             <input type="hidden" name="id" value={vendor.id} />
             {vendor.meetingStatus === "NOT_DONE" ? (
-              <button name="status" value="DONE" className="btn-primary">
+              <SubmitButton name="status" value="DONE" className="btn-primary">
                 実施済にする
-              </button>
+              </SubmitButton>
             ) : (
-              <button name="status" value="NOT_DONE" className="btn-secondary">
+              <SubmitButton name="status" value="NOT_DONE" className="btn-secondary">
                 未実施に戻す
-              </button>
+              </SubmitButton>
             )}
           </form>
           <form action={toggleVendorActiveAction} className="mt-4 pt-4 border-t border-gray-100">
             <input type="hidden" name="id" value={vendor.id} />
-            <button className={vendor.isActive ? "btn-danger btn-sm" : "btn-secondary btn-sm"}>
+            <SubmitButton className={vendor.isActive ? "btn-danger btn-sm" : "btn-secondary btn-sm"}>
               {vendor.isActive ? "このベンダーを無効にする" : "有効に戻す"}
-            </button>
+            </SubmitButton>
           </form>
         </Card>
       </div>

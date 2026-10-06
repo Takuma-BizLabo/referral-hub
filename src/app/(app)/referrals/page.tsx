@@ -13,7 +13,15 @@ import type { Prisma, ReferralStatus, RewardStatus } from "@prisma/client";
 
 export const metadata = { title: "紹介案件" };
 
-type SP = { view?: string; vendor?: string; status?: string; reward?: string; q?: string; stagnant?: string };
+type SP = { view?: string; vendor?: string; status?: string; reward?: string; q?: string; stagnant?: string; sort?: string };
+
+const SORTS: Record<string, { label: string; orderBy: Prisma.ReferralOrderByWithRelationInput[] }> = {
+  updated: { label: "ステータス更新が新しい順", orderBy: [{ statusChangedAt: "desc" }] },
+  meeting: { label: "面談日時が早い順", orderBy: [{ meetingAt: { sort: "asc", nulls: "last" } }, { statusChangedAt: "desc" }] },
+  due: { label: "期限が近い順", orderBy: [{ nextActionDue: { sort: "asc", nulls: "last" } }, { statusChangedAt: "desc" }] },
+  picked: { label: "ピックアップが新しい順", orderBy: [{ pickedUpAt: "desc" }, { id: "desc" }] },
+  stale: { label: "停滞が長い順", orderBy: [{ statusChangedAt: "asc" }] },
+};
 
 export default async function ReferralsPage({ searchParams }: { searchParams: Promise<SP> }) {
   await requireUser();
@@ -31,7 +39,7 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
     prisma.referral.findMany({
       where,
       include: { vendor: true, contact: true },
-      orderBy: [{ statusChangedAt: "desc" }],
+      orderBy: (SORTS[sp.sort ?? ""] ?? SORTS.updated).orderBy,
       take: 500,
     }),
     prisma.vendor.findMany({ orderBy: { name: "asc" } }),
@@ -128,6 +136,16 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
             {REWARD_ORDER.map((s) => (
               <option key={s} value={s}>
                 {REWARD_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">並び順</label>
+          <select name="sort" defaultValue={sp.sort ?? "updated"} className="input">
+            {Object.entries(SORTS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v.label}
               </option>
             ))}
           </select>

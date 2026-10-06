@@ -4,6 +4,7 @@ import { Card } from "@/components/ui";
 import { lineConfigured } from "@/lib/line";
 import { fmtDateTime } from "@/lib/utils";
 import { issueLineCodeAction, sendLineTestAction, unlinkLineAction } from "./actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export const metadata = { title: "LINE連携" };
 
@@ -31,10 +32,10 @@ export default async function LineSettingsPage() {
             {lastLine && <p className="text-xs text-gray-500">最終送信：{fmtDateTime(lastLine.lineSentAt)}</p>}
             <div className="flex gap-2">
               <form action={sendLineTestAction}>
-                <button className="btn-secondary">テスト送信</button>
+                <SubmitButton className="btn-secondary">テスト送信</SubmitButton>
               </form>
               <form action={unlinkLineAction}>
-                <button className="btn-danger">連携を解除</button>
+                <SubmitButton className="btn-danger" confirm="LINE連携を解除しますか？">連携を解除</SubmitButton>
               </form>
             </div>
           </div>
@@ -54,7 +55,7 @@ export default async function LineSettingsPage() {
               </div>
             ) : null}
             <form action={issueLineCodeAction}>
-              <button className="btn-primary">{codeValid ? "コードを再発行" : "連携コードを発行"}</button>
+              <SubmitButton className="btn-primary">{codeValid ? "コードを再発行" : "連携コードを発行"}</SubmitButton>
             </form>
           </div>
         )}

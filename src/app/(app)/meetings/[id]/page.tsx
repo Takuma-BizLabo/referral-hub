@@ -175,7 +175,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
             <Card title="承認（管理者）">
               <form action={approveMeetingAction} className="mb-3">
                 <input type="hidden" name="id" value={m.id} />
-                <button className="btn-primary w-full">承認する</button>
+                <SubmitButton className="btn-primary w-full">承認する</SubmitButton>
               </form>
               <RejectForm id={m.id} />
             </Card>

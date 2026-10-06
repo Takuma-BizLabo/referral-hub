@@ -7,6 +7,7 @@ import { REFERRAL_LABEL, REWARD_LABEL, VENDOR_MEETING_STATUS_LABEL } from "@/lib
 import { VendorTag } from "@/components/VendorTag";
 import { fmtDate, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import { toggleContactActiveAction } from "../actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireUser();
@@ -71,9 +72,9 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         <Card title="操作">
           <form action={toggleContactActiveAction}>
             <input type="hidden" name="id" value={contact.id} />
-            <button className={contact.isActive ? "btn-danger btn-sm" : "btn-secondary btn-sm"}>
+            <SubmitButton className={contact.isActive ? "btn-danger btn-sm" : "btn-secondary btn-sm"}>
               {contact.isActive ? "この繋がりを無効にする" : "有効に戻す"}
-            </button>
+            </SubmitButton>
           </form>
         </Card>
       </div>

@@ -13,7 +13,14 @@ import type { Prisma, RewardStatus } from "@prisma/client";
 
 export const metadata = { title: "報酬管理" };
 
-export default async function RewardsPage({ searchParams }: { searchParams: Promise<{ status?: string; month?: string }> }) {
+const SORTS: Record<string, { label: string; orderBy: Prisma.ReferralOrderByWithRelationInput[] }> = {
+  updated: { label: "更新順", orderBy: [{ updatedAt: "desc" }] },
+  due: { label: "入金予定が近い順", orderBy: [{ paymentDueAt: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }] },
+  approved: { label: "承認日が新しい順", orderBy: [{ rewardApprovedAt: { sort: "desc", nulls: "last" } }, { updatedAt: "desc" }] },
+  done: { label: "面談実施日が新しい順", orderBy: [{ meetingDoneAt: { sort: "desc", nulls: "last" } }, { updatedAt: "desc" }] },
+};
+
+export default async function RewardsPage({ searchParams }: { searchParams: Promise<{ status?: string; month?: string; sort?: string }> }) {
   await requireUser();
   const sp = await searchParams;
   const status = sp.status && sp.status in REWARD_LABEL ? (sp.status as RewardStatus) : undefined;
@@ -25,7 +32,7 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
     prisma.referral.findMany({
       where,
       include: { vendor: true, contact: true },
-      orderBy: [{ updatedAt: "desc" }],
+      orderBy: (SORTS[sp.sort ?? ""] ?? SORTS.updated).orderBy,
       take: 500,
     }),
     prisma.referral.groupBy({ by: ["rewardStatus"], _count: { _all: true }, _sum: { rewardAmount: true } }),
@@ -120,10 +127,22 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
       <div>
         <Tabs
           items={[
-            { href: "/rewards", label: "確定以降すべて", active: !status },
-            ...REWARD_ORDER.map((s) => ({ href: `/rewards?status=${s}`, label: REWARD_LABEL[s], active: status === s })),
+            { href: sp.sort ? `/rewards?sort=${sp.sort}` : "/rewards", label: "確定以降すべて", active: !status },
+            ...REWARD_ORDER.map((s) => ({ href: `/rewards?status=${s}${sp.sort ? `&sort=${sp.sort}` : ""}`, label: REWARD_LABEL[s], active: status === s })),
           ]}
         />
+        <div className="flex flex-wrap items-center gap-1.5 mb-3 text-xs">
+          <span className="text-gray-500">並び順:</span>
+          {Object.entries(SORTS).map(([k, v]) => {
+            const active = (sp.sort ?? "updated") === k;
+            const qs = new URLSearchParams({ ...(status ? { status } : {}), ...(k !== "updated" ? { sort: k } : {}) }).toString();
+            return (
+              <Link key={k} href={qs ? `/rewards?${qs}` : "/rewards"} className={cn("chip py-1 text-xs", active && "chip-active")}>
+                {v.label}
+              </Link>
+            );
+          })}
+        </div>
         {rows.length === 0 ? (
           <div className="card">
             <EmptyState message="該当する報酬はありません" />
