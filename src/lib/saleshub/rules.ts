@@ -5,6 +5,7 @@ import { notify, notifyAdmins } from "../notifications";
 import { getSettingRaw } from "../settings";
 import { fmtDateTime } from "../utils";
 import { extractCompanies, extractMeetingDateTime, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
+import { isProposed, proposedCompaniesForVendor } from "./proposed";
 import type { SaleshubMessage, SaleshubThread } from "@prisma/client";
 
 type Thread = SaleshubThread;
@@ -117,8 +118,10 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
   if (!meetingId && requestMsg && schedulerId) {
     const vendorId = await ensureVendor(thread);
     const urls = requestMsg.body.match(URL_RE) ?? [];
-    const firstMine = mine[0];
-    const candidates = firstMine ? extractCompanies(firstMine.body, [thread.vendorName]) : [];
+    // 指名された繋ぎ先：このスレッドと、同じベンダーの他スレッドで松田が提示した会社
+    const own = mine.flatMap((m) => extractCompanies(m.body, [thread.vendorName]));
+    const others = await proposedCompaniesForVendor(vendorId);
+    const candidates = [...own, ...others].filter((c, i, arr) => arr.findIndex((x) => normalizeCompanyName(x.company) === normalizeCompanyName(c.company)) === i);
     const meeting = await prisma.vendorMeeting.create({
       data: {
         vendorId,
@@ -201,12 +204,20 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
     for (const m of vendorMessages) {
       const companies = extractCompanies(m.body, [thread.vendorName]);
       if (companies.length === 0) continue;
-      const { created, unmatched } = await registerCandidates(vendorId, companies, `ベンダーがチャットで言及 ${fmtDateTime(m.sentAt)}`, null);
+      // 松田が提示済みの会社（指名された繋ぎ先）は依頼の単価、それ以外の新顔は単価未定
+      const proposed = await proposedCompaniesForVendor(vendorId);
+      const known = companies.filter((c) => isProposed(c.company, proposed));
+      const fresh = companies.filter((c) => !isProposed(c.company, proposed));
+      const vendorFee = thread.fee ?? (await prisma.vendor.findUnique({ where: { id: vendorId } }))?.referralFee ?? null;
+      const r1 = known.length ? await registerCandidates(vendorId, known, `ベンダーが指名 ${fmtDateTime(m.sentAt)}`, vendorFee) : { created: 0, unmatched: [] as string[] };
+      const r2 = fresh.length ? await registerCandidates(vendorId, fresh, `ベンダーがチャットで言及 ${fmtDateTime(m.sentAt)}`, null) : { created: 0, unmatched: [] as string[] };
+      const created = r1.created + r2.created;
+      const unmatched = [...r1.unmatched, ...r2.unmatched];
       if (created || unmatched.length) {
         await notifyAdmins({
           type: "SALESHUB_MESSAGE",
           title: `【紹介候補】${thread.vendorName} が ${companies.map((c) => c.company).join("、")} に関心`,
-          body: [created ? `紹介候補 ${created} 件を単価未定で登録しました（依頼と異なる会社のため。紹介案件で単価を入力してください）` : "", unmatched.length ? `繋がりリストに未登録: ${unmatched.join("、")}` : ""].filter(Boolean).join("\n"),
+          body: [r1.created ? `指名された繋ぎ先 ${r1.created} 件を登録（単価 ${vendorFee ? "¥" + vendorFee.toLocaleString() : "未取得"}）` : "", r2.created ? `新たに挙がった会社 ${r2.created} 件を単価未定で登録（紹介案件で単価を入力してください）` : "", unmatched.length ? `繋がりリストに未登録: ${unmatched.join("、")}` : ""].filter(Boolean).join("\n"),
           linkUrl: `/saleshub/${thread.id}`,
           dedupeKey: `saleshub:cand:${m.id}`,
           line,
@@ -236,16 +247,26 @@ export async function rebuildCandidates(): Promise<{ threads: number; created: n
   for (const t of threads) {
     if (t.messages.length === 0) continue;
     const vendorId = t.vendorId ?? (await ensureVendor(t));
-    const firstMine = t.messages.find((m) => m.isMine);
     const sources: { body: string; note: string; fee: number | null }[] = [];
-    if (firstMine) sources.push({ body: firstMine.body, note: "松田の初回メッセージ", fee: t.fee ?? null });
+    const proposed = await proposedCompaniesForVendor(vendorId);
+    const fee = t.fee ?? (await prisma.vendor.findUnique({ where: { id: vendorId } }))?.referralFee ?? null;
+    for (const m of t.messages.filter((m) => m.isMine)) sources.push({ body: m.body, note: "松田が提示", fee });
     for (const m of t.messages.filter((m) => !m.isMine)) sources.push({ body: m.body, note: `ベンダーがチャットで言及 ${fmtDateTime(m.sentAt)}`, fee: null });
     for (const s of sources) {
       const companies = extractCompanies(s.body, [t.vendorName]);
       if (!companies.length) continue;
-      const r = await registerCandidates(vendorId, companies, s.note, s.fee);
-      created += r.created;
-      r.unmatched.forEach((u) => unmatched.add(u));
+      const known = companies.filter((c) => s.fee !== null || isProposed(c.company, proposed));
+      const fresh = companies.filter((c) => s.fee === null && !isProposed(c.company, proposed));
+      if (known.length) {
+        const r = await registerCandidates(vendorId, known, s.fee !== null ? s.note : `ベンダーが指名 ${s.note.replace("ベンダーがチャットで言及 ", "")}`, fee);
+        created += r.created;
+        r.unmatched.forEach((u) => unmatched.add(u));
+      }
+      if (fresh.length) {
+        const r = await registerCandidates(vendorId, fresh, s.note, null);
+        created += r.created;
+        r.unmatched.forEach((u) => unmatched.add(u));
+      }
     }
   }
   return { threads: threads.length, created, unmatched: [...unmatched] };

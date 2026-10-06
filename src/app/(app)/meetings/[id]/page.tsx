@@ -8,6 +8,7 @@ import { APPROVAL_LABEL, EXECUTION_LABEL, FORMAT_LABEL, VENDOR_MEETING_STATUS_LA
 import { fmtDate, fmtDateTime, fmtReward, fmtYen, toInputDate } from "@/lib/utils";
 import { REFERRAL_LABEL } from "@/lib/labels";
 import { meetingTargets } from "@/lib/meeting-targets";
+import { proposedCompaniesForVendor } from "@/lib/saleshub/proposed";
 import { approveMeetingAction } from "../actions";
 import { ExecutionControls, MinutesForm, RejectForm } from "./MeetingControls";
 
@@ -19,6 +20,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
     include: { vendor: { include: { referrals: { include: { contact: true }, orderBy: { id: "desc" } } } }, assignee: true },
   });
   if (!m) notFound();
+  const proposed = (await proposedCompaniesForVendor(m.vendor.id)).map((c) => c.company);
   const histories = await prisma.statusHistory.findMany({
     where: { entityType: "VENDOR_MEETING", entityId: m.id },
     include: { changedBy: true },
@@ -100,9 +102,9 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
                     </li>
                   ))}
               </ul>
-            ) : meetingTargets(m.requestNote, []).length > 0 ? (
+            ) : meetingTargets(m.requestNote, [], proposed).length > 0 ? (
               <div className="text-sm">
-                {meetingTargets(m.requestNote, []).map((t) => (
+                {meetingTargets(m.requestNote, [], proposed).map((t) => (
                   <span key={t} className="badge bg-indigo-50 text-indigo-800 border-indigo-200 mr-1">
                     {t}
                   </span>
