@@ -11,6 +11,8 @@ export type NotifyInput = {
   linkUrl?: string | null;
   /** 同じキーの通知は 1 回しか作られない（cron の重複送信防止） */
   dedupeKey?: string | null;
+  /** false にするとこの通知は LINE に送らない（ツール内のみ） */
+  line?: boolean;
 };
 
 function appUrl(path: string | null | undefined) {
@@ -38,7 +40,7 @@ export async function notify(input: NotifyInput): Promise<boolean> {
 
   // LINE 送信
   try {
-    if (!lineConfigured()) return true;
+    if (!lineConfigured() || input.line === false) return true;
     const enabled = await getLineEnabledMap();
     if (!enabled[input.type]) return true;
     const user = await prisma.user.findUnique({ where: { id: input.userId } });

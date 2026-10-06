@@ -1,0 +1,103 @@
+import Link from "next/link";
+import { requireUser } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { Badge, EmptyState, PageHeader } from "@/components/ui";
+import { VendorTag } from "@/components/VendorTag";
+import { EXECUTION_LABEL } from "@/lib/labels";
+import { getSettingRaw } from "@/lib/settings";
+import { fmtDateTime } from "@/lib/utils";
+
+export const metadata = { title: "セールスハブ受信箱" };
+
+export default async function SaleshubInboxPage() {
+  const user = await requireUser();
+  const [threads, lastIngest, enabled] = await Promise.all([
+    prisma.saleshubThread.findMany({
+      include: { messages: { orderBy: { sentAt: "desc" }, take: 1 } },
+      orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
+    }),
+    getSettingRaw("saleshub.lastIngestAt"),
+    getSettingRaw("saleshub.enabled"),
+  ]);
+  const meetingIds = threads.map((t) => t.importedMeetingId).filter((x): x is number => !!x);
+  const meetings = await prisma.vendorMeeting.findMany({ where: { id: { in: meetingIds } }, include: { assignee: true } });
+  const vendorIds = threads.map((t) => t.vendorId).filter((x): x is number => !!x);
+  const vendors = await prisma.vendor.findMany({ where: { id: { in: vendorIds } } });
+
+  return (
+    <div>
+      <PageHeader
+        title="セールスハブ受信箱"
+        description={lastIngest ? `最終受信 ${fmtDateTime(new Date(lastIngest))}` : "まだ受信していません"}
+        actions={user.role === "ADMIN" ? <Link href="/settings/saleshub" className="btn-secondary">連携設定</Link> : undefined}
+      />
+      {enabled !== "1" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 mb-3">
+          セールスハブ連携は停止中です。管理者が「設定 → セールスハブ連携」で有効にしてください。
+        </div>
+      )}
+      <div className="card overflow-x-auto">
+        {threads.length === 0 ? (
+          <EmptyState message="スレッドはまだありません。Chrome 拡張が動くと自動で表示されます。" />
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>ベンダー</th>
+                <th>依頼</th>
+                <th>最新メッセージ</th>
+                <th>日時</th>
+                <th>ベンダーMTG</th>
+              </tr>
+            </thead>
+            <tbody>
+              {threads.map((t) => {
+                const last = t.messages[0];
+                const v = vendors.find((x) => x.id === t.vendorId);
+                const m = meetings.find((x) => x.id === t.importedMeetingId);
+                return (
+                  <tr key={t.id}>
+                    <td className="whitespace-nowrap">
+                      <Link href={`/saleshub/${t.id}`} className="font-medium text-blue-700 hover:underline">
+                        {t.vendorName}
+                      </Link>
+                      {v && (
+                        <div className="mt-1">
+                          <VendorTag id={v.id} name={v.name} />
+                        </div>
+                      )}
+                    </td>
+                    <td className="max-w-xs truncate text-gray-600 text-xs">{t.requestTitle ?? "-"}</td>
+                    <td className="max-w-md">
+                      {last ? (
+                        <div className="text-sm">
+                          <span className={last.isMine ? "text-gray-500" : "text-gray-900 font-medium"}>{last.isMine ? "自分" : last.senderName}：</span>
+                          <span className="text-gray-700 line-clamp-2">{last.body}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">{t.lastSnippet}</span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap text-xs text-gray-500">{fmtDateTime(t.lastMessageAt)}</td>
+                    <td className="whitespace-nowrap">
+                      {m ? (
+                        <Link href={`/meetings/${m.id}`} className="inline-flex items-center gap-1 text-xs text-blue-700 hover:underline">
+                          <Badge value={m.executionStatus} label={EXECUTION_LABEL[m.executionStatus]} />
+                          {m.scheduledAt ? fmtDateTime(m.scheduledAt) : "日程未定"}（{m.assignee.name}）
+                        </Link>
+                      ) : (
+                        <Link href={`/import/saleshub?thread=${t.id}`} className="btn-secondary btn-sm">
+                          手動で取込
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}

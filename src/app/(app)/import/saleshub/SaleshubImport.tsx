@@ -27,12 +27,14 @@ export function SaleshubImport({
   vendors,
   users,
   defaultAssigneeId,
+  initialText = "",
 }: {
   vendors: (Opt & { referralFee: number })[];
   users: Opt[];
   defaultAssigneeId: number;
+  initialText?: string;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [pending, start] = useTransition();
   const [state, action] = useActionState(registerSaleshubAction, undefined);

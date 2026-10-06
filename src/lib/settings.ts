@@ -5,6 +5,7 @@ export const SETTING_DEFAULTS = {
   stagnationDays: "7",
   dailyDigestHour: "8",
   minutesMissingHours: "24",
+  saleshubStaleMinutes: "120",
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
@@ -17,6 +18,12 @@ export async function getSetting(key: SettingKey): Promise<string> {
 export async function getSettingNumber(key: SettingKey): Promise<number> {
   const n = Number(await getSetting(key));
   return Number.isFinite(n) ? n : Number(SETTING_DEFAULTS[key]);
+}
+
+/** 任意キーの設定値（未設定なら null） */
+export async function getSettingRaw(key: string): Promise<string | null> {
+  const row = await prisma.setting.findUnique({ where: { key } });
+  return row?.value ?? null;
 }
 
 export async function setSetting(key: string, value: string) {

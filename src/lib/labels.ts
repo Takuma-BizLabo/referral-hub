@@ -110,5 +110,6 @@ export const NOTIFICATION_TYPES = [
   { key: "TASK_ASSIGNED", label: "新しいタスクの割当（担当者へ）", defaultLine: true },
   { key: "STAGNANT", label: "紹介案件の停滞", defaultLine: false },
   { key: "PAYMENT_LATE", label: "入金予定日超過（管理者へ）", defaultLine: true },
+  { key: "SALESHUB_MESSAGE", label: "セールスハブの新着・連携状態（全員へ）", defaultLine: true },
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]["key"];

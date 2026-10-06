@@ -18,6 +18,8 @@
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
+    "cheerio": "^1.2.0",
+    "csv-parse": "^7.0.3",
     "date-fns": "^4.4.0",
     "encoding-japanese": "^2.4.0",
     "next": "15.5.27",

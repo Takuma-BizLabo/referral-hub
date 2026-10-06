@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "紹介案件管理 セールスハブ連携",
+  "version": "1.0.0",
+  "description": "セールスハブの新着メッセージを紹介案件管理ツールへ自動送信します（Chrome が起動している間、5分おき）",
+  "permissions": ["alarms", "storage"],
+  "host_permissions": ["https://saleshub.jp/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "セールスハブ連携" },
+  "icons": { "128": "icon128.png" }
+}

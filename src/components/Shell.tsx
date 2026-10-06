@@ -35,7 +35,8 @@ const NAV: { href: string; label: string; icon: string; admin?: boolean; match?:
   { href: "/vendors", label: "ベンダー", icon: I.vendor },
   { href: "/contacts", label: "繋がりリスト", icon: I.contacts },
   { href: "/rewards", label: "報酬管理", icon: I.reward },
-  { href: "/import/saleshub", label: "セールスハブ取込", icon: I.import },
+  { href: "/saleshub", label: "セールスハブ受信箱", icon: I.import },
+  { href: "/import/saleshub", label: "セールスハブ取込（手動）", icon: I.import },
 ];
 const ADMIN_NAV = [
   { href: "/approvals", label: "承認キュー", icon: I.approvals },

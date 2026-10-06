@@ -276,3 +276,35 @@ model Setting {
   key   String @id
   value String
 }
+
+// ---------- セールスハブ連携（チャット取込） ----------
+
+model SaleshubThread {
+  id             Int       @id @default(autoincrement())
+  proposalId     String    @unique // saleshub.jp/proposals/{id}
+  vendorName     String
+  requestTitle   String?
+  lastSnippet    String?
+  lastMessageAt  DateTime?
+  vendorId       Int? // 紐付け済みベンダー
+  importedMeetingId Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  messages SaleshubMessage[]
+}
+
+model SaleshubMessage {
+  id          Int            @id @default(autoincrement())
+  threadId    Int
+  thread      SaleshubThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  externalKey String         @unique // proposalId:sentAt:hash
+  senderName  String
+  isMine      Boolean        @default(false) // こちら側（サポーター）の発言
+  sentAt      DateTime
+  body        String
+  notifiedAt  DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([threadId, sentAt])
+}

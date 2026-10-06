@@ -1,7 +1,7 @@
 import { addDays, format, startOfDay, subHours } from "date-fns";
 import { prisma } from "../db";
 import { notify, notifyAdmins } from "../notifications";
-import { getSettingNumber } from "../settings";
+import { getSettingNumber, getSettingRaw } from "../settings";
 import { fmtDate, fmtDateTime } from "../utils";
 
 /**
@@ -94,6 +94,22 @@ export async function runReminders(now = new Date()): Promise<{ created: number 
       linkUrl: `/referrals/${r.id}`,
       dedupeKey: `referral:${r.id}:minutes`,
     });
+  }
+
+  // ---- セールスハブ連携の途絶（拡張からの受信が一定時間ない） ----
+  if ((await getSettingRaw("saleshub.enabled")) === "1") {
+    const last = await getSettingRaw("saleshub.lastIngestAt");
+    const staleMin = await getSettingNumber("saleshubStaleMinutes");
+    const lastAt = last ? new Date(last) : null;
+    if (!lastAt || now.getTime() - lastAt.getTime() > staleMin * 60_000) {
+      await adminNotify({
+        type: "SALESHUB_MESSAGE",
+        title: "【セールスハブ連携】拡張からの受信が止まっています",
+        body: lastAt ? `最終受信 ${fmtDateTime(lastAt)}。セールスハブにログインした Chrome が開いているか、拡張が有効か確認してください。` : "まだ一度も受信していません。Chrome 拡張の設定を確認してください。",
+        linkUrl: "/settings/saleshub",
+        dedupeKey: `saleshub:stale:${format(now, "yyyyMMdd")}-${Math.floor(now.getHours() / 6)}`,
+      });
+    }
   }
 
   if (!isDigestTime) return { created };
