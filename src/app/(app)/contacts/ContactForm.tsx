@@ -10,10 +10,12 @@ export function ContactForm({
   contact,
   tags,
   allTags,
+  defaultCompany,
 }: {
   contact?: Contact;
   tags?: string[];
   allTags: string[];
+  defaultCompany?: string;
 }) {
   const [state, action] = useActionState(contact ? updateContactAction : createContactAction, undefined);
   return (
@@ -24,7 +26,7 @@ export function ContactForm({
           <input name="name" className="input" defaultValue={contact?.name} required />
         </Field>
         <Field label="会社名">
-          <input name="company" className="input" defaultValue={contact?.company ?? ""} />
+          <input name="company" className="input" defaultValue={contact?.company ?? defaultCompany ?? ""} />
         </Field>
         <Field label="役職">
           <input name="title" className="input" defaultValue={contact?.title ?? ""} />

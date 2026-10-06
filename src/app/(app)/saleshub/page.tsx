@@ -5,20 +5,30 @@ import { Badge, EmptyState, PageHeader } from "@/components/ui";
 import { VendorTag } from "@/components/VendorTag";
 import { EXECUTION_LABEL } from "@/lib/labels";
 import { getSettingRaw } from "@/lib/settings";
-import { fmtDateTime, fmtYen } from "@/lib/utils";
+import { cn, fmtDateTime, fmtYen } from "@/lib/utils";
 
 export const metadata = { title: "セールスハブ受信箱" };
 
-export default async function SaleshubInboxPage() {
+export default async function SaleshubInboxPage({ searchParams }: { searchParams: Promise<{ unread?: string }> }) {
   const user = await requireUser();
-  const [threads, lastIngest, enabled] = await Promise.all([
+  const sp = await searchParams;
+  const [allThreads, lastIngest, enabled, unreadRows] = await Promise.all([
     prisma.saleshubThread.findMany({
       include: { messages: { orderBy: { sentAt: "desc" }, take: 1 } },
       orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
     }),
     getSettingRaw("saleshub.lastIngestAt"),
     getSettingRaw("saleshub.enabled"),
+    // 自分がまだ見ていない新着（＝未読のセールスハブ通知）をスレッドごとに数える
+    prisma.notification.groupBy({
+      by: ["linkUrl"],
+      where: { userId: user.id, readAt: null, type: "SALESHUB_MESSAGE", linkUrl: { startsWith: "/saleshub/" } },
+      _count: { _all: true },
+    }),
   ]);
+  const unreadOf = (id: number) => unreadRows.find((u) => u.linkUrl === `/saleshub/${id}`)?._count._all ?? 0;
+  const unreadTotal = allThreads.filter((t) => unreadOf(t.id) > 0).length;
+  const threads = sp.unread === "1" ? allThreads.filter((t) => unreadOf(t.id) > 0) : allThreads;
   const meetingIds = threads.map((t) => t.importedMeetingId).filter((x): x is number => !!x);
   const meetings = await prisma.vendorMeeting.findMany({ where: { id: { in: meetingIds } }, include: { assignee: true } });
   const vendorIds = threads.map((t) => t.vendorId).filter((x): x is number => !!x);
@@ -36,9 +46,18 @@ export default async function SaleshubInboxPage() {
           セールスハブ連携は停止中です。管理者が「設定 → セールスハブ連携」で有効にしてください。
         </div>
       )}
+      <div className="flex gap-1.5 mb-3">
+        <Link href="/saleshub" className={cn("chip", sp.unread !== "1" && "chip-active")}>
+          すべて {allThreads.length}
+        </Link>
+        <Link href="/saleshub?unread=1" className={cn("chip", sp.unread === "1" && "chip-active")}>
+          未読
+          {unreadTotal > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-bold inline-flex items-center justify-center">{unreadTotal}</span>}
+        </Link>
+      </div>
       {threads.length === 0 ? (
         <div className="card">
-          <EmptyState message="スレッドはまだありません。Chrome 拡張が動くと自動で表示されます。" />
+          <EmptyState message={sp.unread === "1" ? "未読のスレッドはありません" : "スレッドはまだありません。Chrome 拡張が動くと自動で表示されます。"} />
         </div>
       ) : (
         <>
@@ -48,10 +67,14 @@ export default async function SaleshubInboxPage() {
               const last = t.messages[0];
               const m = meetings.find((x) => x.id === t.importedMeetingId);
               return (
-                <li key={t.id} className="card p-3">
+                <li key={t.id} className={cn("card p-3", unreadOf(t.id) > 0 && "border-blue-300 bg-blue-50/40")}>
                   <Link href={`/saleshub/${t.id}`} className="block">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="font-medium text-blue-700">{t.vendorName}</span>
+                      <span className="font-medium text-blue-700 flex flex-wrap items-center gap-1.5">
+                        {unreadOf(t.id) > 0 && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" aria-label="未読" />}
+                        {t.vendorName}
+                        <ThreadBadges unread={unreadOf(t.id)} awaitingReply={!!last && !last.isMine} />
+                      </span>
                       <span className="text-xs text-gray-500 whitespace-nowrap">{fmtDateTime(t.lastMessageAt)}</span>
                     </div>
                     {t.requestTitle && <div className="text-xs text-gray-500 truncate mt-0.5">{t.requestTitle}</div>}
@@ -102,11 +125,15 @@ export default async function SaleshubInboxPage() {
                   const v = vendors.find((x) => x.id === t.vendorId);
                   const m = meetings.find((x) => x.id === t.importedMeetingId);
                   return (
-                    <tr key={t.id}>
+                    <tr key={t.id} className={cn(unreadOf(t.id) > 0 && "bg-blue-50/40")}>
                       <td className="whitespace-nowrap">
-                        <Link href={`/saleshub/${t.id}`} className="font-medium text-blue-700 hover:underline">
-                          {t.vendorName}
-                        </Link>
+                        <div className="flex items-center gap-1.5">
+                          {unreadOf(t.id) > 0 && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" aria-label="未読" />}
+                          <Link href={`/saleshub/${t.id}`} className={cn("text-blue-700 hover:underline", unreadOf(t.id) > 0 ? "font-bold" : "font-medium")}>
+                            {t.vendorName}
+                          </Link>
+                          <ThreadBadges unread={unreadOf(t.id)} awaitingReply={!!last && !last.isMine} />
+                        </div>
                         {v && (
                           <div className="mt-1">
                             <VendorTag id={v.id} name={v.name} />
@@ -147,5 +174,14 @@ export default async function SaleshubInboxPage() {
         </>
       )}
     </div>
+  );
+}
+
+function ThreadBadges({ unread, awaitingReply }: { unread: number; awaitingReply: boolean }) {
+  return (
+    <>
+      {unread > 0 && <span className="badge bg-blue-600 text-white border-blue-600">新着 {unread}</span>}
+      {awaitingReply && <span className="badge bg-amber-50 text-amber-800 border-amber-200">返信待ち</span>}
+    </>
   );
 }

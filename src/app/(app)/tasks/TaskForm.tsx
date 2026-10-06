@@ -4,7 +4,7 @@ import { createTaskAction } from "./actions";
 import { ErrorMessage, Field, SuccessMessage } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 
-export function TaskForm({ users, meId, defaultLink }: { users: { id: number; name: string }[]; meId: number; defaultLink?: string }) {
+export function TaskForm({ users, meId, defaultLink, defaultTitle }: { users: { id: number; name: string }[]; meId: number; defaultLink?: string; defaultTitle?: string }) {
   const [state, action] = useActionState(createTaskAction, undefined);
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -29,7 +29,7 @@ export function TaskForm({ users, meId, defaultLink }: { users: { id: number; na
         </Field>
       </div>
       <Field label="タイトル" required>
-        <input name="title" className="input" placeholder="例: CastingONE に 10/9 の候補日を返信して" required />
+        <input name="title" className="input" placeholder="例: CastingONE に 10/9 の候補日を返信して" defaultValue={defaultTitle ?? ""} required />
       </Field>
       <Field label="内容">
         <textarea name="body" className="input" rows={3} placeholder="依頼の詳細、確認してほしいこと、参考情報など" />

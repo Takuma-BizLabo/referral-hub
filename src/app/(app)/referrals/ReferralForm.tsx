@@ -16,12 +16,19 @@ export function ReferralForm({
   contacts,
   defaultVendorId,
   defaultContactId,
+  defaultReward,
+  defaultUndetermined,
+  defaultPickupNote,
 }: {
   referral?: Referral;
   vendors: VendorOpt[];
   contacts: ContactOpt[];
   defaultVendorId?: number;
   defaultContactId?: number;
+  /** セールスハブの協力金など、ベンダー単価と異なる初期値 */
+  defaultReward?: number;
+  defaultUndetermined?: boolean;
+  defaultPickupNote?: string;
 }) {
   const [state, action] = useActionState(referral ? updateReferralAction : createReferralAction, undefined);
   const [vendorId, setVendorId] = useState<number | "">(referral?.vendorId ?? defaultVendorId ?? "");
@@ -29,6 +36,7 @@ export function ReferralForm({
   const [filter, setFilter] = useState("");
   const [reward, setReward] = useState<string>(() => {
     if (referral) return String(referral.rewardAmount);
+    if (defaultReward !== undefined) return String(defaultReward);
     const v = vendors.find((x) => x.id === defaultVendorId);
     return v ? String(v.referralFee) : "";
   });
@@ -92,11 +100,11 @@ export function ReferralForm({
         <Field label="報酬額（円）" hint="ベンダー単価から自動入力。変更可">
           <input name="rewardAmount" type="number" min={0} step={1000} className="input" value={reward} onChange={(e) => setReward(e.target.value)} />
           <label className="flex items-center gap-2 text-sm mt-2">
-            <input type="checkbox" name="rewardUndetermined" defaultChecked={referral?.rewardUndetermined ?? false} /> 単価未定（ベンダーに確認中）
+            <input type="checkbox" name="rewardUndetermined" defaultChecked={referral?.rewardUndetermined ?? defaultUndetermined ?? false} /> 単価未定（ベンダーに確認中）
           </label>
         </Field>
         <Field label="ピックアップ内容" className="sm:col-span-2" hint="セールスハブでベンダーが希望した相手の情報など">
-          <textarea name="pickupNote" className="input" rows={2} defaultValue={referral?.pickupNote ?? ""} />
+          <textarea name="pickupNote" className="input" rows={2} defaultValue={referral?.pickupNote ?? defaultPickupNote ?? ""} />
         </Field>
         <Field label="面談日時">
           <input name="meetingAt" type="datetime-local" className="input" defaultValue={toInputDateTime(referral?.meetingAt ?? null)} />
