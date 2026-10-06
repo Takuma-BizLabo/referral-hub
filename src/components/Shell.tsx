@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import type { CurrentUser } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { logoutAction } from "@/app/login/actions";
+import { FlashBanner } from "./FlashBanner";
 
 const I = {
   dash: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
@@ -141,7 +142,12 @@ export function Shell({ user, unread, openTasks = 0, children }: { user: Current
         <div className="hidden md:flex justify-end px-6 pt-4">
           <Bell unread={unread} />
         </div>
-        <main className="flex-1 px-4 md:px-6 pb-8 pt-3 md:-mt-8 max-w-[1400px] w-full">{children}</main>
+        <main className="flex-1 px-4 md:px-6 pb-8 pt-3 md:-mt-8 max-w-[1400px] w-full">
+          <Suspense fallback={null}>
+            <FlashBanner />
+          </Suspense>
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 "use server";
+import { runWithFlash } from "@/lib/flash";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -110,134 +111,142 @@ export async function updateReferralAction(_prev: ActionState, formData: FormDat
 
 /** 紹介ステータス変更。ベンダーMTG未実施なら打診中以降へ進めない。 */
 export async function setReferralStatusAction(formData: FormData) {
-  const user = await assertUser();
-  const id = Number(formData.get("id"));
-  const status = String(formData.get("status")) as ReferralStatus;
-  if (!(status in REFERRAL_LABEL)) throw new Error("不正なステータスです");
-  const r = await prisma.referral.findUniqueOrThrow({ where: { id }, include: { vendor: true, contact: true } });
-  if (r.status === status) return;
+  await runWithFlash(formData, async () => {
+    const user = await assertUser();
+    const id = Number(formData.get("id"));
+    const status = String(formData.get("status")) as ReferralStatus;
+    if (!(status in REFERRAL_LABEL)) throw new Error("不正なステータスです");
+    const r = await prisma.referral.findUniqueOrThrow({ where: { id }, include: { vendor: true, contact: true } });
+    if (r.status === status) return;
 
-  if (REFERRAL_REQUIRES_VENDOR_DONE.includes(status) && r.vendor.meetingStatus !== "DONE" && !r.forceUnlocked) {
-    redirect(`/referrals/${id}?blocked=${status}`);
-  }
+    if (REFERRAL_REQUIRES_VENDOR_DONE.includes(status) && r.vendor.meetingStatus !== "DONE" && !r.forceUnlocked) {
+      redirect(`/referrals/${id}?blocked=${status}`);
+    }
 
-  const becameDone = status === "MEETING_DONE" && r.status !== "MEETING_DONE";
-  const applyReward = becameDone && r.rewardStatus === "UNFIXED";
-  await prisma.$transaction(async (tx) => {
-    await tx.referral.update({
-      where: { id },
-      data: {
-        status,
-        statusChangedAt: new Date(),
-        ...(becameDone ? { meetingDoneAt: r.meetingDoneAt ?? new Date() } : {}),
-        ...(applyReward ? { rewardStatus: "APPLIED" } : {}),
-      },
-    });
-    await recordHistory(tx, {
-      entityType: "REFERRAL",
-      entityId: id,
-      field: "status",
-      fromValue: r.status,
-      toValue: status,
-      changedById: user.id,
-    });
-    if (applyReward) {
+    const becameDone = status === "MEETING_DONE" && r.status !== "MEETING_DONE";
+    const applyReward = becameDone && r.rewardStatus === "UNFIXED";
+    await prisma.$transaction(async (tx) => {
+      await tx.referral.update({
+        where: { id },
+        data: {
+          status,
+          statusChangedAt: new Date(),
+          ...(becameDone ? { meetingDoneAt: r.meetingDoneAt ?? new Date() } : {}),
+          ...(applyReward ? { rewardStatus: "APPLIED" } : {}),
+        },
+      });
       await recordHistory(tx, {
         entityType: "REFERRAL",
         entityId: id,
-        field: "rewardStatus",
-        fromValue: "UNFIXED",
-        toValue: "APPLIED",
-        note: "面談実施済に伴い自動で計上申請",
+        field: "status",
+        fromValue: r.status,
+        toValue: status,
         changedById: user.id,
       });
-    }
-  });
-  if (applyReward) {
-    await notifyAdmins({
-      type: "APPROVAL_PENDING",
-      title: `【計上申請】${r.vendor.name} × ${r.contact.name} の報酬 ${fmtReward(r.rewardAmount, r.rewardUndetermined)}`,
-      body: r.rewardUndetermined ? "面談実施済になりました。単価が未定です。紹介案件で金額を入力してから承認してください。" : "面談実施済になりました。承認キューで確認してください。",
-      linkUrl: `/referrals/${id}`,
+      if (applyReward) {
+        await recordHistory(tx, {
+          entityType: "REFERRAL",
+          entityId: id,
+          field: "rewardStatus",
+          fromValue: "UNFIXED",
+          toValue: "APPLIED",
+          note: "面談実施済に伴い自動で計上申請",
+          changedById: user.id,
+        });
+      }
     });
-  }
-  revalidateReferral(id, r.vendorId, r.contactId);
+    if (applyReward) {
+      await notifyAdmins({
+        type: "APPROVAL_PENDING",
+        title: `【計上申請】${r.vendor.name} × ${r.contact.name} の報酬 ${fmtReward(r.rewardAmount, r.rewardUndetermined)}`,
+        body: r.rewardUndetermined ? "面談実施済になりました。単価が未定です。紹介案件で金額を入力してから承認してください。" : "面談実施済になりました。承認キューで確認してください。",
+        linkUrl: `/referrals/${id}`,
+      });
+    }
+    revalidateReferral(id, r.vendorId, r.contactId);
+  });
 }
 
 export async function forceUnlockAction(formData: FormData) {
-  const admin = await assertAdmin();
-  const id = Number(formData.get("id"));
-  const reason = str(formData.get("reason"));
-  const r = await prisma.referral.findUniqueOrThrow({ where: { id } });
-  await prisma.$transaction(async (tx) => {
-    await tx.referral.update({ where: { id }, data: { forceUnlocked: true, forceUnlockReason: reason } });
-    await recordHistory(tx, {
-      entityType: "REFERRAL",
-      entityId: id,
-      field: "forceUnlocked",
-      fromValue: "false",
-      toValue: "true",
-      note: reason ?? "ベンダーMTG未実施のブロックを強制解除",
-      changedById: admin.id,
+  await runWithFlash(formData, async () => {
+    const admin = await assertAdmin();
+    const id = Number(formData.get("id"));
+    const reason = str(formData.get("reason"));
+    const r = await prisma.referral.findUniqueOrThrow({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.referral.update({ where: { id }, data: { forceUnlocked: true, forceUnlockReason: reason } });
+      await recordHistory(tx, {
+        entityType: "REFERRAL",
+        entityId: id,
+        field: "forceUnlocked",
+        fromValue: "false",
+        toValue: "true",
+        note: reason ?? "ベンダーMTG未実施のブロックを強制解除",
+        changedById: admin.id,
+      });
     });
+    revalidateReferral(id, r.vendorId, r.contactId);
   });
-  revalidateReferral(id, r.vendorId, r.contactId);
 }
 
 // ---------- 報酬 ----------
 
 export async function approveRewardAction(formData: FormData) {
-  const admin = await assertAdmin();
-  const id = Number(formData.get("id"));
-  const r = await prisma.referral.findUniqueOrThrow({ where: { id } });
-  if (r.rewardStatus !== "APPLIED") throw new Error("計上申請中の報酬のみ承認できます");
-  if (r.rewardUndetermined || r.rewardAmount <= 0) throw new Error("報酬額が未定です。紹介案件で金額を入力してから承認してください");
-  await prisma.$transaction(async (tx) => {
-    await tx.referral.update({ where: { id }, data: { rewardStatus: "APPROVED", rewardApprovedAt: new Date() } });
-    await recordHistory(tx, {
-      entityType: "REFERRAL",
-      entityId: id,
-      field: "rewardStatus",
-      fromValue: "APPLIED",
-      toValue: "APPROVED",
-      changedById: admin.id,
+  await runWithFlash(formData, async () => {
+    const admin = await assertAdmin();
+    const id = Number(formData.get("id"));
+    const r = await prisma.referral.findUniqueOrThrow({ where: { id } });
+    if (r.rewardStatus !== "APPLIED") throw new Error("計上申請中の報酬のみ承認できます");
+    if (r.rewardUndetermined || r.rewardAmount <= 0) throw new Error("報酬額が未定です。紹介案件で金額を入力してから承認してください");
+    await prisma.$transaction(async (tx) => {
+      await tx.referral.update({ where: { id }, data: { rewardStatus: "APPROVED", rewardApprovedAt: new Date() } });
+      await recordHistory(tx, {
+        entityType: "REFERRAL",
+        entityId: id,
+        field: "rewardStatus",
+        fromValue: "APPLIED",
+        toValue: "APPROVED",
+        changedById: admin.id,
+      });
     });
+    revalidateReferral(id, r.vendorId, r.contactId);
   });
-  revalidateReferral(id, r.vendorId, r.contactId);
 }
 
 /** 報酬ステータスの変更（承認済→請求済→入金済 など）。承認は管理者のみ。 */
 export async function setRewardStatusAction(formData: FormData) {
-  const user = await assertUser();
-  const id = Number(formData.get("id"));
-  const status = String(formData.get("status")) as RewardStatus;
-  if (!(status in REWARD_LABEL)) throw new Error("不正なステータスです");
-  const r = await prisma.referral.findUniqueOrThrow({ where: { id } });
-  if (r.rewardStatus === status) return;
-  if ((status === "APPROVED" || (r.rewardStatus === "APPROVED" && status === "APPLIED")) && user.role !== "ADMIN") {
-    throw new Error("報酬の承認・取消は管理者のみ行えます");
-  }
-  const now = new Date();
-  await prisma.$transaction(async (tx) => {
-    await tx.referral.update({
-      where: { id },
-      data: {
-        rewardStatus: status,
-        ...(status === "APPROVED" && !r.rewardApprovedAt ? { rewardApprovedAt: now } : {}),
-        ...(status === "INVOICED" && !r.invoicedAt ? { invoicedAt: now } : {}),
-        ...(status === "PAID" && !r.paidAt ? { paidAt: now } : {}),
-      },
+  await runWithFlash(formData, async () => {
+    const user = await assertUser();
+    const id = Number(formData.get("id"));
+    const status = String(formData.get("status")) as RewardStatus;
+    if (!(status in REWARD_LABEL)) throw new Error("不正なステータスです");
+    const r = await prisma.referral.findUniqueOrThrow({ where: { id } });
+    if (r.rewardStatus === status) return;
+    if ((status === "APPROVED" || (r.rewardStatus === "APPROVED" && status === "APPLIED")) && user.role !== "ADMIN") {
+      throw new Error("報酬の承認・取消は管理者のみ行えます");
+    }
+    const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      await tx.referral.update({
+        where: { id },
+        data: {
+          rewardStatus: status,
+          ...(status === "APPROVED" && !r.rewardApprovedAt ? { rewardApprovedAt: now } : {}),
+          ...(status === "INVOICED" && !r.invoicedAt ? { invoicedAt: now } : {}),
+          ...(status === "PAID" && !r.paidAt ? { paidAt: now } : {}),
+        },
+      });
+      await recordHistory(tx, {
+        entityType: "REFERRAL",
+        entityId: id,
+        field: "rewardStatus",
+        fromValue: r.rewardStatus,
+        toValue: status,
+        changedById: user.id,
+      });
     });
-    await recordHistory(tx, {
-      entityType: "REFERRAL",
-      entityId: id,
-      field: "rewardStatus",
-      fromValue: r.rewardStatus,
-      toValue: status,
-      changedById: user.id,
-    });
+    revalidateReferral(id, r.vendorId, r.contactId);
   });
-  revalidateReferral(id, r.vendorId, r.contactId);
 }
 
 export async function saveRewardAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

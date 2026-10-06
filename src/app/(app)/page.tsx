@@ -10,9 +10,8 @@ import { monthlyActuals, monthlyGoals } from "@/lib/stats";
 import { getSettingNumber } from "@/lib/settings";
 import { fmtDate, fmtMonthDay, fmtYen, yearMonthOf } from "@/lib/utils";
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function DashboardPage() {
   const user = await requireUser();
-  const { error } = await searchParams;
   const isAdmin = user.role === "ADMIN";
   const now = new Date();
   const dayStart = startOfDay(now);
@@ -81,7 +80,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   return (
     <div className="space-y-4">
       <PageHeader title="ダッシュボード" description={`${fmtDate(now)} ／ ${user.name} さん`} />
-      {error === "forbidden" && <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">その画面は管理者のみ利用できます。</div>}
+
 
       {myTaskCount > 0 && (
         <section className="rounded-xl border-2 border-rose-300 bg-rose-50 p-4">

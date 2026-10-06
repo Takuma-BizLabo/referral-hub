@@ -1,4 +1,5 @@
 "use server";
+import { runWithFlash } from "@/lib/flash";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -51,31 +52,35 @@ export async function updateVendorAction(_prev: ActionState, formData: FormData)
 
 /** ベンダーMTGの状態（未実施／実施済）を手動で切り替える */
 export async function setVendorMeetingStatusAction(formData: FormData) {
-  const user = await assertUser();
-  const id = Number(formData.get("id"));
-  const status = String(formData.get("status")) as VendorMeetingStatus;
-  if (status !== "DONE" && status !== "NOT_DONE") throw new Error("不正な値です");
-  await prisma.$transaction(async (tx) => {
-    const v = await tx.vendor.findUniqueOrThrow({ where: { id } });
-    await tx.vendor.update({ where: { id }, data: { meetingStatus: status } });
-    await recordHistory(tx, {
-      entityType: "VENDOR",
-      entityId: id,
-      field: "meetingStatus",
-      fromValue: v.meetingStatus,
-      toValue: status,
-      changedById: user.id,
+  await runWithFlash(formData, async () => {
+    const user = await assertUser();
+    const id = Number(formData.get("id"));
+    const status = String(formData.get("status")) as VendorMeetingStatus;
+    if (status !== "DONE" && status !== "NOT_DONE") throw new Error("不正な値です");
+    await prisma.$transaction(async (tx) => {
+      const v = await tx.vendor.findUniqueOrThrow({ where: { id } });
+      await tx.vendor.update({ where: { id }, data: { meetingStatus: status } });
+      await recordHistory(tx, {
+        entityType: "VENDOR",
+        entityId: id,
+        field: "meetingStatus",
+        fromValue: v.meetingStatus,
+        toValue: status,
+        changedById: user.id,
+      });
     });
+    revalidatePath(`/vendors/${id}`);
+    revalidatePath("/vendors");
   });
-  revalidatePath(`/vendors/${id}`);
-  revalidatePath("/vendors");
 }
 
 export async function toggleVendorActiveAction(formData: FormData) {
-  await assertUser();
-  const id = Number(formData.get("id"));
-  const v = await prisma.vendor.findUniqueOrThrow({ where: { id } });
-  await prisma.vendor.update({ where: { id }, data: { isActive: !v.isActive } });
-  revalidatePath(`/vendors/${id}`);
-  revalidatePath("/vendors");
+  await runWithFlash(formData, async () => {
+    await assertUser();
+    const id = Number(formData.get("id"));
+    const v = await prisma.vendor.findUniqueOrThrow({ where: { id } });
+    await prisma.vendor.update({ where: { id }, data: { isActive: !v.isActive } });
+    revalidatePath(`/vendors/${id}`);
+    revalidatePath("/vendors");
+  });
 }

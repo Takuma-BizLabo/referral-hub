@@ -1,4 +1,5 @@
 "use server";
+import { runWithFlash } from "@/lib/flash";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -63,12 +64,14 @@ export async function updateContactAction(_prev: ActionState, formData: FormData
 }
 
 export async function toggleContactActiveAction(formData: FormData) {
-  await assertUser();
-  const id = Number(formData.get("id"));
-  const c = await prisma.contact.findUniqueOrThrow({ where: { id } });
-  await prisma.contact.update({ where: { id }, data: { isActive: !c.isActive } });
-  revalidatePath("/contacts");
-  revalidatePath(`/contacts/${id}`);
+  await runWithFlash(formData, async () => {
+    await assertUser();
+    const id = Number(formData.get("id"));
+    const c = await prisma.contact.findUniqueOrThrow({ where: { id } });
+    await prisma.contact.update({ where: { id }, data: { isActive: !c.isActive } });
+    revalidatePath("/contacts");
+    revalidatePath(`/contacts/${id}`);
+  });
 }
 
 // ---------- CSV 取込 ----------
@@ -152,14 +155,16 @@ export async function importContactsAction(
 
 /** 同梱の会社リスト（data/*.csv）を取り込む（管理者） */
 export async function importBundledCompaniesAction(): Promise<void> {
-  const { assertAdmin } = await import("@/lib/auth");
-  await assertAdmin();
-  const { importCompanyLists } = await import("@/lib/import-companies");
-  const r = await importCompanyLists();
-  // 取り込んだ会社名で、セールスハブの過去メッセージから紹介候補を再抽出
-  const { rebuildCandidates } = await import("@/lib/saleshub/rules");
-  const c = await rebuildCandidates().catch(() => ({ created: 0 }));
-  revalidatePath("/contacts");
-  revalidatePath("/referrals");
-  redirect(`/contacts?imported=${r.created}&updated=${r.updated}&removed=${r.removed}&candidates=${c.created}`);
+  await runWithFlash(null, async () => {
+    const { assertAdmin } = await import("@/lib/auth");
+    await assertAdmin();
+    const { importCompanyLists } = await import("@/lib/import-companies");
+    const r = await importCompanyLists();
+    // 取り込んだ会社名で、セールスハブの過去メッセージから紹介候補を再抽出
+    const { rebuildCandidates } = await import("@/lib/saleshub/rules");
+    const c = await rebuildCandidates().catch(() => ({ created: 0 }));
+    revalidatePath("/contacts");
+    revalidatePath("/referrals");
+    redirect(`/contacts?imported=${r.created}&updated=${r.updated}&removed=${r.removed}&candidates=${c.created}`);
+  });
 }

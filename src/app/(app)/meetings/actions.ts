@@ -1,4 +1,5 @@
 "use server";
+import { runWithFlash } from "@/lib/flash";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -133,42 +134,44 @@ export async function updateMeetingAction(_prev: ActionState, formData: FormData
 
 /** 実施ステータス変更（カンバン・詳細から） */
 export async function setExecutionStatusAction(formData: FormData) {
-  const user = await assertUser();
-  const id = Number(formData.get("id"));
-  const status = String(formData.get("status")) as ExecutionStatus;
-  if (!(status in EXECUTION_LABEL)) throw new Error("不正なステータスです");
-  const markVendorDone = formData.get("markVendorDone") === "on";
-  const m = await prisma.vendorMeeting.findUniqueOrThrow({ where: { id } });
-  await prisma.$transaction(async (tx) => {
-    await tx.vendorMeeting.update({
-      where: { id },
-      data: { executionStatus: status, ...(status === "DONE" && !m.doneAt ? { doneAt: new Date() } : {}) },
-    });
-    await recordHistory(tx, {
-      entityType: "VENDOR_MEETING",
-      entityId: id,
-      field: "executionStatus",
-      fromValue: m.executionStatus,
-      toValue: status,
-      changedById: user.id,
-    });
-    if (status === "DONE" && markVendorDone) {
-      const v = await tx.vendor.findUniqueOrThrow({ where: { id: m.vendorId } });
-      if (v.meetingStatus !== "DONE") {
-        await tx.vendor.update({ where: { id: v.id }, data: { meetingStatus: "DONE" } });
-        await recordHistory(tx, {
-          entityType: "VENDOR",
-          entityId: v.id,
-          field: "meetingStatus",
-          fromValue: v.meetingStatus,
-          toValue: "DONE",
-          note: `MTG #${id} 実施済に伴い更新`,
-          changedById: user.id,
-        });
+  await runWithFlash(formData, async () => {
+    const user = await assertUser();
+    const id = Number(formData.get("id"));
+    const status = String(formData.get("status")) as ExecutionStatus;
+    if (!(status in EXECUTION_LABEL)) throw new Error("不正なステータスです");
+    const markVendorDone = formData.get("markVendorDone") === "on";
+    const m = await prisma.vendorMeeting.findUniqueOrThrow({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.vendorMeeting.update({
+        where: { id },
+        data: { executionStatus: status, ...(status === "DONE" && !m.doneAt ? { doneAt: new Date() } : {}) },
+      });
+      await recordHistory(tx, {
+        entityType: "VENDOR_MEETING",
+        entityId: id,
+        field: "executionStatus",
+        fromValue: m.executionStatus,
+        toValue: status,
+        changedById: user.id,
+      });
+      if (status === "DONE" && markVendorDone) {
+        const v = await tx.vendor.findUniqueOrThrow({ where: { id: m.vendorId } });
+        if (v.meetingStatus !== "DONE") {
+          await tx.vendor.update({ where: { id: v.id }, data: { meetingStatus: "DONE" } });
+          await recordHistory(tx, {
+            entityType: "VENDOR",
+            entityId: v.id,
+            field: "meetingStatus",
+            fromValue: v.meetingStatus,
+            toValue: "DONE",
+            note: `MTG #${id} 実施済に伴い更新`,
+            changedById: user.id,
+          });
+        }
       }
-    }
+    });
+    revalidateMeeting(id, m.vendorId);
   });
-  revalidateMeeting(id, m.vendorId);
 }
 
 export async function saveMinutesAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -191,27 +194,29 @@ export async function saveMinutesAction(_prev: ActionState, formData: FormData):
 }
 
 export async function approveMeetingAction(formData: FormData) {
-  const admin = await assertAdmin();
-  const id = Number(formData.get("id"));
-  const m = await prisma.vendorMeeting.findUniqueOrThrow({ where: { id }, include: { vendor: true } });
-  await prisma.$transaction(async (tx) => {
-    await tx.vendorMeeting.update({ where: { id }, data: { approvalStatus: "APPROVED", rejectReason: null } });
-    await recordHistory(tx, {
-      entityType: "VENDOR_MEETING",
-      entityId: id,
-      field: "approvalStatus",
-      fromValue: m.approvalStatus,
-      toValue: "APPROVED",
-      changedById: admin.id,
+  await runWithFlash(formData, async () => {
+    const admin = await assertAdmin();
+    const id = Number(formData.get("id"));
+    const m = await prisma.vendorMeeting.findUniqueOrThrow({ where: { id }, include: { vendor: true } });
+    await prisma.$transaction(async (tx) => {
+      await tx.vendorMeeting.update({ where: { id }, data: { approvalStatus: "APPROVED", rejectReason: null } });
+      await recordHistory(tx, {
+        entityType: "VENDOR_MEETING",
+        entityId: id,
+        field: "approvalStatus",
+        fromValue: m.approvalStatus,
+        toValue: "APPROVED",
+        changedById: admin.id,
+      });
     });
+    await notify({
+      userId: m.assigneeId,
+      type: "APPROVED",
+      title: `【承認済】${m.vendor.name} のベンダーMTGが承認されました`,
+      linkUrl: `/meetings/${id}`,
+    });
+    revalidateMeeting(id, m.vendorId);
   });
-  await notify({
-    userId: m.assigneeId,
-    type: "APPROVED",
-    title: `【承認済】${m.vendor.name} のベンダーMTGが承認されました`,
-    linkUrl: `/meetings/${id}`,
-  });
-  revalidateMeeting(id, m.vendorId);
 }
 
 export async function rejectMeetingAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

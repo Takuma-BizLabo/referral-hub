@@ -1,4 +1,5 @@
 "use server";
+import { runWithFlash } from "@/lib/flash";
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "node:crypto";
 import { assertAdmin } from "@/lib/auth";
@@ -7,10 +8,12 @@ import { errorState, type ActionState } from "@/lib/action-state";
 import { str } from "@/lib/utils";
 
 export async function issueIngestTokenAction() {
-  await assertAdmin();
-  await setSetting("saleshub.ingestToken", randomBytes(24).toString("base64url"));
-  await setSetting("saleshub.enabled", "1");
-  revalidatePath("/settings/saleshub");
+  await runWithFlash(null, async () => {
+    await assertAdmin();
+    await setSetting("saleshub.ingestToken", randomBytes(24).toString("base64url"));
+    await setSetting("saleshub.enabled", "1");
+    revalidatePath("/settings/saleshub");
+  });
 }
 
 export async function saveSaleshubSettingsAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -28,10 +31,12 @@ export async function saveSaleshubSettingsAction(_prev: ActionState, formData: F
 }
 
 export async function rebuildCandidatesAction() {
-  await assertAdmin();
-  const { rebuildCandidates } = await import("@/lib/saleshub/rules");
-  const r = await rebuildCandidates();
-  await setSetting("saleshub.lastRebuild", `${new Date().toISOString()}|${r.threads}|${r.created}|${r.unmatched.slice(0, 20).join("、")}`);
-  revalidatePath("/settings/saleshub");
-  revalidatePath("/referrals");
+  await runWithFlash(null, async () => {
+    await assertAdmin();
+    const { rebuildCandidates } = await import("@/lib/saleshub/rules");
+    const r = await rebuildCandidates();
+    await setSetting("saleshub.lastRebuild", `${new Date().toISOString()}|${r.threads}|${r.created}|${r.unmatched.slice(0, 20).join("、")}`);
+    revalidatePath("/settings/saleshub");
+    revalidatePath("/referrals");
+  });
 }
