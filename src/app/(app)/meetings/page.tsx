@@ -11,6 +11,8 @@ import { APPROVAL_LABEL, EXECUTION_LABEL, EXECUTION_ORDER, FORMAT_LABEL } from "
 import { cn, fmtDate, fmtDateTime } from "@/lib/utils";
 import { formatTargetAmount, formatTargetsTotal, meetingTargets } from "@/lib/meeting-targets";
 import { proposedCompaniesByVendor } from "@/lib/saleshub/proposed";
+import { buildBulkBrief, buildMeetingBrief } from "@/lib/line-brief";
+import { CopyBriefButton } from "@/components/CopyBrief";
 import { setExecutionStatusAction } from "./actions";
 import type { ApprovalStatus, ExecutionStatus, Prisma } from "@prisma/client";
 
@@ -79,6 +81,31 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const targetsOf = (m: (typeof meetings)[number]) => meetingTargets(m.requestNote, m.vendor.referrals, proposedByVendor[m.vendor.id] ?? [], m.fee ?? m.vendor.referralFee);
+  const briefOf = (m: (typeof meetings)[number], greeting = true) =>
+    buildMeetingBrief(
+      {
+        id: m.id,
+        vendorName: m.vendor.name,
+        requestNote: m.requestNote,
+        executionStatus: m.executionStatus,
+        scheduledAt: m.scheduledAt,
+        place: m.place,
+        nextAction: m.nextAction,
+        nextActionDue: m.nextActionDue,
+        minutes: m.minutes,
+        fee: m.fee,
+        vendorFee: m.vendor.referralFee,
+        saleshubUrl: m.vendor.saleshubUrl,
+        assigneeName: m.assignee.name,
+        receivedCount: m.vendor.referrals.filter((r) => r.status === "RECEIVED").length,
+      },
+      targetsOf(m),
+      { greeting },
+    );
+  // 表示中の未完了案件（キャンセル・メモ入力済みの実施済を除く）をまとめた文面
+  const openMeetings = meetings.filter((m) => m.executionStatus !== "CANCELLED" && !(m.executionStatus === "DONE" && m.minutes && m.vendor.referrals.every((r) => r.status !== "RECEIVED")));
+  const assigneeNames = Array.from(new Set(openMeetings.map((m) => m.assignee.name)));
+  const bulkBrief = openMeetings.length ? buildBulkBrief(assigneeNames.length === 1 ? assigneeNames[0] : null, openMeetings.map((m) => briefOf(m, false))) : "";
 
   return (
     <div>
@@ -87,6 +114,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
         description="商談担当者がベンダーと行う事前MTG"
         actions={
           <>
+            {bulkBrief && <CopyBriefButton text={bulkBrief} label={`未完了 ${openMeetings.length} 件をまとめてLINE用コピー`} className="btn-sm" />}
             <Link href="/meetings/calendar" className="btn-secondary">
               カレンダー
             </Link>
@@ -228,7 +256,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                       </div>
                     )}
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      <span className="text-xs text-gray-500">実施</span>
+                      <CopyBriefButton text={briefOf(m)} />
                       <StatusSelect action={setExecutionStatusAction} id={m.id} value={m.executionStatus} options={EXECUTION_ORDER.map((s) => ({ value: s, label: EXECUTION_LABEL[s] }))} />
                     </div>
                   </li>
@@ -250,6 +278,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                     <th>実施</th>
                     <th>次アクション</th>
                     <th>期限</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -298,6 +327,9 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                         </td>
                         <td className="text-gray-600 max-w-xs truncate">{m.nextAction ?? "-"}</td>
                         <td className={cn("whitespace-nowrap", overdue && "text-rose-600 font-medium")}>{fmtDate(m.nextActionDue)}</td>
+                        <td className="whitespace-nowrap">
+                          <CopyBriefButton text={briefOf(m)} />
+                        </td>
                       </tr>
                     );
                   })}
@@ -342,6 +374,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                           </>
                         );
                       })()}
+                      <CopyBriefButton text={briefOf(m)} className="mt-2 w-full" />
                       <div className="flex items-center justify-between mt-2 gap-1">
                         <Badge value={m.approvalStatus} label={APPROVAL_LABEL[m.approvalStatus]} />
                         <StatusSelect

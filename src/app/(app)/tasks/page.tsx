@@ -6,7 +6,7 @@ import { TaskForm } from "./TaskForm";
 
 export const metadata = { title: "タスク" };
 
-type SP = { tab?: string; focus?: string; link?: string; title?: string };
+type SP = { tab?: string; focus?: string; link?: string; title?: string; body?: string; assignee?: string };
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<SP> }) {
   const me = await requireUser();
@@ -56,7 +56,15 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         </div>
         <div>
           <Card title="タスクを依頼する">
-            <TaskForm users={users} meId={me.id} defaultLink={sp.link} defaultTitle={sp.title} />
+            <TaskForm
+              key={`${sp.link ?? ""}${sp.title ?? ""}`}
+              users={users}
+              meId={me.id}
+              defaultLink={sp.link}
+              defaultTitle={sp.title?.slice(0, 200)}
+              defaultBody={sp.body?.slice(0, 5000)}
+              defaultAssigneeId={sp.assignee && /^\d{1,9}$/.test(sp.assignee) ? Number(sp.assignee) : undefined}
+            />
           </Card>
         </div>
       </div>

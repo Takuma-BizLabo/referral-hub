@@ -15,6 +15,8 @@ import { setVendorMeetingStatusAction } from "../../vendors/actions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ExecutionControls, MinutesForm, RejectForm } from "./MeetingControls";
 import { idOrNull, idParam } from "@/lib/params";
+import { buildMeetingBrief } from "@/lib/line-brief";
+import { CopyBriefPanel } from "@/components/CopyBrief";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const id = idOrNull((await params).id);
@@ -39,6 +41,32 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
   });
   const isAdmin = user.role === "ADMIN";
   const receivedReferrals = m.vendor.referrals.filter((r) => r.status === "RECEIVED");
+  const brief = buildMeetingBrief(
+    {
+      id: m.id,
+      vendorName: m.vendor.name,
+      requestNote: m.requestNote,
+      executionStatus: m.executionStatus,
+      scheduledAt: m.scheduledAt,
+      place: m.place,
+      nextAction: m.nextAction,
+      nextActionDue: m.nextActionDue,
+      minutes: m.minutes,
+      fee: m.fee,
+      vendorFee: m.vendor.referralFee,
+      saleshubUrl: m.vendor.saleshubUrl,
+      assigneeName: m.assignee.name,
+      receivedCount: receivedReferrals.length,
+    },
+    targets,
+    { greeting: true },
+  );
+  const taskHref = `/tasks?${new URLSearchParams({
+    link: `/meetings/${m.id}`,
+    title: `${m.vendor.name}：次の対応をお願いします`,
+    body: brief,
+    assignee: String(m.assigneeId),
+  })}`;
 
   return (
     <div className="space-y-4">
@@ -47,7 +75,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
         description={`担当：${m.assignee.name}`}
         actions={
           <>
-            <Link href={`/tasks?link=${encodeURIComponent(`/meetings/${m.id}`)}`} className="btn-secondary">
+            <Link href={taskHref} className="btn-secondary">
               タスクを依頼
             </Link>
             <Link href={`/meetings/${m.id}/edit`} className="btn-primary">
@@ -56,6 +84,10 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
           </>
         }
       />
+
+      <Card title={`${m.assignee.name.split(/\s/)[0]}さんへ送る「次にやること」（LINE用）`}>
+        <CopyBriefPanel text={brief} taskHref={taskHref} />
+      </Card>
 
       {m.approvalStatus === "REJECTED" && (
         <div className="rounded border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

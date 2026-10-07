@@ -5,7 +5,21 @@ import { createTaskAction } from "./actions";
 import { ErrorMessage, Field, SuccessMessage } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 
-export function TaskForm({ users, meId, defaultLink, defaultTitle }: { users: { id: number; name: string }[]; meId: number; defaultLink?: string; defaultTitle?: string }) {
+export function TaskForm({
+  users,
+  meId,
+  defaultLink,
+  defaultTitle,
+  defaultBody,
+  defaultAssigneeId,
+}: {
+  users: { id: number; name: string }[];
+  meId: number;
+  defaultLink?: string;
+  defaultTitle?: string;
+  defaultBody?: string;
+  defaultAssigneeId?: number;
+}) {
   const [state, action, actionPending, actionSubmit] = useStickyAction(createTaskAction, undefined);
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -16,7 +30,7 @@ export function TaskForm({ users, meId, defaultLink, defaultTitle }: { users: { 
     <form ref={ref} action={action} onSubmit={actionSubmit} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="宛先" required>
-          <select name="assigneeId" className="input" defaultValue={others[0]?.id ?? ""} required>
+          <select name="assigneeId" className="input" defaultValue={defaultAssigneeId && users.some((u) => u.id === defaultAssigneeId) ? defaultAssigneeId : (others[0]?.id ?? "")} required>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name}
@@ -33,7 +47,7 @@ export function TaskForm({ users, meId, defaultLink, defaultTitle }: { users: { 
         <input name="title" className="input" placeholder="例: CastingONE に 10/9 の候補日を返信して" defaultValue={defaultTitle ?? ""} required />
       </Field>
       <Field label="内容">
-        <textarea name="body" className="input" rows={3} placeholder="依頼の詳細、確認してほしいこと、参考情報など" />
+        <textarea name="body" defaultValue={defaultBody ?? ""} className="input" rows={defaultBody ? 10 : 3} placeholder="依頼の詳細、確認してほしいこと、参考情報など" />
       </Field>
       <Field label="関連ページURL" hint="MTGや紹介案件のページURLを貼ると「関連ページ」ボタンになります">
         <input name="linkUrl" className="input" placeholder="/meetings/12 など" defaultValue={defaultLink ?? ""} />
