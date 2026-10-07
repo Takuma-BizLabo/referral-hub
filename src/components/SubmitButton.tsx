@@ -18,8 +18,6 @@ export function SubmitButton({
   disabled?: boolean;
   /** useStickyAction の pending（onSubmit で送信するフォーム用）。省略時は useFormStatus */
   pending?: boolean;
-  name?: string;
-  value?: string;
   formAction?: (formData: FormData) => void | Promise<void>;
 }) {
   const status = useFormStatus();

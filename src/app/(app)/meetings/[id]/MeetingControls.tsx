@@ -20,13 +20,7 @@ export function ExecutionControls({ id, current, vendorDone }: { id: number; cur
         ))}
       </select>
       {status === "DONE" && !vendorDone && (
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" name="markVendorDone" defaultChecked className="mt-0.5" />
-          <span>
-            ベンダーの「MTG状態」も実施済にする
-            <span className="block text-xs text-gray-500">紹介案件を進められるようになります</span>
-          </span>
-        </label>
+        <p className="text-xs text-gray-600">実施済にすると、ベンダーの「MTG状態」も実施済になり、紹介案件を打診中へ進められるようになります。</p>
       )}
       <SubmitButton className="btn-secondary w-full">ステータスを更新</SubmitButton>
     </form>

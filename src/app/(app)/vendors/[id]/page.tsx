@@ -88,20 +88,32 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
             <Badge value={vendor.meetingStatus} label={VENDOR_MEETING_STATUS_LABEL[vendor.meetingStatus]} className="text-sm px-2 py-1" />
           </div>
           <p className="text-xs text-gray-500 mb-3">
-            「実施済」でないと、このベンダーの紹介案件を「紹介先に打診中」以降へ進められません。手動で切り替えます。
+            「未実施」のままだと、このベンダーの紹介案件を「紹介先に打診中」以降へ進められません。事前MTGをした場合は「実施済」、MTGなしで紹介する場合は「MTG不要」にしてください。
           </p>
-          <form action={setVendorMeetingStatusAction} className="flex gap-2">
-            <input type="hidden" name="id" value={vendor.id} />
-            {vendor.meetingStatus === "NOT_DONE" ? (
-              <SubmitButton name="status" value="DONE" className="btn-primary">
-                実施済にする
-              </SubmitButton>
-            ) : (
-              <SubmitButton name="status" value="NOT_DONE" className="btn-secondary">
-                未実施に戻す
-              </SubmitButton>
+          {/* ボタン自身の name/value は送信されないことがあるため、値は hidden で送る */}
+          <div className="flex flex-wrap gap-2">
+            {vendor.meetingStatus !== "DONE" && (
+              <form action={setVendorMeetingStatusAction}>
+                <input type="hidden" name="id" value={vendor.id} />
+                <input type="hidden" name="status" value="DONE" />
+                <SubmitButton className="btn-primary">実施済にする</SubmitButton>
+              </form>
             )}
-          </form>
+            {vendor.meetingStatus !== "NOT_REQUIRED" && (
+              <form action={setVendorMeetingStatusAction}>
+                <input type="hidden" name="id" value={vendor.id} />
+                <input type="hidden" name="status" value="NOT_REQUIRED" />
+                <SubmitButton className="btn-secondary">MTG不要にする</SubmitButton>
+              </form>
+            )}
+            {vendor.meetingStatus !== "NOT_DONE" && (
+              <form action={setVendorMeetingStatusAction}>
+                <input type="hidden" name="id" value={vendor.id} />
+                <input type="hidden" name="status" value="NOT_DONE" />
+                <SubmitButton className="btn-secondary">未実施に戻す</SubmitButton>
+              </form>
+            )}
+          </div>
           <form action={toggleVendorActiveAction} className="mt-4 pt-4 border-t border-gray-100">
             <input type="hidden" name="id" value={vendor.id} />
             <SubmitButton className={vendor.isActive ? "btn-danger btn-sm" : "btn-secondary btn-sm"}>

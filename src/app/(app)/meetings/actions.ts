@@ -143,7 +143,6 @@ export async function setExecutionStatusAction(formData: FormData) {
     const id = Number(formData.get("id"));
     const status = String(formData.get("status")) as ExecutionStatus;
     if (!Object.hasOwn(EXECUTION_LABEL, status)) throw new Error("不正なステータスです");
-    const markVendorDone = formData.get("markVendorDone") === "on";
     const m = await prisma.vendorMeeting.findUniqueOrThrow({ where: { id } });
     await prisma.$transaction(async (tx) => {
       await tx.vendorMeeting.update({
@@ -179,7 +178,8 @@ export async function setExecutionStatusAction(formData: FormData) {
           });
         }
       }
-      if (status === "DONE" && markVendorDone) {
+      // 事前MTGを実施したら、ベンダーのMTG状態も実施済にする（一覧のドロップダウンから変えた場合も含む）
+      if (status === "DONE") {
         const v = await tx.vendor.findUniqueOrThrow({ where: { id: m.vendorId } });
         if (v.meetingStatus !== "DONE") {
           await tx.vendor.update({ where: { id: v.id }, data: { meetingStatus: "DONE" } });
