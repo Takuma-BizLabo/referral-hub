@@ -49,7 +49,7 @@ export default async function DashboardPage() {
       orderBy: { meetingAt: "asc" },
     }),
     prisma.vendorMeeting.findMany({
-      where: { nextActionDue: { lt: dayStart }, executionStatus: { notIn: ["CANCELLED"] }, nextAction: { not: null } },
+      where: { nextActionDue: { lt: dayStart }, executionStatus: { notIn: ["CANCELLED", "NO_MEETING"] }, nextAction: { not: null } },
       include: { vendor: true, assignee: true },
       orderBy: { nextActionDue: "asc" },
       take: 20,

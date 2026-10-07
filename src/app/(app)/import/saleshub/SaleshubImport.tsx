@@ -120,7 +120,7 @@ export function SaleshubImport({
             {selectedVendor && (
               <p className="text-xs text-gray-500 mt-2">
                 この単価で紹介案件が作成されます：<span className="font-semibold">{fmtYen(selectedVendor.referralFee)}</span>
-                {result.vendorMatch?.meetingStatus === "DONE" ? "（ベンダーMTG 実施済）" : "（ベンダーMTG 未実施）"}
+                {result.vendorMatch?.meetingStatus === "DONE" ? "（ベンダーMTG 実施済）" : result.vendorMatch?.meetingStatus === "NOT_REQUIRED" ? "（ベンダーMTG 不要）" : "（ベンダーMTG 未実施）"}
               </p>
             )}
           </Card>

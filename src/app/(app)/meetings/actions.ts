@@ -148,7 +148,12 @@ export async function setExecutionStatusAction(formData: FormData) {
     await prisma.$transaction(async (tx) => {
       await tx.vendorMeeting.update({
         where: { id },
-        data: { executionStatus: status, ...(status === "DONE" && !m.doneAt ? { doneAt: new Date() } : {}) },
+        data: {
+          executionStatus: status,
+          ...(status === "DONE" && !m.doneAt ? { doneAt: new Date() } : {}),
+          // 初回MTGなし：日程調整の次アクションは不要になる
+          ...(status === "NO_MEETING" ? { nextAction: "お繋ぎ先の紹介を進める（ベンダーの確認結果を待つ）", nextActionDue: null } : {}),
+        },
       });
       await recordHistory(tx, {
         entityType: "VENDOR_MEETING",
@@ -158,6 +163,22 @@ export async function setExecutionStatusAction(formData: FormData) {
         toValue: status,
         changedById: user.id,
       });
+      if (status === "NO_MEETING") {
+        // 事前MTGなしで紹介を進められるよう、ベンダーのMTG状態を「不要」にする
+        const v = await tx.vendor.findUniqueOrThrow({ where: { id: m.vendorId } });
+        if (v.meetingStatus === "NOT_DONE") {
+          await tx.vendor.update({ where: { id: v.id }, data: { meetingStatus: "NOT_REQUIRED" } });
+          await recordHistory(tx, {
+            entityType: "VENDOR",
+            entityId: v.id,
+            field: "meetingStatus",
+            fromValue: v.meetingStatus,
+            toValue: "NOT_REQUIRED",
+            note: `MTG #${id} を「初回MTGなし」にしたため`,
+            changedById: user.id,
+          });
+        }
+      }
       if (status === "DONE" && markVendorDone) {
         const v = await tx.vendor.findUniqueOrThrow({ where: { id: m.vendorId } });
         if (v.meetingStatus !== "DONE") {

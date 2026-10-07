@@ -39,7 +39,7 @@ export default async function ReferralDetailPage({
     orderBy: { changedAt: "desc" },
   });
   const isAdmin = user.role === "ADMIN";
-  const vendorNotDone = r.vendor.meetingStatus !== "DONE";
+  const vendorNotDone = r.vendor.meetingStatus === "NOT_DONE";
 
   return (
     <div className="space-y-4">

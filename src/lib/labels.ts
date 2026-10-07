@@ -21,6 +21,7 @@ export const FORMAT_LABEL: Record<MeetingFormat, string> = {
 export const VENDOR_MEETING_STATUS_LABEL: Record<VendorMeetingStatus, string> = {
   NOT_DONE: "未実施",
   DONE: "実施済",
+  NOT_REQUIRED: "不要",
 };
 
 export const APPROVAL_LABEL: Record<ApprovalStatus, string> = {
@@ -35,8 +36,9 @@ export const EXECUTION_LABEL: Record<ExecutionStatus, string> = {
   DONE: "実施済",
   RESCHEDULE: "リスケ",
   CANCELLED: "キャンセル",
+  NO_MEETING: "初回MTGなし",
 };
-export const EXECUTION_ORDER: ExecutionStatus[] = ["SCHEDULING", "CONFIRMED", "DONE", "RESCHEDULE", "CANCELLED"];
+export const EXECUTION_ORDER: ExecutionStatus[] = ["SCHEDULING", "CONFIRMED", "DONE", "NO_MEETING", "RESCHEDULE", "CANCELLED"];
 
 export const REFERRAL_LABEL: Record<ReferralStatus, string> = {
   RECEIVED: "ピックアップ受付",
@@ -96,6 +98,8 @@ export const STATUS_COLOR: Record<string, string> = {
   PAID: "bg-emerald-100 text-emerald-800 border-emerald-200",
   // ベンダー
   NOT_DONE: "bg-slate-100 text-slate-700 border-slate-200",
+  NOT_REQUIRED: "bg-teal-50 text-teal-800 border-teal-200",
+  NO_MEETING: "bg-teal-50 text-teal-800 border-teal-200",
 };
 
 export const NOTIFICATION_TYPES = [

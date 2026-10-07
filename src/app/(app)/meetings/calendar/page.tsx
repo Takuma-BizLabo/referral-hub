@@ -22,7 +22,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   const [meetings, referrals] = await Promise.all([
     prisma.vendorMeeting.findMany({
-      where: { scheduledAt: { gte: gridStart, lte: gridEnd }, executionStatus: { not: "CANCELLED" } },
+      where: { scheduledAt: { gte: gridStart, lte: gridEnd }, executionStatus: { notIn: ["CANCELLED", "NO_MEETING"] } },
       include: { vendor: true, assignee: true },
       orderBy: { scheduledAt: "asc" },
     }),

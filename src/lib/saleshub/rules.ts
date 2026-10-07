@@ -164,7 +164,7 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
   // --- 2. 日時の読み取り → 確定 ---
   if (meetingId) {
     const meeting = await prisma.vendorMeeting.findUnique({ where: { id: meetingId } });
-    if (meeting && meeting.executionStatus !== "DONE" && meeting.executionStatus !== "CANCELLED") {
+    if (meeting && meeting.executionStatus !== "DONE" && meeting.executionStatus !== "CANCELLED" && meeting.executionStatus !== "NO_MEETING") {
       // 新着のうち日時を含む最後の発言を採用
       let found: { at: Date; msg: Msg } | null = null;
       for (const m of newMessages) {

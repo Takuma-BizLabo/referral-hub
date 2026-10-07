@@ -56,7 +56,7 @@ export async function setVendorMeetingStatusAction(formData: FormData) {
     const user = await assertUser();
     const id = Number(formData.get("id"));
     const status = String(formData.get("status")) as VendorMeetingStatus;
-    if (status !== "DONE" && status !== "NOT_DONE") throw new Error("不正な値です");
+    if (status !== "DONE" && status !== "NOT_DONE" && status !== "NOT_REQUIRED") throw new Error("不正な値です");
     await prisma.$transaction(async (tx) => {
       const v = await tx.vendor.findUniqueOrThrow({ where: { id } });
       await tx.vendor.update({ where: { id }, data: { meetingStatus: status } });

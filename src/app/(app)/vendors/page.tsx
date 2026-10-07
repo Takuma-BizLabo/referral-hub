@@ -19,7 +19,7 @@ export default async function VendorsPage({
   const where: Prisma.VendorWhereInput = {
     isActive: inactive === "1" ? undefined : true,
     ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { contactName: { contains: q, mode: "insensitive" } }, { serviceSummary: { contains: q, mode: "insensitive" } }] } : {}),
-    ...(status === "DONE" || status === "NOT_DONE" ? { meetingStatus: status } : {}),
+    ...(status === "DONE" || status === "NOT_DONE" || status === "NOT_REQUIRED" ? { meetingStatus: status } : {}),
   };
   const vendors = await prisma.vendor.findMany({
     where,
@@ -53,6 +53,7 @@ export default async function VendorsPage({
           <select name="status" defaultValue={status ?? ""} className="input">
             <option value="">すべて</option>
             <option value="NOT_DONE">未実施</option>
+            <option value="NOT_REQUIRED">不要</option>
             <option value="DONE">実施済</option>
           </select>
         </div>

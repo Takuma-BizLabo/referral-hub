@@ -59,7 +59,7 @@ export function ReferralForm({
         {referral ? (
           <input type="hidden" name="vendorId" value={referral.vendorId} />
         ) : (
-          <Field label="ベンダー" required hint={vendor ? `単価 ¥${vendor.referralFee.toLocaleString()} ／ MTG ${vendor.meetingStatus === "DONE" ? "実施済" : "未実施"}` : undefined}>
+          <Field label="ベンダー" required hint={vendor ? `単価 ¥${vendor.referralFee.toLocaleString()} ／ MTG ${vendor.meetingStatus === "DONE" ? "実施済" : vendor.meetingStatus === "NOT_REQUIRED" ? "不要" : "未実施"}` : undefined}>
             <select
               name="vendorId"
               className="input"

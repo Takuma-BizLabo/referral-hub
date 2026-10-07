@@ -103,7 +103,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
       { greeting },
     );
   // 表示中の未完了案件（キャンセル・メモ入力済みの実施済を除く）をまとめた文面
-  const openMeetings = meetings.filter((m) => m.executionStatus !== "CANCELLED" && !(m.executionStatus === "DONE" && m.minutes && m.vendor.referrals.every((r) => r.status !== "RECEIVED")));
+  const openMeetings = meetings.filter((m) => m.executionStatus !== "CANCELLED" && m.executionStatus !== "NO_MEETING" && !(m.executionStatus === "DONE" && m.minutes && m.vendor.referrals.every((r) => r.status !== "RECEIVED")));
   const assigneeNames = Array.from(new Set(openMeetings.map((m) => m.assignee.name)));
   const bulkBrief = openMeetings.length ? buildBulkBrief(assigneeNames.length === 1 ? assigneeNames[0] : null, openMeetings.map((m) => briefOf(m, false))) : "";
 
@@ -225,7 +225,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
             {/* スマホ: カード表示 */}
             <ul className="md:hidden space-y-2">
               {meetings.map((m) => {
-                const overdue = m.nextActionDue && m.nextActionDue < today && m.executionStatus !== "CANCELLED";
+                const overdue = m.nextActionDue && m.nextActionDue < today && m.executionStatus !== "CANCELLED" && m.executionStatus !== "NO_MEETING";
                 const targets = targetsOf(m);
                 return (
                   <li key={m.id} className="card p-3">
@@ -283,7 +283,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                 </thead>
                 <tbody>
                   {meetings.map((m) => {
-                    const overdue = m.nextActionDue && m.nextActionDue < today && m.executionStatus !== "CANCELLED";
+                    const overdue = m.nextActionDue && m.nextActionDue < today && m.executionStatus !== "CANCELLED" && m.executionStatus !== "NO_MEETING";
                     const targets = targetsOf(m);
                     return (
                       <tr key={m.id}>
@@ -339,7 +339,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
           </>
         )
       ) : (
-        <div className="grid gap-3 md:grid-cols-5 overflow-x-auto">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6 overflow-x-auto">
           {EXECUTION_ORDER.map((status) => {
             const items = meetings.filter((m) => m.executionStatus === status);
             return (

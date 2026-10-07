@@ -128,13 +128,22 @@ export const COMPANY_PARSER_VERSION = 3;
 export const URL_RE = /https?:\/\/[^\s<>"'）)」』]+/g;
 
 /** 打ち合わせ・日程調整の依頼っぽいか（ベンダー発言向け） */
+/** 日程調整・会議ツールのURL（これがあれば打ち合わせ依頼とみなす） */
+const SCHEDULING_URL_RE = /https?:\/\/[^\s]*(timerex|spirinc|spir\.|jicoo|calendly|eeasy|youcanbook|calendar\.app\.google|calendar\.google|meet\.google|zoom\.us|teams\.microsoft|hubspot\.[a-z.]+\/meetings|meetings\.hubspot|nikkei-calendar|receptionist|tidycal|savvycal|jbat|scheduling)/i;
+
+/**
+ * 打ち合わせ・日程調整の依頼っぽいか（ベンダー発言向け）。
+ * 「1週間ほどお時間をいただく」のような“待ってほしい”文面では反応しないよう、
+ * 日程調整ツールのURL、または打ち合わせを求める言い回しがある場合だけ true。
+ */
 export function looksLikeMeetingRequest(body: string) {
-  if (URL_RE.test(body)) {
-    URL_RE.lastIndex = 0;
-    return true;
-  }
-  URL_RE.lastIndex = 0;
-  return /打ち?合わ?せ|お時間|日程|ミーティング|MTG|面談|ご説明の時間|お話|ご都合|候補日|予約/i.test(body);
+  if (SCHEDULING_URL_RE.test(body)) return true;
+  const text = body.replace(/\s+/g, "");
+  // 打ち合わせを“求める”言い回し
+  if (/(打ち?合わ?せ|お打ち?合わ?せ|ミーティング|MTG|面談|ご説明|オンラインでお話|お話し?(させて|を伺|する)|ご挨拶)[^。]{0,40}(いただけ|頂け|頂戴|させていただ|お願い|ご予約|ご調整|設定|可能でしょうか|いかがでしょうか|ございますでしょうか|幸いです)/.test(text)) return true;
+  if (/(日程|日時|ご都合|候補日|空き(予定|時間)?)[^。]{0,30}(ご調整|調整させて|お選び|ご教示|お知らせ|教えて|ご予約|いただけ|頂け|お送り)/.test(text)) return true;
+  if (/お時間を?(いただけ|頂け|頂戴でき|頂戴いたしたく|いただきたく|ちょうだいでき)/.test(text)) return true;
+  return false;
 }
 
 export const COMPANY_RE = /((?:株式会社|有限会社|合同会社|一般社団法人|公益財団法人)[^\s\/／（(、。,．「」『』]+|[^\s\/／（(、。,．「」『』]{1,30}?(?:株式会社|有限会社|合同会社|ホールディングス|Inc\.?|Co\.,? ?Ltd\.?))/g;

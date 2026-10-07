@@ -114,7 +114,7 @@ export async function updateReferralAction(_prev: ActionState, formData: FormDat
 async function changeReferralStatus(user: { id: number }, id: number, status: ReferralStatus): Promise<"ok" | "unchanged" | "blocked"> {
   const r = await prisma.referral.findUniqueOrThrow({ where: { id }, include: { vendor: true, contact: true } });
   if (r.status === status) return "unchanged";
-  if (REFERRAL_REQUIRES_VENDOR_DONE.includes(status) && r.vendor.meetingStatus !== "DONE" && !r.forceUnlocked) return "blocked";
+  if (REFERRAL_REQUIRES_VENDOR_DONE.includes(status) && r.vendor.meetingStatus === "NOT_DONE" && !r.forceUnlocked) return "blocked";
 
   const becameDone = status === "MEETING_DONE" && r.status !== "MEETING_DONE";
   const applyReward = becameDone && r.rewardStatus === "UNFIXED";

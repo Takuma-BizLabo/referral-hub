@@ -149,7 +149,7 @@ export async function runReminders(now = new Date()): Promise<{ created: number 
 
   // ---- 次アクション期限：当日・超過 ----
   const dueMeetings = await prisma.vendorMeeting.findMany({
-    where: { nextActionDue: { lt: tomorrowStart }, nextAction: { not: null }, executionStatus: { not: "CANCELLED" } },
+    where: { nextActionDue: { lt: tomorrowStart }, nextAction: { not: null }, executionStatus: { notIn: ["CANCELLED", "NO_MEETING"] } },
     include: { vendor: true },
   });
   for (const m of dueMeetings) {

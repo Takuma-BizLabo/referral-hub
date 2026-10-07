@@ -101,7 +101,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
         <section className="rounded-xl border-2 border-blue-200 bg-blue-50/60 p-4">
           <h2 className="font-semibold text-blue-950">次のステップ：ピックアップ受付の紹介案件を「紹介先に打診中」へ</h2>
           <p className="text-xs text-blue-900/80 mt-1">MTGが実施済になりました。このベンダーの「ピックアップ受付」の案件 {receivedReferrals.length} 件を、紹介先への打診に進められます。</p>
-          {m.vendor.meetingStatus !== "DONE" && (
+          {m.vendor.meetingStatus === "NOT_DONE" && (
             <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 flex flex-wrap items-center gap-2">
               <span className="flex-1 min-w-48">ベンダーの「MTG状態」が未実施のため、このままでは打診中へ進められません。</span>
               <form action={setVendorMeetingStatusAction}>
@@ -129,7 +129,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
                 </li>
               ))}
             </ul>
-            <SubmitButton className="btn-primary" pendingText="更新中..." disabled={m.vendor.meetingStatus !== "DONE"}>
+            <SubmitButton className="btn-primary" pendingText="更新中..." disabled={m.vendor.meetingStatus === "NOT_DONE"}>
               選んだ案件を「紹介先に打診中」へ進める
             </SubmitButton>
           </form>
@@ -208,7 +208,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
             </Link>
           </Card>
           <Card title="実施ステータス">
-            <ExecutionControls id={m.id} current={m.executionStatus} vendorDone={m.vendor.meetingStatus === "DONE"} />
+            <ExecutionControls id={m.id} current={m.executionStatus} vendorDone={m.vendor.meetingStatus !== "NOT_DONE"} />
           </Card>
           {isAdmin && m.approvalStatus !== "APPROVED" && (
             <Card title="承認（管理者）">

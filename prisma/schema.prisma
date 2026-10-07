@@ -22,6 +22,7 @@ enum MeetingFormat {
 enum VendorMeetingStatus {
   NOT_DONE // 未実施
   DONE // 実施済
+  NOT_REQUIRED // 不要（初回MTGなしで紹介可）
 }
 
 enum ApprovalStatus {
@@ -36,6 +37,7 @@ enum ExecutionStatus {
   DONE // 実施済
   RESCHEDULE // リスケ
   CANCELLED // キャンセル
+  NO_MEETING // 初回MTGなし（ベンダーから打ち合わせ依頼がない）
 }
 
 enum ReferralStatus {

@@ -4,7 +4,7 @@
  * 失敗があれば終了コード 1。
  */
 import assert from "node:assert/strict";
-import { extractCompanies, extractMeetingDateTime } from "../src/lib/saleshub/parse";
+import { extractCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
 /** JST の "YYYY-MM-DD HH:mm" を Date に */
 function jst(s: string): Date {
@@ -93,6 +93,25 @@ test("会社名: 部署の読み取り", () => {
   const got = extractCompanies("株式会社エスプール / 人事部(課長クラス)");
   assert.equal(got[0]?.dept, "人事部(課長クラス)");
 });
+
+
+// ---- 打ち合わせ依頼の判定（実際のセールスハブの文面） ----
+const meetingYes: [string, string][] = [
+  ["TimeRex URL", "まずはお気軽に事前打ち合わせにご予約下さいませ。\n◆事前打ち合わせのご予約用URL：https://timerex.net/s/flierinc/c8654bc0"],
+  ["jicoo URL", "下記URLが私の空き予定となっておりますので、ご都合のよろしいお時間をお選びくださいますと幸いです。\nご調整用URL：https://www.jicoo.com/t/betterplace/e/yESmS8w0evgG"],
+  ["Spir URL", "下記URLより、ご都合のよい日時をお選びいただけますと幸いです。 https://app.spirinc.com/t/abc/as/def/confirm"],
+  ["説明の時間", "まずは一度、サービス概要や事例などのご説明の時間をいただけますと幸いです。お打ち合わせはオンラインを想定しています。"],
+  ["打ち合わせのお時間", "まずは上記から事前お打ち合わせのお時間を頂戴できますでしょうか。"],
+  ["ご都合", "来週でご都合のよい日時をいくつかご教示いただけますでしょうか。"],
+];
+const meetingNo: [string, string][] = [
+  ["社内確認中（ペイメントフォー）", "このたびはお声がけいただき、誠にありがとうございます。\n株式会社アッカ・インターナショナル様につきまして、\n社内で確認の上、改めてご連絡させていただきます。\n回答まで1週間ほどお時間をいただく可能性がございますが、\nご了承いただけますと幸いです。"],
+  ["対象外の連絡", "商談対象外との件、承知いたしました。ご確認いただきありがとうございました。"],
+  ["資料URLだけ", "サービス資料はこちらです。https://example.com/docs/service.pdf ご確認ください。"],
+  ["確認しました", "確認いたしました。当日はよろしくお願いいたします。"],
+];
+for (const [name, body] of meetingYes) test(`打ち合わせ依頼あり: ${name}`, () => assert.equal(looksLikeMeetingRequest(body), true));
+for (const [name, body] of meetingNo) test(`打ち合わせ依頼なし: ${name}`, () => assert.equal(looksLikeMeetingRequest(body), false));
 
 if (failures.length) {
   console.error(failures.join("\n"));

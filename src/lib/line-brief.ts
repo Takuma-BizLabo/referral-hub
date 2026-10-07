@@ -67,6 +67,10 @@ export function buildMeetingBrief(m: BriefInput, targets: MeetingTarget[], opts:
     case "CANCELLED":
       todo.push("このMTGはキャンセル済み（対応不要）");
       break;
+    case "NO_MEETING":
+      todo.push("初回MTGなし：ベンダーの確認結果を待ち、OKならお繋ぎ先へ打診");
+      if (m.receivedCount > 0) todo.push(`ピックアップ受付のお繋ぎ先 ${m.receivedCount} 件を打診中へ進める`);
+      break;
   }
   // 単価まわり
   const undetermined = targets.filter((t) => t.amount === null);
