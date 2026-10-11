@@ -1,6 +1,6 @@
 import type { Task, User } from "@prisma/client";
 import { cn, fmtDate, fmtDateTime } from "@/lib/utils";
-import { completeTaskAction, deleteTaskAction, reopenTaskAction } from "@/app/(app)/tasks/actions";
+import { completeTaskAction, deleteTaskAction, reopenTaskAction, resendTaskAction } from "@/app/(app)/tasks/actions";
 import { CompleteTaskForm } from "./TaskControls";
 import { SubmitButton } from "@/components/SubmitButton";
 
@@ -113,6 +113,12 @@ export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; 
             <form action={reopenTaskAction}>
               <input type="hidden" name="id" value={task.id} />
               <SubmitButton className="btn-secondary btn-sm">未完了に戻す</SubmitButton>
+            </form>
+          )}
+          {task.status === "OPEN" && (task.requesterId === meId || isAdmin) && task.assigneeId !== meId && (
+            <form action={resendTaskAction}>
+              <input type="hidden" name="id" value={task.id} />
+              <SubmitButton className="btn-secondary btn-sm" pendingText="送信中...">LINEで再通知</SubmitButton>
             </form>
           )}
           {(task.requesterId === meId || isAdmin) && (

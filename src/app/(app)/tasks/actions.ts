@@ -132,3 +132,29 @@ export async function deleteTaskAction(formData: FormData) {
     revalidateTasks();
   });
 }
+
+/** 担当者へタスクを再通知する（LINE 連携前に依頼した場合や、念押ししたいとき） */
+export async function resendTaskAction(formData: FormData) {
+  await runWithFlash(formData, async () => {
+    const me = await assertUser();
+    const id = Number(formData.get("id"));
+    const task = await prisma.task.findUniqueOrThrow({ where: { id }, include: { assignee: true, attachments: { select: { filename: true } } } });
+    if (task.requesterId !== me.id && me.role !== "ADMIN") throw new Error("再通知できるのは依頼者か管理者です");
+    if (task.status !== "OPEN") throw new Error("完了済みのタスクは再通知できません");
+    await notify({
+      userId: task.assigneeId,
+      type: "TASK_ASSIGNED",
+      title: `【タスク依頼・再送】${me.name} → ${task.title}`,
+      body: [
+        task.body?.slice(0, 300),
+        task.dueDate ? `期限: ${fmtDate(task.dueDate)}` : null,
+        task.attachments.length ? `添付: ${task.attachments.map((a) => a.filename).join("、")}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      linkUrl: `/tasks?focus=${task.id}`,
+    });
+    revalidateTasks();
+    return { notice: `${task.assignee.name} さんに再通知しました${task.assignee.lineUserId ? "（LINE にも送信）" : "（LINE 未連携のためツール内のみ）"}` };
+  });
+}
