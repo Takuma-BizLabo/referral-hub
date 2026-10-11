@@ -46,7 +46,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
     ...(sp.vendor ? { vendorId: Number(sp.vendor) } : {}),
     ...(sp.q ? { vendor: { name: { contains: sp.q, mode: "insensitive" } } } : {}),
   };
-  const [proposedByVendor, meetings, users, vendors, allForCounts] = await Promise.all([
+  const [proposedByVendor, fetchedMeetings, users, vendors, allForCounts] = await Promise.all([
     proposedCompaniesByVendor(),
     prisma.vendorMeeting.findMany({
       where,
@@ -65,6 +65,10 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
       select: { vendorId: true, executionStatus: true, approvalStatus: true },
     }),
   ]);
+  // 「初回MTGなし」は対応不要なので一覧の一番下へ（それ以外の並び順は保つ）
+  const meetings = [...fetchedMeetings.filter((m) => m.executionStatus !== "NO_MEETING"), ...fetchedMeetings.filter((m) => m.executionStatus === "NO_MEETING")];
+  /** 行の背景：実施済＝薄い青、初回MTGなし＝グレーアウト */
+  const rowTone = (status: string) => (status === "DONE" ? "bg-sky-50" : status === "NO_MEETING" ? "bg-gray-100 opacity-60" : "");
   const vendorCounts: Record<number, number> = {};
   for (const m of allForCounts) vendorCounts[m.vendorId] = (vendorCounts[m.vendorId] ?? 0) + 1;
   const execCounts: Record<string, number> = {};
@@ -230,7 +234,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                 const overdue = m.nextActionDue && m.nextActionDue < today && m.executionStatus !== "CANCELLED" && m.executionStatus !== "NO_MEETING";
                 const targets = targetsOf(m);
                 return (
-                  <li key={m.id} className="card p-3">
+                  <li key={m.id} className={cn("card p-3", rowTone(m.executionStatus))}>
                     <div className="flex items-start justify-between gap-2">
                       <Link href={`/meetings/${m.id}`} className="min-w-0">
                         <VendorTag id={m.vendor.id} name={m.vendor.name} link={false} />
@@ -291,7 +295,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                     const overdue = m.nextActionDue && m.nextActionDue < today && m.executionStatus !== "CANCELLED" && m.executionStatus !== "NO_MEETING";
                     const targets = targetsOf(m);
                     return (
-                      <tr key={m.id}>
+                      <tr key={m.id} className={rowTone(m.executionStatus)}>
                         <td className="whitespace-nowrap">
                           <Link href={`/meetings/${m.id}`} className="text-blue-700 hover:underline">
                             {m.scheduledAt ? fmtDateTime(m.scheduledAt) : "日時未定"}
