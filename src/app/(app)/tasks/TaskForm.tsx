@@ -1,7 +1,8 @@
 "use client";
 import { useStickyAction } from "@/lib/use-sticky-action";
 import { useEffect, useRef, useState } from "react";
-import { fmtBytes, MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_BYTES } from "@/lib/attachments";
+import { AttachmentPicker, renamePasted, validateFiles } from "@/components/AttachmentPicker";
+import { fmtBytes, MAX_FILE_BYTES, MAX_FILES } from "@/lib/attachments";
 import { createTaskAction } from "./actions";
 import { ErrorMessage, Field, SuccessMessage } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -23,17 +24,24 @@ export function TaskForm({
 }) {
   const [state, action, actionPending, actionSubmit] = useStickyAction(createTaskAction, undefined);
   const ref = useRef<HTMLFormElement>(null);
-  const [picked, setPicked] = useState<{ name: string; size: number }[]>([]);
-  const [fileError, setFileError] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   useEffect(() => {
     if (state?.success) {
       ref.current?.reset();
-      setPicked([]);
+      setFiles([]);
     }
   }, [state]);
+  const fileError = validateFiles(files);
+  // フォームのどこで貼り付けても、画像・ファイルなら添付に追加する
+  const onPaste = (e: React.ClipboardEvent<HTMLFormElement>) => {
+    const pasted = Array.from(e.clipboardData?.files ?? []);
+    if (pasted.length === 0) return;
+    e.preventDefault();
+    setFiles((prev) => [...prev, ...pasted.map(renamePasted)]);
+  };
   const others = users.filter((u) => u.id !== meId);
   return (
-    <form ref={ref} action={action} onSubmit={actionSubmit} className="space-y-3">
+    <form ref={ref} action={action} onSubmit={actionSubmit} onPaste={onPaste} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="宛先" required>
           <select name="assigneeId" className="input" defaultValue={defaultAssigneeId && users.some((u) => u.id === defaultAssigneeId) ? defaultAssigneeId : (others[0]?.id ?? "")} required>
@@ -58,37 +66,8 @@ export function TaskForm({
       <Field label="関連ページURL" hint="MTGや紹介案件のページURLを貼ると「関連ページ」ボタンになります">
         <input name="linkUrl" className="input" placeholder="/meetings/12 など" defaultValue={defaultLink ?? ""} />
       </Field>
-      <Field label="添付ファイル" hint={`${MAX_FILES}件まで・1ファイル${fmtBytes(MAX_FILE_BYTES)}まで（PDF・画像・Excel・Word など）`}>
-        <input
-          name="files"
-          type="file"
-          multiple
-          className="block w-full text-sm text-gray-700 file:mr-3 file:rounded-lg file:border file:border-gray-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-semibold hover:file:bg-gray-50"
-          onChange={(e) => {
-            const list = Array.from(e.target.files ?? []);
-            setPicked(list.map((f) => ({ name: f.name, size: f.size })));
-            const big = list.find((f) => f.size > MAX_FILE_BYTES);
-            const total = list.reduce((a, f) => a + f.size, 0);
-            setFileError(
-              list.length > MAX_FILES
-                ? `添付できるのは${MAX_FILES}件までです`
-                : big
-                  ? `「${big.name}」が大きすぎます（${fmtBytes(big.size)}）`
-                  : total > MAX_TOTAL_BYTES
-                    ? `合計が大きすぎます（${fmtBytes(total)}）`
-                    : null,
-            );
-          }}
-        />
-        {picked.length > 0 && (
-          <ul className="mt-2 space-y-0.5 text-xs text-gray-600">
-            {picked.map((f) => (
-              <li key={f.name}>
-                📎 {f.name}（{fmtBytes(f.size)}）
-              </li>
-            ))}
-          </ul>
-        )}
+      <Field label="添付ファイル" hint={`${MAX_FILES}件まで・1ファイル${fmtBytes(MAX_FILE_BYTES)}まで。画像はこのフォーム上で Cmd+V（Ctrl+V）で貼り付けできます`}>
+        <AttachmentPicker files={files} onChange={setFiles} />
         {fileError && <p className="mt-1 text-xs text-rose-600">{fileError}</p>}
       </Field>
       <label className="flex items-center gap-2 text-sm">
@@ -96,7 +75,7 @@ export function TaskForm({
       </label>
       <ErrorMessage message={state?.error} />
       <SuccessMessage message={state?.success} />
-      <SubmitButton pending={actionPending} disabled={!!fileError} pendingText={picked.length ? "アップロード中..." : "処理中..."}>
+      <SubmitButton pending={actionPending} disabled={!!fileError} pendingText={files.length ? "アップロード中..." : "処理中..."}>
         タスクを依頼する
       </SubmitButton>
     </form>
