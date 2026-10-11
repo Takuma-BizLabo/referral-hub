@@ -65,10 +65,23 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
       select: { vendorId: true, executionStatus: true, approvalStatus: true },
     }),
   ]);
-  // 「初回MTGなし」は対応不要なので一覧の一番下へ（それ以外の並び順は保つ）
-  const meetings = [...fetchedMeetings.filter((m) => m.executionStatus !== "NO_MEETING"), ...fetchedMeetings.filter((m) => m.executionStatus === "NO_MEETING")];
-  /** 行の背景：実施済＝薄い青、初回MTGなし＝グレーアウト */
-  const rowTone = (status: string) => (status === "DONE" ? "bg-sky-50" : status === "NO_MEETING" ? "bg-gray-100 opacity-60" : "");
+  // 表示の優先順：確定 → 日程調整中 → 実施済 → リスケ → 初回MTGなし・キャンセル（同じグループ内は選んだ並び順のまま）
+  const STATUS_RANK: Record<string, number> = { CONFIRMED: 0, SCHEDULING: 1, DONE: 2, RESCHEDULE: 3, NO_MEETING: 4, CANCELLED: 4 };
+  const meetings = fetchedMeetings
+    .map((m, i) => ({ m, i }))
+    .sort((a, b) => (STATUS_RANK[a.m.executionStatus] ?? 9) - (STATUS_RANK[b.m.executionStatus] ?? 9) || a.i - b.i)
+    .map((x) => x.m);
+  /** 行の背景：確定＝薄い青、日程調整中＝薄い黄色、実施済＝薄いピンク、初回MTGなし・キャンセル＝グレーアウト */
+  const rowTone = (status: string) =>
+    status === "CONFIRMED"
+      ? "bg-sky-50"
+      : status === "SCHEDULING"
+        ? "bg-yellow-50"
+        : status === "DONE"
+          ? "bg-pink-50"
+          : status === "NO_MEETING" || status === "CANCELLED"
+            ? "bg-gray-100 opacity-60"
+            : "";
   const vendorCounts: Record<number, number> = {};
   for (const m of allForCounts) vendorCounts[m.vendorId] = (vendorCounts[m.vendorId] ?? 0) + 1;
   const execCounts: Record<string, number> = {};
