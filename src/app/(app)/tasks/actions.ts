@@ -158,3 +158,58 @@ export async function resendTaskAction(formData: FormData) {
     return { notice: `${task.assignee.name} さんに再通知しました${task.assignee.lineUserId ? "（LINE にも送信）" : "（LINE 未連携のためツール内のみ）"}` };
   });
 }
+
+/** タスクのチャットに書き込む（報告・追加の指示など）。依頼者と担当者のうち、自分以外に通知する */
+export async function addTaskCommentAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const me = await assertUser();
+    const taskId = Number(formData.get("taskId"));
+    const body = str(formData.get("body"));
+    if (body && body.length > 5000) throw new Error("メッセージは5000文字以内にしてください");
+    const files = pickFiles(formData);
+    if (!body && files.length === 0) throw new Error("メッセージを入力するか、ファイルを添付してください");
+    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    if (!task) throw new Error("タスクが見つかりません（削除された可能性があります）");
+    const fileRows = await Promise.all(
+      files.map(async (f) => ({
+        taskId,
+        filename: cleanFilename(f.name),
+        mimeType: (f.type || "application/octet-stream").slice(0, 100),
+        size: f.size,
+        data: Buffer.from(await f.arrayBuffer()),
+        uploadedById: me.id,
+      })),
+    );
+    await prisma.taskComment.create({
+      data: { taskId, authorId: me.id, body, ...(fileRows.length ? { attachments: { create: fileRows } } : {}) },
+    });
+    const to = new Set([task.requesterId, task.assigneeId]);
+    to.delete(me.id);
+    for (const userId of to) {
+      await notify({
+        userId,
+        type: "TASK_COMMENT",
+        title: `【タスクのチャット】${me.name}：${task.title}`,
+        body: [body?.slice(0, 300), fileRows.length ? `添付: ${fileRows.map((f) => f.filename).join("、")}` : null].filter(Boolean).join("\n"),
+        linkUrl: `/tasks?focus=${task.id}`,
+      });
+    }
+    revalidateTasks();
+    return { success: "送信しました" };
+  } catch (e) {
+    return errorState(e);
+  }
+}
+
+/** 自分のメッセージを取り消す */
+export async function deleteTaskCommentAction(formData: FormData) {
+  await runWithFlash(formData, async () => {
+    const me = await assertUser();
+    const id = Number(formData.get("id"));
+    const c = await prisma.taskComment.findUnique({ where: { id } });
+    if (!c) return;
+    if (c.authorId !== me.id && me.role !== "ADMIN") throw new Error("取り消せるのは自分のメッセージだけです");
+    await prisma.taskComment.delete({ where: { id } });
+    revalidateTasks();
+  });
+}

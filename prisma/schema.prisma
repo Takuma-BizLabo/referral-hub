@@ -78,13 +78,14 @@ model User {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  sessions      Session[]
-  meetings      VendorMeeting[]
-  notifications Notification[]
-  histories     StatusHistory[]
-  goals         MonthlyGoal[]
-  requestedTasks Task[] @relation("taskRequester")
-  assignedTasks  Task[] @relation("taskAssignee")
+  sessions       Session[]
+  meetings       VendorMeeting[]
+  notifications  Notification[]
+  histories      StatusHistory[]
+  goals          MonthlyGoal[]
+  requestedTasks Task[]          @relation("taskRequester")
+  assignedTasks  Task[]          @relation("taskAssignee")
+  taskComments   TaskComment[]
 }
 
 model Session {
@@ -121,26 +122,26 @@ model Vendor {
 // ---------- ベンダーMTG（フェーズ1） ----------
 
 model VendorMeeting {
-  id                Int             @id @default(autoincrement())
-  vendorId          Int
-  vendor            Vendor          @relation(fields: [vendorId], references: [id])
-  assigneeId        Int
-  assignee          User            @relation(fields: [assigneeId], references: [id])
-  scheduledAt       DateTime?
-  format            MeetingFormat   @default(ONLINE)
-  place             String? // 打ち合わせURL（Zoom・Meet など）・場所
-  schedulingUrl     String? // 日程調整URL（TimeRex・Spir など）
-  approvalStatus    ApprovalStatus  @default(PENDING)
-  rejectReason      String?
-  executionStatus   ExecutionStatus @default(SCHEDULING)
-  minutes           String? // 議事メモ
-  nextAction        String?
-  nextActionDue     DateTime? // 日付（00:00）
-  doneAt            DateTime?
-  requestNote       String? // ベンダーからの依頼内容（セールスハブ取込時など）
-  fee               Int? // この依頼の紹介単価（セールスハブの協力金）
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  id              Int             @id @default(autoincrement())
+  vendorId        Int
+  vendor          Vendor          @relation(fields: [vendorId], references: [id])
+  assigneeId      Int
+  assignee        User            @relation(fields: [assigneeId], references: [id])
+  scheduledAt     DateTime?
+  format          MeetingFormat   @default(ONLINE)
+  place           String? // 打ち合わせURL（Zoom・Meet など）・場所
+  schedulingUrl   String? // 日程調整URL（TimeRex・Spir など）
+  approvalStatus  ApprovalStatus  @default(PENDING)
+  rejectReason    String?
+  executionStatus ExecutionStatus @default(SCHEDULING)
+  minutes         String? // 議事メモ
+  nextAction      String?
+  nextActionDue   DateTime? // 日付（00:00）
+  doneAt          DateTime?
+  requestNote     String? // ベンダーからの依頼内容（セールスハブ取込時など）
+  fee             Int? // この依頼の紹介単価（セールスハブの協力金）
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   @@index([vendorId])
   @@index([assigneeId])
@@ -153,21 +154,21 @@ model VendorMeeting {
 // ---------- 繋がりリスト ----------
 
 model Contact {
-  id            Int      @id @default(autoincrement())
-  name          String
-  company       String?
-  title         String?
-  industry      String?
-  employeeSize  String?
-  region        String?
-  email         String?
-  phone         String?
-  otherContact  String?
-  isOnSaleshub  Boolean  @default(false)
-  relationMemo  String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  name         String
+  company      String?
+  title        String?
+  industry     String?
+  employeeSize String?
+  region       String?
+  email        String?
+  phone        String?
+  otherContact String?
+  isOnSaleshub Boolean  @default(false)
+  relationMemo String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   tags      ContactTag[]
   referrals Referral[]
@@ -194,34 +195,34 @@ model ContactTag {
 // ---------- 紹介案件（フェーズ2） ----------
 
 model Referral {
-  id                Int            @id @default(autoincrement())
-  vendorId          Int
-  vendor            Vendor         @relation(fields: [vendorId], references: [id])
-  contactId         Int
-  contact           Contact        @relation(fields: [contactId], references: [id])
-  pickedUpAt        DateTime       @default(now())
-  status            ReferralStatus @default(RECEIVED)
-  statusChangedAt   DateTime       @default(now())
-  meetingAt         DateTime?
-  meetingFormat     MeetingFormat?
-  meetingPlace      String?
-  meetingResult     String?
-  meetingDoneAt     DateTime?
-  nextAction        String?
-  nextActionDue     DateTime?
-  rewardAmount      Int            @default(0)
-  rewardUndetermined Boolean       @default(false) // 単価未定（途中でベンダーが挙げた会社など）
-  rewardStatus      RewardStatus   @default(UNFIXED)
-  rewardApprovedAt  DateTime?
-  invoicedAt        DateTime?
-  paymentDueAt      DateTime?
-  paidAt            DateTime?
-  forceUnlocked     Boolean        @default(false)
-  forceUnlockReason String?
-  pickupNote        String? // ベンダーがピックアップした相手の情報（セールスハブ記載内容）
-  memo              String?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id                 Int            @id @default(autoincrement())
+  vendorId           Int
+  vendor             Vendor         @relation(fields: [vendorId], references: [id])
+  contactId          Int
+  contact            Contact        @relation(fields: [contactId], references: [id])
+  pickedUpAt         DateTime       @default(now())
+  status             ReferralStatus @default(RECEIVED)
+  statusChangedAt    DateTime       @default(now())
+  meetingAt          DateTime?
+  meetingFormat      MeetingFormat?
+  meetingPlace       String?
+  meetingResult      String?
+  meetingDoneAt      DateTime?
+  nextAction         String?
+  nextActionDue      DateTime?
+  rewardAmount       Int            @default(0)
+  rewardUndetermined Boolean        @default(false) // 単価未定（途中でベンダーが挙げた会社など）
+  rewardStatus       RewardStatus   @default(UNFIXED)
+  rewardApprovedAt   DateTime?
+  invoicedAt         DateTime?
+  paymentDueAt       DateTime?
+  paidAt             DateTime?
+  forceUnlocked      Boolean        @default(false)
+  forceUnlockReason  String?
+  pickupNote         String? // ベンダーがピックアップした相手の情報（セールスハブ記載内容）
+  memo               String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@index([vendorId])
   @@index([contactId])
@@ -275,14 +276,14 @@ model Notification {
 // ---------- 目標 ----------
 
 model MonthlyGoal {
-  id                  Int   @id @default(autoincrement())
+  id                  Int    @id @default(autoincrement())
   yearMonth           String // 例: 2026-10
   userId              Int? // null = 全体
-  user                User? @relation(fields: [userId], references: [id], onDelete: Cascade)
-  meetingTarget       Int   @default(0)
-  referralTarget      Int   @default(0)
-  rewardAccrualTarget Int   @default(0)
-  rewardPaidTarget    Int   @default(0)
+  user                User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meetingTarget       Int    @default(0)
+  referralTarget      Int    @default(0)
+  rewardAccrualTarget Int    @default(0)
+  rewardPaidTarget    Int    @default(0)
 
   @@index([yearMonth])
 }
@@ -297,19 +298,19 @@ model Setting {
 // ---------- セールスハブ連携（チャット取込） ----------
 
 model SaleshubThread {
-  id             Int       @id @default(autoincrement())
-  proposalId     String    @unique // saleshub.jp/proposals/{id}
-  vendorName     String
-  requestTitle   String?
-  lastSnippet    String?
-  lastMessageAt  DateTime?
-  fee            Int? // 依頼ページの協力金（紹介単価）
-  vendorId       Int? // 紐付け済みベンダー
+  id                Int       @id @default(autoincrement())
+  proposalId        String    @unique // saleshub.jp/proposals/{id}
+  vendorName        String
+  requestTitle      String?
+  lastSnippet       String?
+  lastMessageAt     DateTime?
+  fee               Int? // 依頼ページの協力金（紹介単価）
+  vendorId          Int? // 紐付け済みベンダー
   importedMeetingId Int?
   /// こちら側が提示した会社名のキャッシュ { v: 解析バージョン, items: [{ company, dept }] }。受信時に更新、古ければ表示時に再計算
-  proposedCache  Json?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  proposedCache     Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   messages SaleshubMessage[]
 
@@ -357,22 +358,48 @@ model Task {
   updatedAt   DateTime   @updatedAt
 
   attachments TaskAttachment[]
+  comments    TaskComment[]
 
   @@index([assigneeId, status])
   @@index([requesterId, status])
 }
 
-/** タスクの添付ファイル（DB に保存。1ファイル10MBまで） */
+/**
+ * タスクの添付ファイル（DB に保存。1ファイル10MBまで）
+ */
 model TaskAttachment {
-  id           Int      @id @default(autoincrement())
+  id           Int          @id @default(autoincrement())
   taskId       Int
-  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task         Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  /**
+   * チャットで送ったファイル（null は依頼時の添付）
+   */
+  commentId    Int?
+  comment      TaskComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
   filename     String
   mimeType     String
   size         Int
   data         Bytes
   uploadedById Int?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime     @default(now())
 
   @@index([taskId])
+  @@index([commentId])
+}
+
+/**
+ * タスクごとのやりとり（報告・追加の指示など）
+ */
+model TaskComment {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String?
+  createdAt DateTime @default(now())
+
+  attachments TaskAttachment[]
+
+  @@index([taskId, createdAt])
 }

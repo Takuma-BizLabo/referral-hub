@@ -14,7 +14,15 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const tab = sp.tab === "requested" ? "requested" : sp.tab === "done" ? "done" : sp.tab === "all" ? "all" : "mine";
   const isAdmin = me.role === "ADMIN";
-  const include = { requester: true, assignee: true, attachments: { select: ATTACHMENT_META_SELECT, orderBy: { id: "asc" as const } } } as const;
+  const include = {
+    requester: true,
+    assignee: true,
+    attachments: { where: { commentId: null }, select: ATTACHMENT_META_SELECT, orderBy: { id: "asc" as const } },
+    comments: {
+      include: { author: { select: { name: true } }, attachments: { select: ATTACHMENT_META_SELECT, orderBy: { id: "asc" as const } } },
+      orderBy: { createdAt: "asc" as const },
+    },
+  } as const;
   const [mine, requested, done, all, users, counts] = await Promise.all([
     prisma.task.findMany({ where: { assigneeId: me.id, status: "OPEN" }, include, orderBy: [{ important: "desc" }, { dueDate: "asc" }, { createdAt: "desc" }] }),
     prisma.task.findMany({ where: { requesterId: me.id, status: "OPEN" }, include, orderBy: [{ important: "desc" }, { dueDate: "asc" }, { createdAt: "desc" }] }),

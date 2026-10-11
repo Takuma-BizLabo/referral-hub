@@ -5,6 +5,9 @@ import { CompleteTaskForm } from "./TaskControls";
 import { SubmitButton } from "@/components/SubmitButton";
 
 import { fmtBytes, isImageType, type AttachmentMeta } from "@/lib/attachments";
+import { linkify } from "./Linkify";
+import { TaskChatInput } from "./TaskChatInput";
+import { deleteTaskCommentAction } from "@/app/(app)/tasks/actions";
 
 /** アプリ内パスは公開URLに変換して表示（コピーして共有しやすいように） */
 function displayLink(url: string) {
@@ -13,21 +16,77 @@ function displayLink(url: string) {
   return base ? `${base}${url}` : url;
 }
 
-/** 本文中の http(s) URL をリンクにする（新しいタブで開く） */
-function linkify(text: string) {
-  const parts = text.split(/(https?:\/\/[^\s<>"'）)」』]+)/g);
-  return parts.map((p, i) =>
-    /^https?:\/\//.test(p) ? (
-      <a key={i} href={p} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline break-all hover:text-blue-900">
-        {p}
-      </a>
-    ) : (
-      <span key={i}>{p}</span>
-    ),
+export type TaskCommentView = { id: number; authorId: number; body: string | null; createdAt: Date; author: { name: string }; attachments: AttachmentMeta[] };
+export type TaskWithUsers = Task & { requester: User; assignee: User; attachments?: AttachmentMeta[]; comments?: TaskCommentView[] };
+
+function AttachmentList({ items, className }: { items: AttachmentMeta[]; className?: string }) {
+  return (
+    <div className={cn("flex flex-wrap gap-2", className)}>
+      {items.map((a) =>
+        isImageType(a.mimeType) ? (
+          <a key={a.id} href={`/tasks/attachments/${a.id}`} target="_blank" rel="noreferrer" className="block rounded-lg border border-gray-200 overflow-hidden bg-white hover:opacity-90" title={a.filename}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`/tasks/attachments/${a.id}`} alt={a.filename} className="h-20 w-28 object-cover" loading="lazy" />
+            <span className="block max-w-28 truncate px-1.5 py-0.5 text-[11px] text-gray-600">{a.filename}</span>
+          </a>
+        ) : (
+          <a
+            key={a.id}
+            href={`/tasks/attachments/${a.id}?download=1`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs text-gray-800 hover:bg-gray-100 max-w-full"
+          >
+            <span>📎</span>
+            <span className="truncate max-w-56">{a.filename}</span>
+            <span className="text-gray-500 shrink-0">{fmtBytes(a.size)}</span>
+          </a>
+        ),
+      )}
+    </div>
   );
 }
 
-export type TaskWithUsers = Task & { requester: User; assignee: User; attachments?: AttachmentMeta[] };
+/** タスクごとのやりとり。自分のメッセージは右、相手は左。新しいものが下（開いたときは最新が見える位置） */
+function TaskChat({ task, meId, isAdmin }: { task: TaskWithUsers; meId: number; isAdmin: boolean }) {
+  const comments = task.comments ?? [];
+  return (
+    <div className="mt-4 border-t border-gray-100 pt-3">
+      <div className="mb-2 text-xs font-semibold text-gray-600">💬 やりとり{comments.length ? `（${comments.length}）` : ""}</div>
+      {comments.length > 0 && (
+        <div className="flex max-h-[28rem] flex-col-reverse overflow-y-auto rounded-lg bg-gray-50 p-2">
+          <div className="space-y-2">
+            {comments.map((c) => {
+              const mine = c.authorId === meId;
+              return (
+                <div key={c.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
+                  <div className={cn("max-w-[85%] min-w-0", mine && "text-right")}>
+                    <div className="mb-0.5 text-[11px] text-gray-500">
+                      {mine ? "あなた" : c.author.name} ・ {fmtDateTime(c.createdAt)}
+                      {(mine || isAdmin) && (
+                        <form action={deleteTaskCommentAction} className="inline">
+                          <input type="hidden" name="id" value={c.id} />
+                          <SubmitButton className="ml-2 text-[11px] text-gray-400 underline hover:text-rose-600" pendingText="..." confirm="このメッセージを取り消しますか？">
+                            取消
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </div>
+                    <div className={cn("inline-block rounded-2xl px-3 py-2 text-left text-sm", mine ? "rounded-tr-sm bg-blue-100 text-gray-900" : "rounded-tl-sm border border-gray-200 bg-white text-gray-900")}>
+                      {c.body && <p className="whitespace-pre-wrap break-words">{linkify(c.body)}</p>}
+                      {c.attachments.length > 0 && <AttachmentList items={c.attachments} className={c.body ? "mt-2" : ""} />}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <TaskChatInput taskId={task.id} />
+    </div>
+  );
+}
 
 export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; meId: number; isAdmin: boolean; focus?: boolean }) {
   const today = new Date();
@@ -63,31 +122,7 @@ export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; 
         </div>
       </div>
       {task.body && <p className="text-sm text-gray-800 whitespace-pre-wrap break-words mt-3">{linkify(task.body)}</p>}
-      {task.attachments && task.attachments.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {task.attachments.map((a) =>
-            isImageType(a.mimeType) ? (
-              <a key={a.id} href={`/tasks/attachments/${a.id}`} target="_blank" rel="noreferrer" className="block rounded-lg border border-gray-200 overflow-hidden hover:opacity-90" title={a.filename}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/tasks/attachments/${a.id}`} alt={a.filename} className="h-20 w-28 object-cover" loading="lazy" />
-                <span className="block max-w-28 truncate px-1.5 py-0.5 text-[11px] text-gray-600">{a.filename}</span>
-              </a>
-            ) : (
-              <a
-                key={a.id}
-                href={`/tasks/attachments/${a.id}?download=1`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs text-gray-800 hover:bg-gray-100 max-w-full"
-              >
-                <span>📎</span>
-                <span className="truncate max-w-56">{a.filename}</span>
-                <span className="text-gray-500 shrink-0">{fmtBytes(a.size)}</span>
-              </a>
-            ),
-          )}
-        </div>
-      )}
+      {task.attachments && task.attachments.length > 0 && <AttachmentList items={task.attachments} className="mt-3" />}
       {task.linkUrl && (
         <a
           href={task.linkUrl}
@@ -129,6 +164,7 @@ export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; 
           )}
         </div>
       )}
+      <TaskChat task={task} meId={meId} isAdmin={isAdmin} />
     </div>
   );
 }
