@@ -4,7 +4,7 @@ import { recordHistory } from "../history";
 import { notify, notifyAdmins } from "../notifications";
 import { getSettingRaw } from "../settings";
 import { fmtDateTime } from "../utils";
-import { evaluateThreadSchedule, extractCompanies, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
+import { evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
 import { isProposed, proposedCompaniesForVendor } from "./proposed";
 import type { SaleshubMessage, SaleshubThread } from "@prisma/client";
 
@@ -107,6 +107,42 @@ export async function registerCandidates(
  * - いずれかの発言に日時 → MTGを「確定」にして日時をセット
  * - 会社名の言及 → 紹介候補として登録
  */
+/**
+ * ベンダーが紹介を見送った会社の紹介案件を「紹介見送り」にする。
+ * 人が進めた案件（日程調整中以降）は変更しない。
+ */
+export async function applyDeclines(vendorId: number, vendorName: string, messages: Msg[], opts: { line?: false } = {}): Promise<string[]> {
+  const fromVendor = messages.filter((m) => !m.isMine);
+  if (fromVendor.length === 0) return [];
+  const referrals = await prisma.referral.findMany({
+    where: { vendorId, status: { in: ["RECEIVED", "CONTACTING"] } },
+    include: { contact: { select: { company: true, name: true } } },
+  });
+  const declined: string[] = [];
+  const done = new Set<number>();
+  for (const m of fromVendor) {
+    for (const r of referrals) {
+      if (done.has(r.id) || !r.contact.company) continue;
+      if (findDeclinedCompanies(m.body, [r.contact.company]).length === 0) continue;
+      await prisma.referral.update({ where: { id: r.id }, data: { status: "DECLINED" } });
+      await recordHistory(prisma, { entityType: "REFERRAL", entityId: r.id, field: "status", fromValue: r.status, toValue: "DECLINED", note: `ベンダーが紹介見送りと連絡（${fmtDateTime(m.sentAt)}）`, changedById: null });
+      done.add(r.id);
+      declined.push(`${r.contact.company}（${r.contact.name}）`);
+    }
+  }
+  if (declined.length) {
+    await notifyAdmins({
+      type: "SALESHUB_MESSAGE",
+      title: `【紹介見送り】${vendorName}：${declined.join("、")}`,
+      body: "ベンダーからの連絡を読み取り、紹介案件を「紹介見送り」にしました。違っていれば紹介案件でステータスを戻してください。",
+      linkUrl: "/referrals",
+      dedupeKey: `saleshub:decline:${vendorId}:${[...done].join(",")}`,
+      line: opts.line,
+    });
+  }
+  return declined;
+}
+
 export async function applyRules(thread: Thread, newMessages: Msg[], allMessages: Msg[], opts: { quiet?: boolean } = {}) {
   if (newMessages.length === 0) return;
   const line = opts.quiet ? false : undefined;
@@ -231,6 +267,8 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
         });
       }
     }
+    // 候補登録のあとで判定する（同じメッセージで挙がって断られた会社も見送りにする）
+    await applyDeclines(vendorId, thread.vendorName, vendorMessages, { line });
   }
 }
 
@@ -275,6 +313,11 @@ export async function rebuildCandidates(): Promise<{ threads: number; created: n
         r.unmatched.forEach((u) => unmatched.add(u));
       }
     }
+  }
+  // ベンダーが見送りと連絡した会社は「紹介見送り」へ
+  for (const t of threads) {
+    const vendorId = t.vendorId ?? (await prisma.saleshubThread.findUnique({ where: { id: t.id } }))?.vendorId;
+    if (vendorId) await applyDeclines(vendorId, t.vendorName, t.messages, { line: false });
   }
   return { threads: threads.length, created, unmatched: [...unmatched] };
 }

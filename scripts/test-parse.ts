@@ -4,7 +4,7 @@
  * 失敗があれば終了コード 1。
  */
 import assert from "node:assert/strict";
-import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
+import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
 /** JST の "YYYY-MM-DD HH:mm" を Date に */
 function jst(s: string): Date {
@@ -152,6 +152,13 @@ test("確定後に新しい候補が出たら未確定に戻る", () => {
     { isMine: false, sentAt: jst("2026-10-06 16:55"), body: "再度、下記の日程からお選びください。\n10/13 16:00-\n10/14 10:00-" },
   ]);
   assert.equal(r.confirmedAt, null);
+});
+test("ベンダーが紹介見送りと連絡した会社だけを拾う", () => {
+  const body = "松田様\n\nご連絡ありがとうございます。\nDriveXの辻です。\n\nオーダースーツSADA様の代表取締役の方をご紹介いただけるとのこと、ありがとうございます。\n\n同社は、生産計画AIスケジューラ「スマート生産計画」のご提案対象ですが、すでに別のサポーター様を通じてお話を進めております。\n重複でのご連絡を避けるため、今回はSADA様へのご紹介を見送らせていただければと存じます。せっかくお声がけいただいたところ、申し訳ございません。\n一方で、松田様のおつながりにあるカネ美食品様にも関心を持っております。";
+  assert.deepEqual(findDeclinedCompanies(body, ["株式会社オーダースーツSADA", "カネ美食品株式会社", "株式会社イメージ・マジック"]), ["株式会社オーダースーツSADA"]);
+});
+test("見送りの言葉がなければ何も拾わない", () => {
+  assert.deepEqual(findDeclinedCompanies("オーダースーツSADA様をぜひご紹介ください。", ["株式会社オーダースーツSADA"]), []);
 });
 
 if (failures.length) {

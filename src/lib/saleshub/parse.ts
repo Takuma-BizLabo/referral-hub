@@ -234,6 +234,31 @@ export function normalizeCompanyName(s: string) {
     .toLowerCase();
 }
 
+const DECLINE_RE = /見送|対象外|ご紹介は不要/;
+
+/** 会社名の照合に使う語（正規化した全体と、英数3字以上・カタカナ4字以上・漢字3字以上のかたまり） */
+function companyTokens(name: string): string[] {
+  const core = normalizeCompanyName(name);
+  const parts = core.match(/[a-z0-9]{3,}|[ァ-ヶー]{4,}|[一-龠々]{3,}/g) ?? [];
+  return [...new Set([core, ...parts])].filter((t) => t.length >= 2);
+}
+
+/**
+ * ベンダーが「ご紹介を見送らせて」「対象外」などと断った会社を返す。
+ * companies（紹介案件の会社名）のうち、見送りの文と同じ文に出てくるものだけを対象にする。
+ */
+export function findDeclinedCompanies(body: string, companies: string[]): string[] {
+  const sentences = body
+    .split(/[。！!？?\n]/)
+    .filter((s) => DECLINE_RE.test(s))
+    .map((s) => s.replace(/[\s　]+/g, "").toLowerCase());
+  if (sentences.length === 0) return [];
+  return companies.filter((c) => {
+    const tokens = companyTokens(c);
+    return sentences.some((s) => tokens.some((t) => s.includes(t)));
+  });
+}
+
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const DOW = "[月火水木金土日]";
 /** 時刻: 11:40 / 午前11:00 / 15時 / 13時半 / 9時30分 */

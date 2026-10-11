@@ -13,6 +13,8 @@ export function meetingTargets(
 ): MeetingTarget[] {
   const out: MeetingTarget[] = [];
   const seen = new Set<string>();
+  // 見送りになった会社は、提示済みの会社から拾う場合にも出さない
+  const declined = new Set(referrals.filter((r) => r.status === "DECLINED").map((r) => (r.contact.company ?? r.contact.name).replace(/株式会社|\s/g, "")));
   for (const r of referrals.filter((r) => r.status !== "DECLINED")) {
     const name = r.contact.company ?? r.contact.name;
     if (!name || seen.has(name)) continue;
@@ -32,7 +34,7 @@ export function meetingTargets(
           .filter(Boolean);
       })();
   for (const name of fromProposed) {
-    if (seen.has(name)) continue;
+    if (seen.has(name) || declined.has(name.replace(/株式会社|\s/g, ""))) continue;
     seen.add(name);
     out.push({ name, amount: requestFee });
   }
