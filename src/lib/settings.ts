@@ -6,6 +6,7 @@ export const SETTING_DEFAULTS = {
   dailyDigestHour: "8",
   minutesMissingHours: "24",
   saleshubStaleMinutes: "120",
+  taskReminderDays: "1", // 未完了タスクのリマインド間隔（日）。0 で送らない
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

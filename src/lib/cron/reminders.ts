@@ -114,6 +114,39 @@ export async function runReminders(now = new Date()): Promise<{ created: number 
 
   if (!isDigestTime) return { created };
 
+  // ---- 未完了タスクの定期リマインド（担当者ごとに1通にまとめる） ----
+  const taskDays = await getSettingNumber("taskReminderDays");
+  // 日付を通し番号にして「N日ごと」を判定（JST の暦日基準）
+  const dayIndex = Math.floor((today.getTime() - today.getTimezoneOffset() * 60_000) / 86_400_000);
+  if (taskDays > 0 && dayIndex % taskDays === 0) {
+    const openTasks = await prisma.task.findMany({
+      // 今日依頼されたタスクは依頼時に通知済みなので除く
+      where: { status: "OPEN", createdAt: { lt: today }, assignee: { isActive: true } },
+      include: { requester: { select: { name: true } } },
+      orderBy: [{ important: "desc" }, { dueDate: "asc" }, { createdAt: "asc" }],
+    });
+    const byUser = new Map<number, typeof openTasks>();
+    for (const t of openTasks) byUser.set(t.assigneeId, [...(byUser.get(t.assigneeId) ?? []), t]);
+    for (const [userId, tasks] of byUser) {
+      const overdueCount = tasks.filter((t) => t.dueDate && t.dueDate < today).length;
+      const lines = tasks.slice(0, 10).map((t) => {
+        const tags = [t.important ? "重要" : null, t.dueDate ? (t.dueDate < today ? `期限超過 ${fmtDate(t.dueDate)}` : `期限 ${fmtDate(t.dueDate)}`) : null].filter(Boolean).join("・");
+        return `・${t.title}（${t.requester.name}から${tags ? `／${tags}` : ""}）`;
+      });
+      if (tasks.length > 10) lines.push(`ほか ${tasks.length - 10} 件`);
+      await count(
+        notify({
+          userId,
+          type: "TASK_REMINDER",
+          title: `【タスクのリマインド】未完了 ${tasks.length} 件${overdueCount ? `（うち期限超過 ${overdueCount} 件）` : ""}`,
+          body: lines.join("\n"),
+          linkUrl: "/tasks",
+          dedupeKey: `task-remind:u${userId}:${todayKey}`,
+        }),
+      );
+    }
+  }
+
   // ---- 前日 ----
   const tomorrowStart = addDays(today, 1);
   const tomorrowEnd = addDays(today, 2);

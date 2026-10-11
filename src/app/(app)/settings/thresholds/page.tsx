@@ -7,15 +7,16 @@ export const metadata = { title: "通知・閾値" };
 
 export default async function ThresholdsPage() {
   await requireAdmin();
-  const [stagnationDays, dailyDigestHour, minutesMissingHours, lineMap] = await Promise.all([
+  const [stagnationDays, dailyDigestHour, minutesMissingHours, taskReminderDays, lineMap] = await Promise.all([
     getSetting("stagnationDays"),
     getSetting("dailyDigestHour"),
     getSetting("minutesMissingHours"),
+    getSetting("taskReminderDays"),
     getLineEnabledMap(),
   ]);
   return (
     <Card title="通知・閾値の設定">
-      <ThresholdsForm stagnationDays={stagnationDays} dailyDigestHour={dailyDigestHour} minutesMissingHours={minutesMissingHours} lineMap={lineMap} />
+      <ThresholdsForm stagnationDays={stagnationDays} dailyDigestHour={dailyDigestHour} minutesMissingHours={minutesMissingHours} taskReminderDays={taskReminderDays} lineMap={lineMap} />
     </Card>
   );
 }

@@ -10,11 +10,13 @@ export function ThresholdsForm({
   stagnationDays,
   dailyDigestHour,
   minutesMissingHours,
+  taskReminderDays,
   lineMap,
 }: {
   stagnationDays: string;
   dailyDigestHour: string;
   minutesMissingHours: string;
+  taskReminderDays: string;
   lineMap: Record<string, boolean>;
 }) {
   const [state, action, actionPending, actionSubmit] = useStickyAction(saveThresholdsAction, undefined);
@@ -30,6 +32,15 @@ export function ThresholdsForm({
         <Field label="議事メモ未入力の猶予（時間）" hint="実施後この時間を過ぎたら通知">
           <input name="minutesMissingHours" type="number" min={1} max={168} className="input" defaultValue={minutesMissingHours} />
         </Field>
+      </div>
+      <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+        <Field label="未完了タスクのリマインド間隔（日）" hint="1 = 毎日、2 = 2日ごと、7 = 週1回。0 にすると送りません。送る時刻は上の「日次通知の時刻」です">
+          <div className="flex items-center gap-2">
+            <input name="taskReminderDays" type="number" min={0} max={30} className="input w-28" defaultValue={taskReminderDays} />
+            <span className="text-sm text-gray-600">日ごとに、担当者へ未完了タスクの一覧を送る</span>
+          </div>
+        </Field>
+        <p className="mt-2 text-xs text-gray-500">タスクを依頼した瞬間にも担当者へ通知します。LINE に送るかどうかは下の「新しいタスクの割当」「未完了タスクの定期リマインド」で切り替えます。</p>
       </div>
       <div>
         <div className="label">LINE にも送る通知の種類</div>
