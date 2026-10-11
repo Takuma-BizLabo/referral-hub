@@ -4,7 +4,7 @@ import { recordHistory } from "../history";
 import { notify, notifyAdmins } from "../notifications";
 import { getSettingRaw } from "../settings";
 import { fmtDateTime } from "../utils";
-import { extractCompanies, extractMeetingDateTime, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
+import { evaluateThreadSchedule, extractCompanies, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
 import { isProposed, proposedCompaniesForVendor } from "./proposed";
 import type { SaleshubMessage, SaleshubThread } from "@prisma/client";
 
@@ -167,13 +167,15 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
   if (meetingId) {
     const meeting = await prisma.vendorMeeting.findUnique({ where: { id: meetingId } });
     if (meeting && meeting.executionStatus !== "DONE" && meeting.executionStatus !== "CANCELLED" && meeting.executionStatus !== "NO_MEETING") {
-      // 新着のうち日時を含む最後の発言を採用
-      let found: { at: Date; msg: Msg } | null = null;
-      for (const m of newMessages) {
-        const at = extractMeetingDateTime(m.body, m.sentAt);
-        if (at && at.getTime() > m.sentAt.getTime() - 3600_000) found = { at, msg: m };
-      }
-      if (found && (!meeting.scheduledAt || meeting.scheduledAt.getTime() !== found.at.getTime())) {
+      // スレッド全体から「確定している日時」を求める（候補日を出しただけでは確定にしない）
+      const sched = evaluateThreadSchedule(allMessages);
+      const found = sched.confirmedAt && meeting.executionStatus !== "RESCHEDULE" ? { at: sched.confirmedAt, msg: { body: sched.source ?? "" } } : null;
+      // 日程調整中なら確定にする。確定済みで日時が違う場合は、手で直した後より新しいメッセージで決まったときだけ更新する
+      const newer = !!sched.sourceAt && sched.sourceAt > meeting.updatedAt;
+      if (
+        found &&
+        (meeting.executionStatus === "SCHEDULING" || (meeting.executionStatus === "CONFIRMED" && newer && (!meeting.scheduledAt || meeting.scheduledAt.getTime() !== found.at.getTime())))
+      ) {
         const msgUrls = found.msg.body.match(URL_RE) ?? [];
         const roomUrl = msgUrls.find(isMeetingRoomUrl);
         await prisma.vendorMeeting.update({
@@ -275,4 +277,66 @@ export async function rebuildCandidates(): Promise<{ threads: number; created: n
     }
   }
   return { threads: threads.length, created, unmatched: [...unmatched] };
+}
+
+/**
+ * これまでにツールが自動で「確定」にしたベンダーMTGを、新しい判定で見直す。
+ * - 人が手で確定にしたもの、実施済・キャンセル・初回MTGなしは触らない
+ * - 候補日を出しただけで確定していないもの → 日程調整中に戻し、日時を未定にする
+ * - 確定日時が違っていたもの → 正しい日時に直す
+ */
+export async function reviewAutoConfirmations(changedById: number | null): Promise<{ reverted: string[]; corrected: string[]; kept: string[] }> {
+  const reverted: string[] = [];
+  const corrected: string[] = [];
+  const kept: string[] = [];
+  const threads = await prisma.saleshubThread.findMany({
+    where: { importedMeetingId: { not: null } },
+    include: { messages: { orderBy: { sentAt: "asc" } } },
+  });
+  for (const t of threads) {
+    const meeting = await prisma.vendorMeeting.findUnique({ where: { id: t.importedMeetingId! } });
+    if (!meeting || meeting.executionStatus !== "CONFIRMED") continue;
+    const lastStatusChange = await prisma.statusHistory.findFirst({
+      where: { entityType: "VENDOR_MEETING", entityId: meeting.id, field: "executionStatus" },
+      orderBy: { changedAt: "desc" },
+    });
+    // 人が確定にした（changedById あり）ものは尊重する
+    if (!lastStatusChange || lastStatusChange.changedById !== null || lastStatusChange.toValue !== "CONFIRMED") continue;
+    // 同じベンダーの全スレッドのやりとりで判定（スレッドが分かれている場合があるため）
+    const sameVendor = threads.filter((x) => x.importedMeetingId === meeting.id || (x.vendorId && x.vendorId === t.vendorId));
+    const msgs = sameVendor.flatMap((x) => x.messages).sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());
+    const sched = evaluateThreadSchedule(msgs);
+    const label = `${t.vendorName}（${meeting.scheduledAt ? fmtDateTime(meeting.scheduledAt) : "日時なし"}）`;
+    if (!sched.confirmedAt) {
+      await prisma.vendorMeeting.update({
+        where: { id: meeting.id },
+        data: { executionStatus: "SCHEDULING", scheduledAt: null, nextAction: "候補日を提示済み：ベンダーの返答を待って日時を確定する", nextActionDue: null },
+      });
+      await recordHistory(prisma, {
+        entityType: "VENDOR_MEETING",
+        entityId: meeting.id,
+        field: "executionStatus",
+        fromValue: "CONFIRMED",
+        toValue: "SCHEDULING",
+        note: `自動確定の見直し：候補日の提示だけで、まだ確定していないため戻しました（元の日時 ${meeting.scheduledAt ? fmtDateTime(meeting.scheduledAt) : "なし"}）`,
+        changedById,
+      });
+      reverted.push(label);
+    } else if (!meeting.scheduledAt || meeting.scheduledAt.getTime() !== sched.confirmedAt.getTime()) {
+      await prisma.vendorMeeting.update({ where: { id: meeting.id }, data: { scheduledAt: sched.confirmedAt } });
+      await recordHistory(prisma, {
+        entityType: "VENDOR_MEETING",
+        entityId: meeting.id,
+        field: "scheduledAt",
+        fromValue: meeting.scheduledAt ? fmtDateTime(meeting.scheduledAt) : null,
+        toValue: fmtDateTime(sched.confirmedAt),
+        note: "自動確定の見直し：チャットで確定した日時に修正",
+        changedById,
+      });
+      corrected.push(`${t.vendorName}（${meeting.scheduledAt ? fmtDateTime(meeting.scheduledAt) : "なし"} → ${fmtDateTime(sched.confirmedAt)}）`);
+    } else {
+      kept.push(label);
+    }
+  }
+  return { reverted, corrected, kept };
 }

@@ -40,3 +40,15 @@ export async function rebuildCandidatesAction() {
     revalidatePath("/referrals");
   });
 }
+
+export async function reviewAutoConfirmationsAction() {
+  const admin = await assertAdmin();
+  const { reviewAutoConfirmations } = await import("@/lib/saleshub/rules");
+  const r = await reviewAutoConfirmations(admin.id);
+  await setSetting(
+    "saleshub.lastReview",
+    JSON.stringify({ at: new Date().toISOString(), reverted: r.reverted, corrected: r.corrected, kept: r.kept }),
+  );
+  revalidatePath("/settings/saleshub");
+  revalidatePath("/meetings");
+}

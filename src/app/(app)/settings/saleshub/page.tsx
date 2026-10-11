@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { Card } from "@/components/ui";
 import { getSettingRaw, getSetting } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/utils";
-import { issueIngestTokenAction, rebuildCandidatesAction } from "./actions";
+import { issueIngestTokenAction, rebuildCandidatesAction, reviewAutoConfirmationsAction } from "./actions";
 import { SaleshubSettingsForm } from "./SaleshubSettingsForm";
 import { SubmitButton } from "@/components/SubmitButton";
 
@@ -12,6 +12,8 @@ export const metadata = { title: "セールスハブ連携" };
 export default async function SaleshubSettingsPage() {
   await requireAdmin();
   const lastRebuild = (await getSettingRaw("saleshub.lastRebuild"))?.split("|") ?? null;
+  const reviewRaw = await getSettingRaw("saleshub.lastReview");
+  const review = reviewRaw ? (JSON.parse(reviewRaw) as { at: string; reverted: string[]; corrected: string[]; kept: string[] }) : null;
   const [token, enabled, schedulerUserId, lastIngest, status, extVersion, stale, users, threadCount, msgCount] = await Promise.all([
     getSettingRaw("saleshub.ingestToken"),
     getSettingRaw("saleshub.enabled"),
@@ -104,6 +106,23 @@ export default async function SaleshubSettingsPage() {
           <p>・ログイン情報はツールのサーバーには保存されません。ログインが切れた場合やしばらく受信がない場合は、管理者に通知が届きます。</p>
           <p>・初回は過去のやりとりも取り込み、打ち合わせが決まっているスレッドはベンダーMTGとして自動登録します（初回分は LINE 通知なし）。</p>
         </div>
+      </Card>
+
+      <Card title="日程の自動確定を見直す" className="lg:col-span-2">
+        <p className="text-sm text-gray-700 mb-3">
+          ツールがチャットから自動で「確定」にしたベンダーMTGを、最新の判定ルールで見直します。候補日を提示しただけで確定していないものは「日程調整中」に戻し、日時を未定にします。人が手で確定にしたMTGや、実施済・キャンセル・初回MTGなしは変更しません。
+        </p>
+        <form action={reviewAutoConfirmationsAction}>
+          <button className="btn-secondary">自動確定を見直す</button>
+        </form>
+        {review && (
+          <div className="mt-3 text-xs text-gray-600 space-y-1">
+            <div>前回 {fmtDateTime(new Date(review.at))}</div>
+            <div>日程調整中に戻した：{review.reverted.length ? review.reverted.join("、") : "なし"}</div>
+            <div>日時を修正した：{review.corrected.length ? review.corrected.join("、") : "なし"}</div>
+            <div>確定のまま：{review.kept.length ? review.kept.join("、") : "なし"}</div>
+          </div>
+        )}
       </Card>
 
       <Card title="紹介候補の再抽出" className="lg:col-span-2">

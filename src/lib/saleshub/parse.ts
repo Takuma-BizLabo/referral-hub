@@ -348,3 +348,71 @@ export function isSchedulingToolUrl(url: string) {
 export function isMeetingRoomUrl(url: string) {
   return /^https?:\/\/[^\s]*(zoom\.us|meet\.google|teams\.microsoft|teams\.live|webex|whereby|bellface|meet\.jit\.si|chime\.aws)/i.test(url);
 }
+
+// ---------- 日程の「提示」と「確定」の判定 ----------
+
+/** 確定を示す言い回し（予約した・その日時でお願いします・入室URL など） */
+const CONFIRM_RE =
+  /(予約(させて|いたし|しま|が完了)|ご予約(いただき|ありがとう)|確定|で(何卒|どうぞ)?(よろしく)?お願い(いた)?します|で(何卒|どうぞ)?(よろしく)?お願い申し上げ|調整させていただきました|日程(を)?(登録|押さえ)|招待(を)?(お送り|送付)|ご入室|ビデオ通話のリンク|会議(URL|リンク)|お待ちしております)/;
+/** 候補を出している言い回し（まだ確定していない） */
+const PROPOSAL_RE = /(空き日程|空いている日程|候補(日|日時|は|を)|以下の日程|下記の日程|いずれか|ご都合(の|は|が)?(よろしい|良い|いかが)|いかがでしょうか|お選び|ご提示|お伝えいただけ|ご教示)/;
+/** 相手の了承（日時を含まない返信） */
+const ACK_RE = /(確認いたしました|確認しました|承知(いた)?しました|承知いたしました|かしこまりました|当日は|当日(どうぞ|何卒|よろしく)|お待ちしております|問題ございません|大丈夫です)/;
+
+/** 本文に出てくる日付（月日）の種類数と、時間帯の数 */
+export function countScheduleSlots(body: string) {
+  const text = body.normalize("NFKC");
+  const dates = new Set<string>();
+  for (const m of text.matchAll(/(\d{1,2})\s*[\/月]\s*(\d{1,2})\s*日?/g)) dates.add(`${Number(m[1])}/${Number(m[2])}`);
+  const ranges = (text.match(/\d{1,2}:\d{2}\s*[-~〜～ー－]\s*\d{1,2}:\d{2}/g) ?? []).length;
+  return { dates: dates.size, ranges };
+}
+
+export type ScheduleIntent = { kind: "proposal" } | { kind: "confirmed"; at: Date } | { kind: "single"; at: Date } | { kind: "none" };
+
+/** 1通のメッセージが「候補の提示」「確定」「日時1つ（確定の言葉なし）」のどれか */
+export function classifyScheduleMessage(body: string, sentAt: Date): ScheduleIntent {
+  const text = body.normalize("NFKC");
+  const { dates, ranges } = countScheduleSlots(text);
+  if (dates >= 2 || ranges >= 2) return { kind: "proposal" };
+  const at = extractMeetingDateTime(text, sentAt);
+  if (!at || at.getTime() < sentAt.getTime() - 3600_000) return { kind: "none" };
+  if (PROPOSAL_RE.test(text) && !/(予約(させて|いたし|しま)|確定|調整させていただきました)/.test(text)) return { kind: "proposal" };
+  if (CONFIRM_RE.test(text)) return { kind: "confirmed", at };
+  return { kind: "single", at };
+}
+
+/**
+ * スレッド全体（古い順）から、確定している打ち合わせ日時を求める。確定していなければ null。
+ * - 確定の言葉つきで日時1つ → 確定
+ * - 日時1つ（確定の言葉なし）を送り、相手が「確認いたしました」等で返す → 確定
+ * - 確定後に新しい候補が出たら、いったん未確定に戻す
+ */
+export function evaluateThreadSchedule(messages: { isMine: boolean; sentAt: Date; body: string }[]): { confirmedAt: Date | null; source: string | null; sourceAt: Date | null } {
+  let confirmedAt: Date | null = null;
+  let source: string | null = null;
+  let sourceAt: Date | null = null;
+  let pending: { at: Date; isMine: boolean; body: string } | null = null;
+  for (const m of messages) {
+    const c = classifyScheduleMessage(m.body, m.sentAt);
+    if (c.kind === "proposal") {
+      pending = null;
+      confirmedAt = null;
+      source = null;
+      sourceAt = null;
+    } else if (c.kind === "confirmed") {
+      confirmedAt = c.at;
+      source = m.body;
+      sourceAt = m.sentAt;
+      pending = null;
+    } else if (c.kind === "single") {
+      pending = { at: c.at, isMine: m.isMine, body: m.body };
+    } else if (pending && pending.isMine !== m.isMine && ACK_RE.test(m.body.normalize("NFKC"))) {
+      confirmedAt = pending.at;
+      source = pending.body;
+      sourceAt = m.sentAt;
+      pending = null;
+    }
+  }
+  return { confirmedAt, source, sourceAt };
+}

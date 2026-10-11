@@ -4,7 +4,7 @@
  * 失敗があれば終了コード 1。
  */
 import assert from "node:assert/strict";
-import { extractCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
+import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
 /** JST の "YYYY-MM-DD HH:mm" を Date に */
 function jst(s: string): Date {
@@ -112,6 +112,47 @@ const meetingNo: [string, string][] = [
 ];
 for (const [name, body] of meetingYes) test(`打ち合わせ依頼あり: ${name}`, () => assert.equal(looksLikeMeetingRequest(body), true));
 for (const [name, body] of meetingNo) test(`打ち合わせ依頼なし: ${name}`, () => assert.equal(looksLikeMeetingRequest(body), false));
+
+
+// ---- 日程の「提示」と「確定」 ----
+const base12 = jst("2026-10-12 02:39");
+test("候補日の提示（複数日）は確定にしない", () => {
+  const body = "稲嶺様\nお世話になっております。\n以下、私の空き日程になりますので株式会社Works Human Intelligence様にお伝えいただけますでしょうか。\n---\n10/16 15:00-18:00\n10/19 11:00-12:00,13:00-18:00\n10/20 11:00-12:00,13:00-18:00\n---";
+  assert.equal(classifyScheduleMessage(body, base12).kind, "proposal");
+  assert.equal(evaluateThreadSchedule([{ isMine: true, sentAt: base12, body }]).confirmedAt, null);
+});
+test("1日内の複数時間帯も候補扱い", () => {
+  assert.equal(classifyScheduleMessage("10/19 11:00-12:00,13:00-18:00 でいかがでしょうか", base12).kind, "proposal");
+});
+test("ベンダーの『この日時でお願いします』＋入室URLは確定", () => {
+  const b = jst("2026-10-05 13:27");
+  const body = "松田さま\nでは、10月9日（金）11:40-12:00でお願いいたします。\nお時間になりましたら、下記へご入室をお願いします。\n= 10月 9日 (金曜日) · 午前11:40～午後12:00\nビデオ通話のリンク: https://meet.google.com/kae-hdie-wmd";
+  const r = evaluateThreadSchedule([{ isMine: false, sentAt: b, body }]);
+  assert.equal(fmt(r.confirmedAt), "2026-10-09 11:40");
+});
+test("予約した旨の連絡は確定", () => {
+  const b = jst("2026-10-06 23:47");
+  const r = evaluateThreadSchedule([{ isMine: true, sentAt: b, body: "13日16:00-\nに再度ご日程調整させていただきました。\n何卒よろしくお願いいたします。" }]);
+  assert.equal(fmt(r.confirmedAt), "2026-10-13 16:00");
+});
+test("日時1つ→相手が『確認いたしました』で確定", () => {
+  const r = evaluateThreadSchedule([
+    { isMine: true, sentAt: jst("2026-10-07 00:19"), body: "saleshub事前打ち合わせ\n木曜日 · 午前11:00～11:30\nよろしくお願いいたします。" },
+    { isMine: false, sentAt: jst("2026-10-07 00:37"), body: "確認いたしました。\n当日はよろしくお願いいたします。" },
+  ]);
+  assert.equal(fmt(r.confirmedAt), "2026-10-08 11:00");
+});
+test("日時1つだけで相手の返事がなければ未確定", () => {
+  const r = evaluateThreadSchedule([{ isMine: true, sentAt: jst("2026-10-07 00:19"), body: "木曜日 11:00～11:30 はいかがでしょうか" }]);
+  assert.equal(r.confirmedAt, null);
+});
+test("確定後に新しい候補が出たら未確定に戻る", () => {
+  const r = evaluateThreadSchedule([
+    { isMine: true, sentAt: jst("2026-10-05 16:01"), body: "【10月6日（火）15:00-15:30】で予約させていただきました。" },
+    { isMine: false, sentAt: jst("2026-10-06 16:55"), body: "再度、下記の日程からお選びください。\n10/13 16:00-\n10/14 10:00-" },
+  ]);
+  assert.equal(r.confirmedAt, null);
+});
 
 if (failures.length) {
   console.error(failures.join("\n"));
