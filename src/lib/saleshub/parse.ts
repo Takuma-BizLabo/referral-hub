@@ -341,7 +341,7 @@ export function extractMeetingDateTime(body: string, base: Date): Date | null {
 
 /** 日程調整ツール（候補日を選ぶページ）のURLか */
 export function isSchedulingToolUrl(url: string) {
-  return /^https?:\/\/[^\s]*(timerex|spirinc|spir\.|jicoo|calendly|eeasy|youcanbook|calendar\.app\.google|tidycal|savvycal|receptionist|meetings\.hubspot|hubspot\.[a-z.]+\/meetings)/i.test(url);
+  return /^https?:\/\/[^\s]*(timerex|spirinc|spir\.|jicoo|calendly|eeasy|youcanbook|calendar\.app\.google|calendar\.google\.com\/(calendar\/)?appointments|tidycal|savvycal|receptionist|meetings\.hubspot|hubspot\.[a-z.]+\/meetings)/i.test(url);
 }
 
 /** 会議室（Zoom・Meet・Teams など）のURLか */
