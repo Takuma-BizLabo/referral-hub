@@ -49,6 +49,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
       executionStatus: m.executionStatus,
       scheduledAt: m.scheduledAt,
       place: m.place,
+      schedulingUrl: m.schedulingUrl,
       nextAction: m.nextAction,
       nextActionDue: m.nextActionDue,
       minutes: m.minutes,
@@ -152,7 +153,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
               { label: "日時", value: m.scheduledAt ? fmtDateTime(m.scheduledAt) : "日時未定" },
               { label: "形式", value: FORMAT_LABEL[m.format] },
               {
-                label: "会議URL・場所",
+                label: "打ち合わせURL・場所",
                 value: m.place?.startsWith("http") ? (
                   <a href={m.place} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline break-all">
                     {m.place}
@@ -160,6 +161,14 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
                 ) : (
                   m.place
                 ),
+              },
+              {
+                label: "日程調整URL",
+                value: m.schedulingUrl ? (
+                  <a href={m.schedulingUrl} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline break-all">
+                    {m.schedulingUrl}
+                  </a>
+                ) : null,
               },
               { label: "承認", value: <Badge value={m.approvalStatus} label={APPROVAL_LABEL[m.approvalStatus]} /> },
               { label: "実施", value: <Badge value={m.executionStatus} label={EXECUTION_LABEL[m.executionStatus]} /> },

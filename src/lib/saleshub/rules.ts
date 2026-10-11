@@ -4,7 +4,7 @@ import { recordHistory } from "../history";
 import { notify, notifyAdmins } from "../notifications";
 import { getSettingRaw } from "../settings";
 import { fmtDateTime } from "../utils";
-import { extractCompanies, extractMeetingDateTime, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
+import { extractCompanies, extractMeetingDateTime, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
 import { isProposed, proposedCompaniesForVendor } from "./proposed";
 import type { SaleshubMessage, SaleshubThread } from "@prisma/client";
 
@@ -129,7 +129,9 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
         vendorId,
         assigneeId: schedulerId,
         format: "ONLINE",
-        place: urls[0] ?? null,
+        // 会議室URL（Zoom等）は打ち合わせURL、日程調整ツールのURLは日程調整URLへ
+        place: urls.find(isMeetingRoomUrl) ?? null,
+        schedulingUrl: urls.find(isSchedulingToolUrl) ?? urls.find((u) => !isMeetingRoomUrl(u)) ?? null,
         approvalStatus: "APPROVED",
         executionStatus: "SCHEDULING",
         fee: thread.fee,
@@ -172,13 +174,14 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
         if (at && at.getTime() > m.sentAt.getTime() - 3600_000) found = { at, msg: m };
       }
       if (found && (!meeting.scheduledAt || meeting.scheduledAt.getTime() !== found.at.getTime())) {
-        const url = (found.msg.body.match(URL_RE) ?? [])[0];
+        const msgUrls = found.msg.body.match(URL_RE) ?? [];
+        const roomUrl = msgUrls.find(isMeetingRoomUrl);
         await prisma.vendorMeeting.update({
           where: { id: meeting.id },
           data: {
             scheduledAt: found.at,
             executionStatus: "CONFIRMED",
-            ...(url && !meeting.place ? { place: url } : {}),
+            ...(roomUrl && !meeting.place ? { place: roomUrl } : {}),
             // 日程が決まったので次アクションを「実施→議事メモ入力」に進める
             nextAction: "MTGを実施し、議事メモと結果（繋げる人物の確認）を入力する",
             nextActionDue: new Date(Date.UTC(found.at.getUTCFullYear(), found.at.getUTCMonth(), found.at.getUTCDate() + 1, -9, 0)),

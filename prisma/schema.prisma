@@ -128,7 +128,8 @@ model VendorMeeting {
   assignee          User            @relation(fields: [assigneeId], references: [id])
   scheduledAt       DateTime?
   format            MeetingFormat   @default(ONLINE)
-  place             String? // 会議URL・場所
+  place             String? // 打ち合わせURL（Zoom・Meet など）・場所
+  schedulingUrl     String? // 日程調整URL（TimeRex・Spir など）
   approvalStatus    ApprovalStatus  @default(PENDING)
   rejectReason      String?
   executionStatus   ExecutionStatus @default(SCHEDULING)

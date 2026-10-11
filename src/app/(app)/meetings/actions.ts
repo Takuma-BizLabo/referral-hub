@@ -25,7 +25,8 @@ function meetingData(formData: FormData) {
     assigneeId,
     scheduledAt: parseDateTimeInput(formData.get("scheduledAt")),
     format,
-    place: str(formData.get("place")),
+    place: str(formData.get("place"))?.slice(0, 500) ?? null,
+    schedulingUrl: str(formData.get("schedulingUrl"))?.slice(0, 500) ?? null,
     nextAction: str(formData.get("nextAction")),
     nextActionDue: parseDateInput(formData.get("nextActionDue")),
     requestNote: str(formData.get("requestNote")),
@@ -275,5 +276,21 @@ export async function rejectMeetingAction(_prev: ActionState, formData: FormData
     return { success: "差し戻しました" };
   } catch (e) {
     return errorState(e);
+  }
+}
+
+/** 一覧からの打ち合わせURL・場所の更新（インライン編集） */
+export async function updateMeetingPlaceAction(id: number, place: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await assertUser();
+    if (!Number.isSafeInteger(id) || id <= 0) throw new Error("不正なIDです");
+    const v = place.trim();
+    if (v.length > 500) throw new Error("500文字以内で入力してください");
+    if (/^javascript:/i.test(v)) throw new Error("このURLは使えません");
+    const m = await prisma.vendorMeeting.update({ where: { id }, data: { place: v || null } });
+    revalidateMeeting(id, m.vendorId);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "保存できませんでした" };
   }
 }

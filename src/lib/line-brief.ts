@@ -11,6 +11,7 @@ export type BriefInput = {
   executionStatus: ExecutionStatus;
   scheduledAt: Date | null;
   place: string | null;
+  schedulingUrl: string | null;
   nextAction: string | null;
   nextActionDue: Date | null;
   minutes: string | null;
@@ -53,11 +54,12 @@ export function buildMeetingBrief(m: BriefInput, targets: MeetingTarget[], opts:
   switch (m.executionStatus) {
     case "SCHEDULING":
     case "RESCHEDULE":
-      if (isUrl(m.place)) todo.push(`日程調整：下記URLから候補日を予約して、セールスハブで日時を返信${due}\n   ${m.place}`);
+      if (isUrl(m.schedulingUrl)) todo.push(`日程調整：下記URLから候補日を予約して、セールスハブで日時を返信${due}\n   ${m.schedulingUrl}`);
       else todo.push(`日程調整：ベンダーと事前MTGの日程を調整して、セールスハブで返信${due}`);
       break;
     case "CONFIRMED":
       todo.push(`事前MTG実施：${m.scheduledAt ? fmtDateTime(m.scheduledAt) : "日時未定"}${isUrl(m.place) ? `\n   ${m.place}` : m.place ? `（${m.place}）` : ""}`);
+      if (!m.place) todo.push("打ち合わせURLが未登録：届いた会議URLをツールのベンダーMTG一覧に入力");
       todo.push("MTGで確認：お繋ぎ先がターゲットか／単価（協力金）／紹介の進め方");
       break;
     case "DONE":

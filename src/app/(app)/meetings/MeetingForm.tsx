@@ -59,8 +59,11 @@ export function MeetingForm({
             <option value="VISIT">訪問</option>
           </select>
         </Field>
-        <Field label="会議URL・場所" className="sm:col-span-2">
-          <input name="place" className="input" placeholder="Zoom URL や住所" defaultValue={meeting?.place ?? ""} />
+        <Field label="打ち合わせURL・場所" className="sm:col-span-2" hint="Zoom・Google Meet などの会議URL、または訪問先の住所">
+          <input name="place" className="input" placeholder="https://zoom.us/j/... や住所" defaultValue={meeting?.place ?? ""} />
+        </Field>
+        <Field label="日程調整URL" className="sm:col-span-2" hint="TimeRex・Spir など、ベンダーから送られた候補日選択ページ">
+          <input name="schedulingUrl" className="input" placeholder="https://timerex.net/s/..." defaultValue={meeting?.schedulingUrl ?? ""} />
         </Field>
         {!meeting && (
           <Field label="実施ステータス">

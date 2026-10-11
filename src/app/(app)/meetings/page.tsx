@@ -13,6 +13,7 @@ import { formatTargetAmount, formatTargetsTotal, meetingTargets } from "@/lib/me
 import { proposedCompaniesByVendor } from "@/lib/saleshub/proposed";
 import { buildBulkBrief, buildMeetingBrief } from "@/lib/line-brief";
 import { CopyBriefButton } from "@/components/CopyBrief";
+import { MeetingPlaceCell } from "./MeetingPlaceCell";
 import { setExecutionStatusAction } from "./actions";
 import type { ApprovalStatus, ExecutionStatus, Prisma } from "@prisma/client";
 
@@ -90,6 +91,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
         executionStatus: m.executionStatus,
         scheduledAt: m.scheduledAt,
         place: m.place,
+        schedulingUrl: m.schedulingUrl,
         nextAction: m.nextAction,
         nextActionDue: m.nextActionDue,
         minutes: m.minutes,
@@ -249,6 +251,9 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                         ))}
                       </div>
                     )}
+                    <div className="mt-1.5">
+                      <MeetingPlaceCell id={m.id} place={m.place} compact />
+                    </div>
                     {m.nextAction && (
                       <div className="text-xs text-gray-600 mt-1.5 line-clamp-2">
                         次: {m.nextAction}
@@ -273,7 +278,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                     <th className="text-right">単価</th>
                     <th>お繋ぎ先</th>
                     <th>担当</th>
-                    <th>形式</th>
+                    <th>形式・打ち合わせURL</th>
                     <th>承認</th>
                     <th>実施</th>
                     <th>次アクション</th>
@@ -313,7 +318,10 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                           )}
                         </td>
                         <td className="whitespace-nowrap">{m.assignee.name}</td>
-                        <td className="whitespace-nowrap">{FORMAT_LABEL[m.format]}</td>
+                        <td>
+                          <div className="text-xs text-gray-500 mb-1">{FORMAT_LABEL[m.format]}</div>
+                          <MeetingPlaceCell id={m.id} place={m.place} />
+                        </td>
                         <td>
                           <Badge value={m.approvalStatus} label={APPROVAL_LABEL[m.approvalStatus]} />
                         </td>
