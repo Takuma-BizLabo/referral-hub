@@ -323,7 +323,7 @@ function TodoList({ items }: { items: TodoItem[] }) {
                   </div>
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
                     {it.taskId && <CompleteTaskForm id={it.taskId} action={completeTaskAction} />}
-                    <Link href={it.href} className="btn-secondary btn-sm">
+                    <Link href={it.href} className="btn-secondary btn-sm" {...(it.openLabel === "関連ページ" ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
                       {it.openLabel ?? "開く"}
                     </Link>
                   </div>

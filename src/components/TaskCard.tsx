@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Task, User } from "@prisma/client";
 import { cn, fmtDate, fmtDateTime } from "@/lib/utils";
 import { completeTaskAction, deleteTaskAction, reopenTaskAction } from "@/app/(app)/tasks/actions";
@@ -6,6 +5,27 @@ import { CompleteTaskForm } from "./TaskControls";
 import { SubmitButton } from "@/components/SubmitButton";
 
 import { fmtBytes, isImageType, type AttachmentMeta } from "@/lib/attachments";
+
+/** アプリ内パスは公開URLに変換して表示（コピーして共有しやすいように） */
+function displayLink(url: string) {
+  if (/^https?:\/\//.test(url)) return url;
+  const base = (process.env.APP_URL ?? "").replace(/\/$/, "");
+  return base ? `${base}${url}` : url;
+}
+
+/** 本文中の http(s) URL をリンクにする（新しいタブで開く） */
+function linkify(text: string) {
+  const parts = text.split(/(https?:\/\/[^\s<>"'）)」』]+)/g);
+  return parts.map((p, i) =>
+    /^https?:\/\//.test(p) ? (
+      <a key={i} href={p} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline break-all hover:text-blue-900">
+        {p}
+      </a>
+    ) : (
+      <span key={i}>{p}</span>
+    ),
+  );
+}
 
 export type TaskWithUsers = Task & { requester: User; assignee: User; attachments?: AttachmentMeta[] };
 
@@ -41,13 +61,8 @@ export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; 
             {task.dueDate && <span className={cn("ml-2", overdue && "text-rose-600 font-medium")}>期限 {fmtDate(task.dueDate)}</span>}
           </div>
         </div>
-        {task.linkUrl && (
-          <Link href={task.linkUrl} className="btn-secondary btn-sm">
-            関連ページ
-          </Link>
-        )}
       </div>
-      {task.body && <p className="text-sm text-gray-800 whitespace-pre-wrap break-words mt-3">{task.body}</p>}
+      {task.body && <p className="text-sm text-gray-800 whitespace-pre-wrap break-words mt-3">{linkify(task.body)}</p>}
       {task.attachments && task.attachments.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {task.attachments.map((a) =>
@@ -61,6 +76,8 @@ export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; 
               <a
                 key={a.id}
                 href={`/tasks/attachments/${a.id}?download=1`}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs text-gray-800 hover:bg-gray-100 max-w-full"
               >
                 <span>📎</span>
@@ -70,6 +87,18 @@ export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; 
             ),
           )}
         </div>
+      )}
+      {task.linkUrl && (
+        <a
+          href={task.linkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 flex items-center gap-3 rounded-lg border-2 border-blue-300 bg-blue-50 px-3 py-2.5 hover:bg-blue-100 hover:border-blue-400 transition-colors"
+        >
+          <span className="shrink-0 rounded-md bg-blue-600 px-2 py-1 text-xs font-bold text-white">関連ページ</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-blue-800 underline underline-offset-2">{displayLink(task.linkUrl)}</span>
+          <span className="shrink-0 text-xs text-blue-700">新しいタブで開く ↗</span>
+        </a>
       )}
       {task.status === "DONE" && (
         <div className="mt-3 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-sm text-emerald-900">
