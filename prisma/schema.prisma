@@ -355,6 +355,23 @@ model Task {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
+  attachments TaskAttachment[]
+
   @@index([assigneeId, status])
   @@index([requesterId, status])
+}
+
+/** タスクの添付ファイル（DB に保存。1ファイル10MBまで） */
+model TaskAttachment {
+  id           Int      @id @default(autoincrement())
+  taskId       Int
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  filename     String
+  mimeType     String
+  size         Int
+  data         Bytes
+  uploadedById Int?
+  createdAt    DateTime @default(now())
+
+  @@index([taskId])
 }

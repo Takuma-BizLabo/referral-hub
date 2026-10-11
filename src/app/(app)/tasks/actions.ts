@@ -6,6 +6,25 @@ import { assertUser } from "@/lib/auth";
 import { notify } from "@/lib/notifications";
 import { errorState, type ActionState } from "@/lib/action-state";
 import { fmtDate, parseDateInput, safeLinkUrl, str } from "@/lib/utils";
+import { fmtBytes, MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_BYTES } from "@/lib/attachments";
+
+/** フォームの files から空でないファイルを取り出して検証する */
+function pickFiles(formData: FormData): File[] {
+  const files = formData.getAll("files").filter((f): f is File => typeof f === "object" && f !== null && "arrayBuffer" in f && (f as File).size > 0);
+  if (files.length > MAX_FILES) throw new Error(`添付できるファイルは${MAX_FILES}件までです`);
+  for (const f of files) {
+    if (f.size > MAX_FILE_BYTES) throw new Error(`「${f.name}」が大きすぎます（${fmtBytes(f.size)}）。1ファイル${fmtBytes(MAX_FILE_BYTES)}までです`);
+  }
+  const total = files.reduce((a, f) => a + f.size, 0);
+  if (total > MAX_TOTAL_BYTES) throw new Error(`添付ファイルの合計が大きすぎます（${fmtBytes(total)}）。合計${fmtBytes(MAX_TOTAL_BYTES)}までです`);
+  return files;
+}
+
+function cleanFilename(name: string) {
+  // パス区切り・制御文字を除き、長すぎる名前は切り詰める
+  const base = name.replace(/^.*[\\/]/, "").replace(/[\u0000-\u001f\u007f]/g, "").trim() || "file";
+  return base.length > 150 ? base.slice(0, 150) : base;
+}
 
 function revalidateTasks() {
   revalidatePath("/tasks");
@@ -25,6 +44,16 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
     if (!assigneeId) throw new Error("宛先を選んでください");
     const assignee = await prisma.user.findFirst({ where: { id: assigneeId, isActive: true } });
     if (!assignee) throw new Error("宛先のユーザーが見つかりません");
+    const files = pickFiles(formData);
+    const fileRows = await Promise.all(
+      files.map(async (f) => ({
+        filename: cleanFilename(f.name),
+        mimeType: (f.type || "application/octet-stream").slice(0, 100),
+        size: f.size,
+        data: Buffer.from(await f.arrayBuffer()),
+        uploadedById: me.id,
+      })),
+    );
     const task = await prisma.task.create({
       data: {
         title,
@@ -34,6 +63,7 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
         important: formData.get("important") === "on",
         dueDate: parseDateInput(formData.get("dueDate")),
         linkUrl,
+        ...(fileRows.length ? { attachments: { create: fileRows } } : {}),
       },
     });
     if (assigneeId !== me.id) {
@@ -41,12 +71,12 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
         userId: assigneeId,
         type: "TASK_ASSIGNED",
         title: `【タスク依頼】${me.name} → ${task.title}`,
-        body: [task.body?.slice(0, 200), task.dueDate ? `期限: ${fmtDate(task.dueDate)}` : null].filter(Boolean).join("\n"),
+        body: [task.body?.slice(0, 200), task.dueDate ? `期限: ${fmtDate(task.dueDate)}` : null, fileRows.length ? `添付: ${fileRows.map((f) => f.filename).join("、")}` : null].filter(Boolean).join("\n"),
         linkUrl: `/tasks?focus=${task.id}`,
       });
     }
     revalidateTasks();
-    return { success: `${assignee.name} さんにタスクを依頼しました` };
+    return { success: `${assignee.name} さんにタスクを依頼しました${fileRows.length ? `（添付 ${fileRows.length} 件）` : ""}` };
   } catch (e) {
     return errorState(e);
   }

@@ -16,7 +16,7 @@ export function useStickyAction<S>(fn: (prev: Awaited<S>, formData: FormData) =>
     } catch (e) {
       const digest = (e as { digest?: unknown } | null)?.digest;
       if (typeof digest === "string" && /^NEXT_(REDIRECT|NOT_FOUND|HTTP_ERROR)/.test(digest)) throw e;
-      return { error: "送信できませんでした。入力内容が大きすぎる（1MBまで）か、通信に失敗した可能性があります。内容を確認してもう一度お試しください。" } as Awaited<S>;
+      return { error: "送信できませんでした。入力内容や添付ファイルが大きすぎるか、通信に失敗した可能性があります。内容を確認してもう一度お試しください。" } as Awaited<S>;
     }
   };
   const [state, dispatch, pending] = useActionState(safe, initial);

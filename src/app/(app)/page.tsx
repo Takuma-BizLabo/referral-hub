@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ATTACHMENT_META_SELECT } from "@/lib/attachments";
 import { endOfDay, startOfDay } from "date-fns";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -82,7 +83,7 @@ export default async function DashboardPage() {
     prisma.user.findMany({ where: { isActive: true }, orderBy: { id: "asc" } }),
     prisma.task.findMany({
       where: { assigneeId: user.id, status: "OPEN" },
-      include: { requester: true, assignee: true },
+      include: { requester: true, assignee: true, attachments: { select: ATTACHMENT_META_SELECT, orderBy: { id: "asc" } } },
       orderBy: [{ important: "desc" }, { dueDate: "asc" }, { createdAt: "desc" }],
     }),
     // セールスハブの未読通知（スレッド単位にまとめる）
@@ -107,9 +108,10 @@ export default async function DashboardPage() {
       kind: t.important ? "重要タスク" : overdue ? "期限超過タスク" : "タスク",
       tone: t.important || overdue ? "rose" : "blue",
       title: t.title,
-      sub: `${t.requester.name} から${t.dueDate ? ` ・ 期限 ${fmtDate(t.dueDate)}` : ""}${t.body ? ` ・ ${t.body.slice(0, 60)}` : ""}`,
-      href: t.linkUrl ?? `/tasks?focus=${t.id}`,
-      openLabel: t.linkUrl ? "関連ページ" : "開く",
+      sub: `${t.requester.name} から${t.dueDate ? ` ・ 期限 ${fmtDate(t.dueDate)}` : ""}${t.attachments.length ? ` ・ 📎添付 ${t.attachments.length} 件` : ""}${t.body ? ` ・ ${t.body.slice(0, 60)}` : ""}`,
+      // 添付があるタスクはタスク画面で開く（添付を見られるように）
+      href: t.attachments.length ? `/tasks?focus=${t.id}` : (t.linkUrl ?? `/tasks?focus=${t.id}`),
+      openLabel: t.attachments.length ? "開く" : t.linkUrl ? "関連ページ" : "開く",
       taskId: t.id,
     });
   }

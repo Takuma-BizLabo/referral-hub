@@ -5,7 +5,9 @@ import { completeTaskAction, deleteTaskAction, reopenTaskAction } from "@/app/(a
 import { CompleteTaskForm } from "./TaskControls";
 import { SubmitButton } from "@/components/SubmitButton";
 
-export type TaskWithUsers = Task & { requester: User; assignee: User };
+import { fmtBytes, isImageType, type AttachmentMeta } from "@/lib/attachments";
+
+export type TaskWithUsers = Task & { requester: User; assignee: User; attachments?: AttachmentMeta[] };
 
 export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; meId: number; isAdmin: boolean; focus?: boolean }) {
   const today = new Date();
@@ -46,6 +48,29 @@ export function TaskCard({ task, meId, isAdmin, focus }: { task: TaskWithUsers; 
         )}
       </div>
       {task.body && <p className="text-sm text-gray-800 whitespace-pre-wrap break-words mt-3">{task.body}</p>}
+      {task.attachments && task.attachments.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {task.attachments.map((a) =>
+            isImageType(a.mimeType) ? (
+              <a key={a.id} href={`/tasks/attachments/${a.id}`} target="_blank" rel="noreferrer" className="block rounded-lg border border-gray-200 overflow-hidden hover:opacity-90" title={a.filename}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/tasks/attachments/${a.id}`} alt={a.filename} className="h-20 w-28 object-cover" loading="lazy" />
+                <span className="block max-w-28 truncate px-1.5 py-0.5 text-[11px] text-gray-600">{a.filename}</span>
+              </a>
+            ) : (
+              <a
+                key={a.id}
+                href={`/tasks/attachments/${a.id}?download=1`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs text-gray-800 hover:bg-gray-100 max-w-full"
+              >
+                <span>📎</span>
+                <span className="truncate max-w-56">{a.filename}</span>
+                <span className="text-gray-500 shrink-0">{fmtBytes(a.size)}</span>
+              </a>
+            ),
+          )}
+        </div>
+      )}
       {task.status === "DONE" && (
         <div className="mt-3 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-sm text-emerald-900">
           {fmtDateTime(task.doneAt)} に {task.assignee.name} が完了{task.doneComment ? `：${task.doneComment}` : ""}
