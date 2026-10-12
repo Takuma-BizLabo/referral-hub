@@ -60,7 +60,7 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
       ? { contact: { OR: [{ name: { contains: sp.q, mode: "insensitive" } }, { company: { contains: sp.q, mode: "insensitive" } }] } }
       : {}),
   };
-  const [referrals, vendors, stagnationDays, allForCounts, candidates] = await Promise.all([
+  const [fetched, vendors, stagnationDays, allForCounts, candidates] = await Promise.all([
     prisma.referral.findMany({
       where: { AND: [where, LISTED] },
       include: { vendor: true, contact: true },
@@ -77,6 +77,12 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
       take: 300,
     }),
   ]);
+  // 並び順：面談日時が決まったものを一番上（日時の新しい順）→ その他（選んだ並び順のまま）→ 紹介見送りを一番下
+  const group = (r: (typeof fetched)[number]) => (r.status === "DECLINED" ? 2 : r.meetingAt ? 0 : 1);
+  const referrals = fetched
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => group(a.r) - group(b.r) || (group(a.r) === 0 ? b.r.meetingAt!.getTime() - a.r.meetingAt!.getTime() : 0) || a.i - b.i)
+    .map((x) => x.r);
   const vendorCounts: Record<number, number> = {};
   for (const r of allForCounts) vendorCounts[r.vendorId] = (vendorCounts[r.vendorId] ?? 0) + 1;
   const statusCounts: Record<string, number> = {};
