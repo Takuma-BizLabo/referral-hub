@@ -95,7 +95,7 @@ export default async function ReferralDetailPage({
                 label: "紹介先",
                 value: (
                   <Link href={`/contacts/${r.contact.id}`} className="text-blue-700 hover:underline">
-                    {r.contact.name}（{r.contact.company ?? "-"}）
+                    {r.contact.company ? `${r.contact.company}（${r.contact.name}）` : r.contact.name}
                   </Link>
                 ),
               },
@@ -114,6 +114,7 @@ export default async function ReferralDetailPage({
               { label: "ステータス", value: <Badge value={r.status} label={REFERRAL_LABEL[r.status]} /> },
               { label: "ピックアップ内容", value: r.pickupNote },
               { label: "面談日時", value: fmtDateTime(r.meetingAt) },
+              { label: "謝礼金", value: r.thankYouFee === null ? null : `¥${r.thankYouFee.toLocaleString("ja-JP")}` },
               { label: "面談形式", value: r.meetingFormat ? FORMAT_LABEL[r.meetingFormat] : null },
               {
                 label: "会議URL・場所",

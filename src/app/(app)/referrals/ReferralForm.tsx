@@ -105,6 +105,9 @@ export function ReferralForm({
             <input type="checkbox" name="rewardUndetermined" defaultChecked={referral?.rewardUndetermined ?? defaultUndetermined ?? false} /> 単価未定（ベンダーに確認中）
           </label>
         </Field>
+        <Field label="謝礼金（円）" hint="紹介先へのお礼。未定なら空欄">
+          <MoneyInput name="thankYouFee" defaultValue={referral?.thankYouFee ?? ""} />
+        </Field>
         <Field label="ピックアップ内容" className="sm:col-span-2" hint="セールスハブでベンダーが希望した相手の情報など">
           <textarea name="pickupNote" className="input" rows={2} defaultValue={referral?.pickupNote ?? defaultPickupNote ?? ""} />
         </Field>

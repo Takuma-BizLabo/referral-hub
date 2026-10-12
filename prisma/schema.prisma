@@ -212,6 +212,8 @@ model Referral {
   nextActionDue      DateTime?
   rewardAmount       Int            @default(0)
   rewardUndetermined Boolean        @default(false) // 単価未定（途中でベンダーが挙げた会社など）
+  thankYouFee        Int? // 謝礼金（紹介先へのお礼。未入力は null）
+  listedEarly        Boolean        @default(false) // ベンダーMTG前でも紹介案件一覧に出す（候補から手動で追加）
   rewardStatus       RewardStatus   @default(UNFIXED)
   rewardApprovedAt   DateTime?
   invoicedAt         DateTime?

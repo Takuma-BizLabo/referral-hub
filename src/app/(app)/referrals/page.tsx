@@ -8,8 +8,10 @@ import { CountChips } from "@/components/CountChips";
 import { FilterPanel } from "@/components/FilterPanel";
 import { cleanParams } from "@/lib/params";
 import { REFERRAL_LABEL, REFERRAL_ORDER, REWARD_LABEL, REWARD_ORDER } from "@/lib/labels";
-import { cn, fmtDate, fmtDateTime, fmtReward } from "@/lib/utils";
-import { setReferralStatusAction } from "./actions";
+import { cn, fmtDate, fmtDateTime, fmtReward, toInputDateTime } from "@/lib/utils";
+import { setListedEarlyAction, setReferralStatusAction } from "./actions";
+import { MeetingAtCell, ThankYouFeeCell } from "./InlineCells";
+import { SubmitButton } from "@/components/SubmitButton";
 import type { Prisma, ReferralStatus, RewardStatus } from "@prisma/client";
 
 export const metadata = { title: "紹介案件" };
@@ -23,6 +25,21 @@ const SORTS: Record<string, { label: string; orderBy: Prisma.ReferralOrderByWith
   picked: { label: "ピックアップが新しい順", orderBy: [{ pickedUpAt: "desc" }, { id: "desc" }] },
   stale: { label: "停滞が長い順", orderBy: [{ statusChangedAt: "asc" }] },
 };
+
+/**
+ * 一覧に出す紹介案件：ベンダーMTGが実施済・不要、または手動で一覧に追加したもの、
+ * または既に打診中以降へ進んでいるもの。それ以外は「ベンダーMTG前の候補」として畳んで表示する。
+ */
+const LISTED: Prisma.ReferralWhereInput = {
+  OR: [{ vendor: { meetingStatus: { in: ["DONE", "NOT_REQUIRED"] } } }, { listedEarly: true }, { status: { notIn: ["RECEIVED", "DECLINED"] } }],
+};
+
+/** 行の色：紹介見送りはグレーアウト、日程調整中は黄色 */
+function rowTone(status: ReferralStatus) {
+  if (status === "DECLINED") return "bg-gray-100 opacity-60";
+  if (status === "SCHEDULING") return "bg-yellow-50";
+  return "";
+}
 
 export default async function ReferralsPage({ searchParams }: { searchParams: Promise<SP> }) {
   await requireUser();
@@ -43,16 +60,22 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
       ? { contact: { OR: [{ name: { contains: sp.q, mode: "insensitive" } }, { company: { contains: sp.q, mode: "insensitive" } }] } }
       : {}),
   };
-  const [referrals, vendors, stagnationDays, allForCounts] = await Promise.all([
+  const [referrals, vendors, stagnationDays, allForCounts, candidates] = await Promise.all([
     prisma.referral.findMany({
-      where,
+      where: { AND: [where, LISTED] },
       include: { vendor: true, contact: true },
       orderBy: (SORTS[sp.sort ?? ""] ?? SORTS.updated).orderBy,
       take: 500,
     }),
     prisma.vendor.findMany({ orderBy: { name: "asc" } }),
     prisma.setting.findUnique({ where: { key: "stagnationDays" } }).then((s) => Number(s?.value ?? 7)),
-    prisma.referral.findMany({ where: { ...where, vendorId: undefined, status: undefined }, select: { vendorId: true, status: true } }),
+    prisma.referral.findMany({ where: { AND: [{ ...where, vendorId: undefined, status: undefined }, LISTED] }, select: { vendorId: true, status: true } }),
+    prisma.referral.findMany({
+      where: { AND: [{ ...where, status: undefined, rewardStatus: undefined }, { NOT: LISTED }] },
+      include: { vendor: { include: { meetings: { where: { executionStatus: { in: ["CONFIRMED", "SCHEDULING", "RESCHEDULE"] } }, orderBy: { scheduledAt: "asc" }, take: 1 } } }, contact: true },
+      orderBy: [{ vendorId: "asc" }, { id: "asc" }],
+      take: 300,
+    }),
   ]);
   const vendorCounts: Record<number, number> = {};
   for (const r of allForCounts) vendorCounts[r.vendorId] = (vendorCounts[r.vendorId] ?? 0) + 1;
@@ -165,6 +188,41 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
       </form>
       </FilterPanel>
 
+      {candidates.length > 0 && (
+        <details className="card mb-3 border-gray-200 bg-gray-50">
+          <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3 text-sm text-gray-500 select-none">
+            <span className="font-medium text-gray-600">ベンダーMTG前の候補（{candidates.length}件）</span>
+            <span className="text-xs">MTGが実施済になると自動で一覧に表示されます。先に一覧へ出す場合は「一覧に追加」を押してください</span>
+          </summary>
+          <ul className="divide-y divide-gray-200 border-t border-gray-200">
+            {candidates.map((r) => {
+              const m = r.vendor.meetings[0];
+              return (
+                <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2 text-sm text-gray-500 opacity-70 transition-opacity hover:opacity-100">
+                  <Link href={`/referrals/${r.id}`} className="min-w-44 hover:underline">
+                    <div className="font-medium text-gray-700">{r.contact.company ?? r.contact.name}</div>
+                    {r.contact.company && <div className="text-xs">{r.contact.name}</div>}
+                  </Link>
+                  <VendorTag id={r.vendor.id} name={r.vendor.name} />
+                  <span className="text-xs whitespace-nowrap">
+                    {m ? (m.scheduledAt && m.executionStatus === "CONFIRMED" ? `MTG ${fmtDateTime(m.scheduledAt)}` : "MTG日程調整中") : "MTG未設定"}
+                  </span>
+                  <span className="text-xs whitespace-nowrap">{fmtReward(r.rewardAmount, r.rewardUndetermined)}</span>
+                  {r.status === "DECLINED" && <span className="badge bg-gray-200 text-gray-600 border-gray-300">紹介見送り</span>}
+                  <form action={setListedEarlyAction} className="ml-auto">
+                    <input type="hidden" name="id" value={r.id} />
+                    <input type="hidden" name="listed" value="1" />
+                    <SubmitButton className="btn-secondary btn-sm" pendingText="追加中...">
+                      ＋ 一覧に追加
+                    </SubmitButton>
+                  </form>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
+
       {view === "list" ? (
         referrals.length === 0 ? (
           <div className="card">
@@ -177,11 +235,11 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
               {referrals.map((r) => {
                 const overdue = r.nextActionDue && r.nextActionDue < today && !["MEETING_DONE", "DECLINED"].includes(r.status);
                 return (
-                  <li key={r.id} className={cn("card p-3", isStagnant(r) && "border-amber-300")}>
+                  <li key={r.id} className={cn("card p-3", isStagnant(r) && "border-amber-300", rowTone(r.status))}>
                     <div className="flex items-start justify-between gap-2">
                       <Link href={`/referrals/${r.id}`} className="min-w-0">
-                        <div className="font-medium text-blue-700 truncate">{r.contact.name}</div>
-                        <div className="text-xs text-gray-500 truncate">{r.contact.company}</div>
+                        <div className="font-medium text-blue-700 truncate">{r.contact.company ?? r.contact.name}</div>
+                        {r.contact.company && <div className="text-xs text-gray-500 truncate">{r.contact.name}</div>}
                       </Link>
                       <span className={cn("text-sm whitespace-nowrap font-medium", r.rewardUndetermined && "text-amber-700")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</span>
                     </div>
@@ -190,7 +248,14 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                       <Badge value={r.rewardStatus} label={`報酬 ${REWARD_LABEL[r.rewardStatus]}`} />
                       {isStagnant(r) && <span className="badge bg-amber-100 text-amber-800 border-amber-200">停滞</span>}
                     </div>
-                    {r.meetingAt && <div className="text-xs text-gray-600 mt-1.5">面談 {fmtDateTime(r.meetingAt)}</div>}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+                      <span className="flex items-center gap-1">
+                        面談 <MeetingAtCell id={r.id} value={toInputDateTime(r.meetingAt)} display={r.meetingAt ? fmtDateTime(r.meetingAt) : null} />
+                      </span>
+                      <span className="flex items-center gap-1">
+                        謝礼金 <ThankYouFeeCell id={r.id} value={r.thankYouFee} />
+                      </span>
+                    </div>
                     {r.nextAction && (
                       <div className="text-xs text-gray-600 mt-1 line-clamp-2">
                         次: {r.nextAction}
@@ -217,6 +282,7 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                     <th>次アクション</th>
                     <th>期限</th>
                     <th className="text-right">報酬</th>
+                    <th className="text-right">謝礼金</th>
                     <th>報酬状態</th>
                   </tr>
                 </thead>
@@ -224,12 +290,21 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                   {referrals.map((r) => {
                     const overdue = r.nextActionDue && r.nextActionDue < today && !["MEETING_DONE", "DECLINED"].includes(r.status);
                     return (
-                      <tr key={r.id}>
+                      <tr key={r.id} className={rowTone(r.status)}>
                         <td className="whitespace-nowrap">
                           <Link href={`/referrals/${r.id}`} className="text-blue-700 hover:underline font-medium">
-                            {r.contact.name}
+                            {r.contact.company ?? r.contact.name}
                           </Link>
-                          <div className="text-xs text-gray-500">{r.contact.company}</div>
+                          {r.contact.company && <div className="text-xs text-gray-500">{r.contact.name}</div>}
+                          {r.listedEarly && r.vendor.meetingStatus === "NOT_DONE" && (
+                            <form action={setListedEarlyAction} className="mt-0.5">
+                              <input type="hidden" name="id" value={r.id} />
+                              <input type="hidden" name="listed" value="0" />
+                              <SubmitButton className="text-[11px] text-gray-400 underline hover:text-gray-700" pendingText="...">
+                                MTG前の候補に戻す
+                              </SubmitButton>
+                            </form>
+                          )}
                         </td>
                         <td>
                           <VendorTag id={r.vendor.id} name={r.vendor.name} />
@@ -249,10 +324,15 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                             )}
                           </div>
                         </td>
-                        <td className="whitespace-nowrap">{fmtDateTime(r.meetingAt)}</td>
+                        <td className="whitespace-nowrap">
+                          <MeetingAtCell id={r.id} value={toInputDateTime(r.meetingAt)} display={r.meetingAt ? fmtDateTime(r.meetingAt) : null} />
+                        </td>
                         <td className="text-gray-600 max-w-xs truncate">{r.nextAction ?? "-"}</td>
                         <td className={cn("whitespace-nowrap", overdue && "text-rose-600 font-medium")}>{fmtDate(r.nextActionDue)}</td>
                         <td className={cn("text-right whitespace-nowrap", r.rewardUndetermined && "text-amber-700 font-medium")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</td>
+                        <td className="text-right">
+                          <ThankYouFeeCell id={r.id} value={r.thankYouFee} />
+                        </td>
                         <td>
                           <Badge value={r.rewardStatus} label={REWARD_LABEL[r.rewardStatus]} />
                         </td>
@@ -276,11 +356,11 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                 </div>
                 <div className="p-2 space-y-2 min-h-24">
                   {items.map((r) => (
-                    <div key={r.id} className={cn("card p-2.5 text-sm shadow-sm", isStagnant(r) && "border-amber-300")}>
+                    <div key={r.id} className={cn("card p-2.5 text-sm shadow-sm", isStagnant(r) && "border-amber-300", rowTone(r.status))}>
                       <Link href={`/referrals/${r.id}`} className="font-medium text-blue-700 hover:underline block">
-                        {r.contact.name}
+                        {r.contact.company ?? r.contact.name}
                       </Link>
-                      <div className="text-xs text-gray-500">{r.contact.company}</div>
+                      {r.contact.company && <div className="text-xs text-gray-500">{r.contact.name}</div>}
                       <div className="mt-1">
                         <VendorTag id={r.vendor.id} name={r.vendor.name} link={false} />
                       </div>

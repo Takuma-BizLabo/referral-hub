@@ -22,6 +22,12 @@ function revalidateReferral(id: number, vendorId: number, contactId: number) {
   revalidatePath("/");
 }
 
+/** 謝礼金（空欄は未入力＝null） */
+function thankYouFeeOf(formData: FormData): number | null {
+  const raw = String(formData.get("thankYouFee") ?? "").normalize("NFKC").replace(/[^\d]/g, "");
+  return raw === "" ? null : Math.min(Number(raw), 100_000_000);
+}
+
 function meetingFields(formData: FormData) {
   const f = str(formData.get("meetingFormat"));
   return {
@@ -33,6 +39,7 @@ function meetingFields(formData: FormData) {
     nextActionDue: parseDateInput(formData.get("nextActionDue")),
     pickupNote: str(formData.get("pickupNote")),
     memo: str(formData.get("memo")),
+    thankYouFee: thankYouFeeOf(formData),
   };
 }
 
@@ -307,4 +314,46 @@ export async function saveRewardAction(_prev: ActionState, formData: FormData): 
   } catch (e) {
     return errorState(e);
   }
+}
+
+/** 一覧から面談日時をその場で入力・変更する（空文字で未定に戻す） */
+export async function updateReferralMeetingAtAction(id: number, value: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await assertUser();
+    if (!Number.isSafeInteger(id) || id <= 0) throw new Error("不正なIDです");
+    const meetingAt = value.trim() ? parseDateTimeInput(value) : null;
+    if (value.trim() && !meetingAt) throw new Error("日時の形式が正しくありません");
+    const r = await prisma.referral.update({ where: { id }, data: { meetingAt } });
+    revalidateReferral(id, r.vendorId, r.contactId);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "保存できませんでした" };
+  }
+}
+
+/** 一覧から謝礼金をその場で入力・変更する（空文字で未入力に戻す） */
+export async function updateThankYouFeeAction(id: number, value: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await assertUser();
+    if (!Number.isSafeInteger(id) || id <= 0) throw new Error("不正なIDです");
+    const raw = value.normalize("NFKC").replace(/[^\d]/g, "");
+    const thankYouFee = raw === "" ? null : Number(raw);
+    if (thankYouFee !== null && (!Number.isSafeInteger(thankYouFee) || thankYouFee > 100_000_000)) throw new Error("金額が大きすぎます");
+    const r = await prisma.referral.update({ where: { id }, data: { thankYouFee } });
+    revalidateReferral(id, r.vendorId, r.contactId);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "保存できませんでした" };
+  }
+}
+
+/** ベンダーMTG前の候補を紹介案件一覧に出す／候補に戻す */
+export async function setListedEarlyAction(formData: FormData) {
+  await runWithFlash(formData, async () => {
+    await assertUser();
+    const id = Number(formData.get("id"));
+    const listed = formData.get("listed") === "1";
+    const r = await prisma.referral.update({ where: { id }, data: { listedEarly: listed } });
+    revalidateReferral(id, r.vendorId, r.contactId);
+  });
 }
