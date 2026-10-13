@@ -8,12 +8,13 @@ import { CountChips } from "@/components/CountChips";
 import { FilterPanel } from "@/components/FilterPanel";
 import { cleanParams } from "@/lib/params";
 import { APPROVAL_LABEL, EXECUTION_LABEL, EXECUTION_ORDER, FORMAT_LABEL } from "@/lib/labels";
-import { cn, fmtDate, fmtDateTime } from "@/lib/utils";
+import { cn, fmtDate, fmtDateTime, toInputDateTime } from "@/lib/utils";
 import { formatTargetAmount, formatTargetsTotal, meetingTargets } from "@/lib/meeting-targets";
 import { proposedCompaniesByVendor } from "@/lib/saleshub/proposed";
 import { buildBulkBrief, buildMeetingBrief } from "@/lib/line-brief";
 import { CopyBriefButton } from "@/components/CopyBrief";
 import { MeetingPlaceCell } from "./MeetingPlaceCell";
+import { MeetingDateCell } from "./MeetingDateCell";
 import { setExecutionStatusAction } from "./actions";
 import type { ApprovalStatus, ExecutionStatus, Prisma } from "@prisma/client";
 
@@ -249,10 +250,14 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                 return (
                   <li key={m.id} className={cn("card p-3", rowTone(m.executionStatus))}>
                     <div className="flex items-start justify-between gap-2">
-                      <Link href={`/meetings/${m.id}`} className="min-w-0">
-                        <VendorTag id={m.vendor.id} name={m.vendor.name} link={false} />
-                        <div className="text-sm font-medium text-blue-700 mt-1">{m.scheduledAt ? fmtDateTime(m.scheduledAt) : "日時未定"}</div>
-                      </Link>
+                      <div className="min-w-0">
+                        <Link href={`/meetings/${m.id}`}>
+                          <VendorTag id={m.vendor.id} name={m.vendor.name} link={false} />
+                        </Link>
+                        <div className="text-sm font-medium text-blue-700 mt-1">
+                          <MeetingDateCell id={m.id} value={toInputDateTime(m.scheduledAt)} display={m.scheduledAt ? fmtDateTime(m.scheduledAt) : null} />
+                        </div>
+                      </div>
                       <Badge value={m.approvalStatus} label={APPROVAL_LABEL[m.approvalStatus]} />
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
@@ -310,8 +315,11 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                     return (
                       <tr key={m.id} className={rowTone(m.executionStatus)}>
                         <td className="whitespace-nowrap">
-                          <Link href={`/meetings/${m.id}`} className="text-blue-700 hover:underline">
-                            {m.scheduledAt ? fmtDateTime(m.scheduledAt) : "日時未定"}
+                          <div className="text-blue-700">
+                            <MeetingDateCell id={m.id} value={toInputDateTime(m.scheduledAt)} display={m.scheduledAt ? fmtDateTime(m.scheduledAt) : null} />
+                          </div>
+                          <Link href={`/meetings/${m.id}`} className="text-[11px] text-gray-400 hover:text-blue-700 hover:underline">
+                            詳細を開く
                           </Link>
                         </td>
                         <td>

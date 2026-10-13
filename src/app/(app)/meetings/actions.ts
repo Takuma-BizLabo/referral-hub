@@ -294,3 +294,18 @@ export async function updateMeetingPlaceAction(id: number, place: string): Promi
     return { ok: false, error: e instanceof Error ? e.message : "保存できませんでした" };
   }
 }
+
+/** 一覧からMTG日時をその場で入力・変更する（空文字で日時未定に戻す）。ステータスは変えない */
+export async function updateMeetingScheduledAtAction(id: number, value: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await assertUser();
+    if (!Number.isSafeInteger(id) || id <= 0) throw new Error("不正なIDです");
+    const scheduledAt = value.trim() ? parseDateTimeInput(value) : null;
+    if (value.trim() && !scheduledAt) throw new Error("日時の形式が正しくありません");
+    const m = await prisma.vendorMeeting.update({ where: { id }, data: { scheduledAt } });
+    revalidateMeeting(id, m.vendorId);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "保存できませんでした" };
+  }
+}
