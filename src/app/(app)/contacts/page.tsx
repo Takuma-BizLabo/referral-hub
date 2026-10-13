@@ -8,6 +8,7 @@ import { FilterPanel } from "@/components/FilterPanel";
 import { cleanParams } from "@/lib/params";
 import type { Prisma } from "@prisma/client";
 import { judgeFee, parseFeeTable, type FeeJudgement } from "@/lib/fee-table";
+import { splitTitle } from "@/lib/title";
 
 export const metadata = { title: "繋がりリスト" };
 
@@ -227,7 +228,8 @@ export default async function ContactsPage({
                 <tr>
                   <th>氏名</th>
                   <th>会社名</th>
-                  <th>役職</th>
+                  <th>役職クラス</th>
+                  <th>正確な役職</th>
                   <th>業種</th>
                   <th>規模</th>
                   <th>地域</th>
@@ -247,7 +249,8 @@ export default async function ContactsPage({
                       </Link>
                     </td>
                     <td>{c.company ?? "-"}</td>
-                    <td className="whitespace-nowrap">{c.title ?? "-"}</td>
+                    <td className="whitespace-nowrap">{splitTitle(c.title).cls ?? "-"}</td>
+                    <td className="min-w-40">{splitTitle(c.title).detail ?? "-"}</td>
                     <td className="whitespace-nowrap">{c.industry ?? "-"}</td>
                     <td className="whitespace-nowrap">{c.employeeSize ?? "-"}</td>
                     <td className="whitespace-nowrap">{c.region ?? "-"}</td>

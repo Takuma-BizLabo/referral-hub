@@ -9,6 +9,7 @@ import { fmtDate, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import { toggleContactActiveAction } from "../actions";
 import { SubmitButton } from "@/components/SubmitButton";
 import { idOrNull, idParam } from "@/lib/params";
+import { splitTitle } from "@/lib/title";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const id = idOrNull((await params).id);
@@ -51,7 +52,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           <Description
             items={[
               { label: "会社名", value: contact.company },
-              { label: "役職", value: contact.title },
+              { label: "役職クラス", value: splitTitle(contact.title).cls },
+              { label: "正確な役職", value: splitTitle(contact.title).detail },
               { label: "業種", value: contact.industry },
               { label: "従業員規模", value: contact.employeeSize },
               { label: "地域", value: contact.region },

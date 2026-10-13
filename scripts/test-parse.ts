@@ -5,6 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { classPartOf, judgeFee } from "../src/lib/fee-table";
+import { joinTitle, splitTitle } from "../src/lib/title";
 import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
 /** JST の "YYYY-MM-DD HH:mm" を Date に */
@@ -187,6 +188,18 @@ test("役職の詳細を括弧で併記しても、単価表はクラス部分�
   const c = judgeFee(rules, { employeeSize: "300名", title: "一般社員（人事責任者）", relationMemo: memo });
   assert.deepEqual(b, a);
   assert.notEqual(c.kind, "matched");
+});
+
+test("役職をクラスと正確な役職に分ける・まとめる", () => {
+  assert.deepEqual(splitTitle("部長クラス（経営企画Div. 人事チーム責任者）"), { cls: "部長クラス", detail: "経営企画Div. 人事チーム責任者" });
+  assert.deepEqual(splitTitle("代表取締役"), { cls: "代表取締役", detail: null });
+  assert.deepEqual(splitTitle("代表"), { cls: "代表取締役", detail: "代表" });
+  assert.deepEqual(splitTitle("執行役員"), { cls: "役員・取締役クラス", detail: "執行役員" });
+  assert.deepEqual(splitTitle("部長クラス（営業部長（人事実務兼任））"), { cls: "部長クラス", detail: "営業部長（人事実務兼任）" });
+  assert.equal(joinTitle("部長クラス", "人事責任者"), "部長クラス（人事責任者）");
+  assert.equal(joinTitle("代表取締役", "代表取締役"), "代表取締役");
+  assert.equal(joinTitle(null, "執行役員"), "執行役員");
+  assert.equal(joinTitle("一般社員", null), "一般社員");
 });
 
 if (failures.length) {

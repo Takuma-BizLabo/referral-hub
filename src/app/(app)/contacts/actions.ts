@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { assertUser } from "@/lib/auth";
 import { errorState, type ActionState } from "@/lib/action-state";
 import { str } from "@/lib/utils";
+import { joinTitle } from "@/lib/title";
 import { findDuplicate, normalizeCompany, normalizeName, parseBool, parseTags, writeContact, type ContactInput } from "@/lib/contacts";
 
 function contactInput(formData: FormData): ContactInput {
@@ -14,7 +15,8 @@ function contactInput(formData: FormData): ContactInput {
   return {
     name,
     company: str(formData.get("company")),
-    title: str(formData.get("title")),
+    // 役職はクラスと正確な役職を「クラス（正確な役職）」の形で1つの欄に保存する
+    title: formData.has("titleClass") || formData.has("titleDetail") ? joinTitle(str(formData.get("titleClass")), str(formData.get("titleDetail"))) : str(formData.get("title")),
     industry: str(formData.get("industry")),
     employeeSize: str(formData.get("employeeSize")),
     region: str(formData.get("region")),

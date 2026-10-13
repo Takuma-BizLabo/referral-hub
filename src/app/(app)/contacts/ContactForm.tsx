@@ -6,6 +6,7 @@ import { createContactAction, updateContactAction } from "./actions";
 import { ErrorMessage, Field } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { Contact } from "@prisma/client";
+import { splitTitle, TITLE_CLASSES } from "@/lib/title";
 
 export function ContactForm({
   contact,
@@ -29,8 +30,18 @@ export function ContactForm({
         <Field label="会社名">
           <input name="company" className="input" defaultValue={contact?.company ?? defaultCompany ?? ""} />
         </Field>
-        <Field label="役職">
-          <input name="title" className="input" defaultValue={contact?.title ?? ""} />
+        <Field label="役職クラス" hint="セールスハブに登録する区分">
+          <select name="titleClass" className="input" defaultValue={splitTitle(contact?.title).cls ?? ""}>
+            <option value="">（未設定）</option>
+            {TITLE_CLASSES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="正確な役職" hint="例: 経営企画Div. 人事チーム責任者">
+          <input name="titleDetail" className="input" defaultValue={splitTitle(contact?.title).detail ?? ""} />
         </Field>
         <Field label="業種">
           <input name="industry" className="input" defaultValue={contact?.industry ?? ""} />
