@@ -11,12 +11,14 @@ import {
   REWARD_LABEL,
   VENDOR_MEETING_STATUS_LABEL,
 } from "@/lib/labels";
-import { fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
-import { setVendorMeetingStatusAction, toggleVendorActiveAction } from "../actions";
+import { cn, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
+import type { VendorApproval } from "@prisma/client";
+import { setVendorApprovalAction, setVendorMeetingStatusAction, toggleVendorActiveAction } from "../actions";
+import { ProposePicker } from "./ProposePicker";
 import { HistoryList } from "@/components/HistoryList";
 import { SubmitButton } from "@/components/SubmitButton";
 import { idOrNull, idParam } from "@/lib/params";
-import { FEE_ROLES, fmtSizeRange, groupFeeTable, parseFeeTable } from "@/lib/fee-table";
+import { FEE_ROLES, fmtSizeRange, groupFeeTable, parseFeeTable, rewardFor } from "@/lib/fee-table";
 import { CopyBriefPanel } from "@/components/CopyBrief";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -37,7 +39,20 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
   });
   if (!vendor) notFound();
   const feeGroups = groupFeeTable(parseFeeTable(vendor.feeTable));
-  const notReferredCount = await prisma.contact.count({ where: { isActive: true, referrals: { none: { vendorId: vendor.id } } } });
+  const notReferred = await prisma.contact.findMany({
+    where: { isActive: true, referrals: { none: { vendorId: vendor.id } } },
+    orderBy: [{ company: "asc" }, { name: "asc" }],
+    take: 1000,
+  });
+  const notReferredCount = notReferred.length;
+  const proposeCandidates = notReferred.map((c) => {
+    const f = rewardFor(vendor, c);
+    return { id: c.id, company: c.company, name: c.name, title: c.title, employeeSize: c.employeeSize, fee: fmtReward(f.rewardAmount, f.rewardUndetermined) };
+  });
+  // 提案した人事のチェックリスト：確認待ち → OK → NG の順
+  const APPROVAL_RANK: Record<VendorApproval, number> = { PENDING: 0, OK: 1, NG: 2 };
+  const proposals = [...vendor.referrals].sort((a, b) => APPROVAL_RANK[a.vendorApproval] - APPROVAL_RANK[b.vendorApproval]);
+  const approvalCount = (a: VendorApproval) => vendor.referrals.filter((r) => r.vendorApproval === a).length;
   const histories = await prisma.statusHistory.findMany({
     where: { entityType: "VENDOR", entityId: vendor.id },
     include: { changedBy: true },
@@ -217,22 +232,34 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
       </Card>
 
       <Card
-        title={`紹介案件（${vendor.referrals.length}）`}
+        title={`ベンダーに提案した人事（${vendor.referrals.length}）`}
         actions={
           <Link href={`/contacts?notVendor=${vendor.id}`} className="text-xs text-blue-700 hover:underline">
             まだ紹介していない繋がり {notReferredCount} 人を見る →
           </Link>
         }
       >
-        {vendor.referrals.length === 0 ? (
-          <EmptyState message="紹介案件はまだありません" />
+        <p className="text-xs text-gray-500 mb-3">
+          セールスハブのチャットで会社情報を送り、先方が繋いでほしい相手を選んだら「OK」、対象外なら「NG」にします（NG は紹介見送りになります）。
+        </p>
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="badge bg-gray-100 text-gray-700 border-gray-200">確認待ち {approvalCount("PENDING")}</span>
+          <span className="badge bg-emerald-100 text-emerald-800 border-emerald-200">✓ OK {approvalCount("OK")}</span>
+          <span className="badge bg-rose-100 text-rose-800 border-rose-200">✗ NG {approvalCount("NG")}</span>
+        </div>
+        <div className="mb-4">
+          <ProposePicker vendorId={vendor.id} candidates={proposeCandidates} />
+        </div>
+        {proposals.length === 0 ? (
+          <EmptyState message="まだ提案した人事はいません" />
         ) : (
           <div className="overflow-x-auto">
             <table className="table">
               <thead>
                 <tr>
-                  <th>紹介先</th>
+                  <th>先方の回答</th>
                   <th>会社</th>
+                  <th>紹介先</th>
                   <th>ステータス</th>
                   <th>面談日時</th>
                   <th className="text-right">報酬</th>
@@ -240,14 +267,40 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
                 </tr>
               </thead>
               <tbody>
-                {vendor.referrals.map((r) => (
-                  <tr key={r.id}>
+                {proposals.map((r) => (
+                  <tr key={r.id} className={cn(r.vendorApproval === "NG" && "bg-gray-100 opacity-60", r.vendorApproval === "OK" && "bg-emerald-50/60")}>
                     <td className="whitespace-nowrap">
-                      <Link href={`/referrals/${r.id}`} className="text-blue-700 hover:underline">
-                        {r.contact.name}
+                      <div className="inline-flex divide-x divide-gray-200 overflow-hidden rounded-md border border-gray-200">
+                        {(
+                          [
+                            ["OK", "✓ OK", "bg-emerald-600 text-white"],
+                            ["NG", "✗ NG", "bg-rose-600 text-white"],
+                            ["PENDING", "確認待ち", "bg-gray-600 text-white"],
+                          ] as const
+                        ).map(([value, label, activeCls]) => (
+                          <form key={value} action={setVendorApprovalAction}>
+                            <input type="hidden" name="id" value={r.id} />
+                            <input type="hidden" name="approval" value={value} />
+                            <input type="hidden" name="returnTo" value={`/vendors/${vendor.id}`} />
+                            <SubmitButton
+                              className={cn(
+                                "px-2.5 py-1 text-xs",
+                                r.vendorApproval === value ? activeCls : "bg-white text-gray-500 hover:bg-gray-50",
+                              )}
+                              pendingText="..."
+                            >
+                              {label}
+                            </SubmitButton>
+                          </form>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap">
+                      <Link href={`/referrals/${r.id}`} className="text-blue-700 hover:underline font-medium">
+                        {r.contact.company ?? "-"}
                       </Link>
                     </td>
-                    <td>{r.contact.company ?? "-"}</td>
+                    <td className="text-gray-700 whitespace-nowrap">{r.contact.name}</td>
                     <td>
                       <Badge value={r.status} label={REFERRAL_LABEL[r.status]} />
                     </td>

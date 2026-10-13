@@ -130,7 +130,7 @@ export async function applyDeclines(vendorId: number, vendorName: string, messag
     for (const r of referrals) {
       if (done.has(r.id) || !r.contact.company) continue;
       if (findDeclinedCompanies(m.body, [r.contact.company]).length === 0) continue;
-      await prisma.referral.update({ where: { id: r.id }, data: { status: "DECLINED" } });
+      await prisma.referral.update({ where: { id: r.id }, data: { status: "DECLINED", vendorApproval: "NG" } });
       await recordHistory(prisma, { entityType: "REFERRAL", entityId: r.id, field: "status", fromValue: r.status, toValue: "DECLINED", note: `ベンダーが紹介見送りと連絡（${fmtDateTime(m.sentAt)}）`, changedById: null });
       done.add(r.id);
       declined.push(`${r.contact.company}（${r.contact.name}）`);

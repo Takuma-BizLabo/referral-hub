@@ -40,6 +40,13 @@ enum ExecutionStatus {
   NO_MEETING // 初回MTGなし（ベンダーから打ち合わせ依頼がない）
 }
 
+/** 提案した人事をベンダーが繋いでほしいと言ったか */
+enum VendorApproval {
+  PENDING // 確認待ち
+  OK // 先方OK
+  NG // 先方NG
+}
+
 enum ReferralStatus {
   RECEIVED // ピックアップ受付
   CONTACTING // 紹介先に打診中
@@ -216,6 +223,7 @@ model Referral {
   rewardAmount       Int            @default(0)
   rewardUndetermined Boolean        @default(false) // 単価未定（途中でベンダーが挙げた会社など）
   thankYouFee        Int? // 謝礼金（紹介先へのお礼。未入力は null）
+  vendorApproval     VendorApproval @default(PENDING) // ベンダーに提案した人事への先方の回答
   listedEarly        Boolean        @default(false) // ベンダーMTG前でも紹介案件一覧に出す（候補から手動で追加）
   rewardStatus       RewardStatus   @default(UNFIXED)
   rewardApprovedAt   DateTime?

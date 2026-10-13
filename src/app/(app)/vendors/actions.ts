@@ -7,8 +7,8 @@ import { assertUser } from "@/lib/auth";
 import { recordHistory } from "@/lib/history";
 import { errorState, type ActionState } from "@/lib/action-state";
 import { httpUrl, money, str } from "@/lib/utils";
-import { Prisma, type VendorMeetingStatus } from "@prisma/client";
-import { parseFeeTable } from "@/lib/fee-table";
+import { Prisma, type VendorApproval, type VendorMeetingStatus } from "@prisma/client";
+import { parseFeeTable, rewardFor } from "@/lib/fee-table";
 
 function vendorData(formData: FormData) {
   const name = str(formData.get("name"));
@@ -101,5 +101,78 @@ export async function toggleVendorActiveAction(formData: FormData) {
     await prisma.vendor.update({ where: { id }, data: { isActive: !v.isActive } });
     revalidatePath(`/vendors/${id}`);
     revalidatePath("/vendors");
+  });
+}
+
+function revalidateVendorReferrals(vendorId: number) {
+  revalidatePath(`/vendors/${vendorId}`);
+  revalidatePath("/referrals");
+  revalidatePath("/meetings");
+  revalidatePath("/");
+}
+
+/** ベンダーに提案した人事を追加する（紹介案件「ピックアップ受付」として登録。報酬は単価表で自動入力） */
+export async function proposeContactsAction(formData: FormData) {
+  await runWithFlash(formData, async () => {
+    const user = await assertUser();
+    const vendorId = Number(formData.get("vendorId"));
+    const ids = formData
+      .getAll("contactId")
+      .map((v) => Number(v))
+      .filter((n) => Number.isSafeInteger(n) && n > 0);
+    if (ids.length === 0) throw new Error("追加する人事を選んでください");
+    if (ids.length > 100) throw new Error("一度に追加できるのは100人までです");
+    const vendor = await prisma.vendor.findUniqueOrThrow({ where: { id: vendorId } });
+    const contacts = await prisma.contact.findMany({ where: { id: { in: ids }, isActive: true, referrals: { none: { vendorId } } } });
+    for (const c of contacts) {
+      const fee = rewardFor(vendor, c);
+      const r = await prisma.referral.create({
+        data: {
+          vendorId,
+          contactId: c.id,
+          rewardAmount: fee.rewardAmount,
+          rewardUndetermined: fee.rewardUndetermined,
+          pickupNote: `${c.company ?? c.name}${c.title ? " / " + c.title : ""}（ベンダーに提案）${fee.reason ? "／" + fee.reason : ""}`,
+          memo: "ベンダー詳細の「提案した人事」から追加",
+        },
+      });
+      await recordHistory(prisma, { entityType: "REFERRAL", entityId: r.id, field: "status", fromValue: null, toValue: "RECEIVED", note: "ベンダーに提案", changedById: user.id });
+    }
+    revalidateVendorReferrals(vendorId);
+    return { notice: `${contacts.length} 人を提案に追加しました${contacts.length < ids.length ? `（${ids.length - contacts.length} 人は登録済みのためスキップ）` : ""}` };
+  });
+}
+
+const APPROVALS: VendorApproval[] = ["PENDING", "OK", "NG"];
+
+/** 提案した人事に対する先方の回答（OK／NG／確認待ち）。NG は紹介見送りに、NG を取り消したらピックアップ受付に戻す */
+export async function setVendorApprovalAction(formData: FormData) {
+  await runWithFlash(formData, async () => {
+    const user = await assertUser();
+    const id = Number(formData.get("id"));
+    const approval = formData.get("approval") as VendorApproval;
+    if (!APPROVALS.includes(approval)) throw new Error("不正な値です");
+    const r = await prisma.referral.findUniqueOrThrow({ where: { id } });
+    if (r.vendorApproval === approval) return;
+    const toDeclined = approval === "NG" && (r.status === "RECEIVED" || r.status === "CONTACTING");
+    const fromDeclined = approval !== "NG" && r.vendorApproval === "NG" && r.status === "DECLINED";
+    const status = toDeclined ? "DECLINED" : fromDeclined ? "RECEIVED" : r.status;
+    await prisma.referral.update({
+      where: { id },
+      data: { vendorApproval: approval, ...(status !== r.status ? { status, statusChangedAt: new Date() } : {}) },
+    });
+    if (status !== r.status) {
+      await recordHistory(prisma, {
+        entityType: "REFERRAL",
+        entityId: id,
+        field: "status",
+        fromValue: r.status,
+        toValue: status,
+        note: approval === "NG" ? "ベンダーが先方NG" : "先方NGを取り消し",
+        changedById: user.id,
+      });
+    }
+    revalidateVendorReferrals(r.vendorId);
+    revalidatePath(`/referrals/${id}`);
   });
 }
