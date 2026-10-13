@@ -85,7 +85,15 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
     return m?.scheduledAt && m.executionStatus === "CONFIRMED" ? m.scheduledAt.getTime() : null;
   };
   const mtgRank = (r: (typeof candidateRows)[number]) => (mtgAt(r) !== null ? 0 : mtgOf(r) ? 1 : 2);
-  const candidates = [...candidateRows].sort((a, b) => mtgRank(a) - mtgRank(b) || (mtgAt(b) ?? 0) - (mtgAt(a) ?? 0));
+  // ベンダーMTGがキャンセルになった（最新のMTGがキャンセル）ベンダーの候補は出さない
+  const latestMeetings = await prisma.vendorMeeting.findMany({
+    where: { vendorId: { in: Array.from(new Set(candidateRows.map((r) => r.vendorId))) } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    distinct: ["vendorId"],
+    select: { vendorId: true, executionStatus: true },
+  });
+  const cancelledVendors = new Set(latestMeetings.filter((m) => m.executionStatus === "CANCELLED").map((m) => m.vendorId));
+  const candidates = candidateRows.filter((r) => !cancelledVendors.has(r.vendorId)).sort((a, b) => mtgRank(a) - mtgRank(b) || (mtgAt(b) ?? 0) - (mtgAt(a) ?? 0));
   // 並び順：面談日時が決まったものを一番上（日時の新しい順）→ その他（選んだ並び順のまま）→ 紹介見送りを一番下
   const group = (r: (typeof fetched)[number]) => (r.status === "DECLINED" ? 2 : r.meetingAt ? 0 : 1);
   const referrals = fetched
