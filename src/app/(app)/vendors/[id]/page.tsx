@@ -84,66 +84,82 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="基本情報" className="lg:col-span-2">
-          <Description
-            items={[
-              { label: "担当者", value: vendor.contactName },
-              { label: "紹介報酬単価", value: feeGroups.length ? `${fmtYen(vendor.referralFee)}（単価表あり・下記）` : fmtYen(vendor.referralFee) },
-              { label: "メール", value: vendor.contactEmail },
-              { label: "電話", value: vendor.contactPhone },
-              {
-                label: "セールスハブ案件URL",
-                value: vendor.saleshubUrl ? (
-                  <a href={vendor.saleshubUrl} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline break-all">
-                    {vendor.saleshubUrl}
-                  </a>
-                ) : null,
-              },
-              { label: "サービス概要", value: vendor.serviceSummary },
-              { label: "メモ", value: vendor.memo },
-            ]}
-          />
-        </Card>
-        <Card title="ベンダーMTGの状態">
-          <div className="flex items-center gap-3 mb-3">
-            <Badge value={vendor.meetingStatus} label={VENDOR_MEETING_STATUS_LABEL[vendor.meetingStatus]} className="text-sm px-2 py-1" />
+      <Card
+        title={`ベンダーに提案した人事（${vendor.referrals.length}）`}
+        actions={
+          <Link href={`/contacts?notVendor=${vendor.id}`} className="text-xs text-blue-700 hover:underline">
+            まだ紹介していない繋がり {notReferredCount} 人を見る →
+          </Link>
+        }
+      >
+        <p className="text-xs text-gray-500 mb-3">
+          セールスハブのチャットで会社情報を送り、先方が繋いでほしい相手を選んだら「先方の回答」を OK に、人事に打診して了承をもらったら「人事の回答」を OK にします。両方 OK になると紹介案件の一覧に表示されます（どちらかが NG なら紹介見送り）。
+        </p>
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+          <span className="flex items-center gap-1">
+            <span className="text-gray-500">先方</span>
+            <span className="badge bg-gray-100 text-gray-700 border-gray-200">確認待ち {approvalCount("vendor", "PENDING")}</span>
+            <span className="badge bg-emerald-100 text-emerald-800 border-emerald-200">✓ OK {approvalCount("vendor", "OK")}</span>
+            <span className="badge bg-rose-100 text-rose-800 border-rose-200">✗ NG {approvalCount("vendor", "NG")}</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="text-gray-500">人事</span>
+            <span className="badge bg-gray-100 text-gray-700 border-gray-200">確認待ち {approvalCount("contact", "PENDING")}</span>
+            <span className="badge bg-emerald-100 text-emerald-800 border-emerald-200">✓ OK {approvalCount("contact", "OK")}</span>
+            <span className="badge bg-rose-100 text-rose-800 border-rose-200">✗ NG {approvalCount("contact", "NG")}</span>
+          </span>
+          <span className="badge bg-emerald-600 text-white border-emerald-600">両方OK {bothOk}</span>
+        </div>
+        <div className="mb-4">
+          <ProposePicker vendorId={vendor.id} candidates={proposeCandidates} />
+        </div>
+        {proposals.length === 0 ? (
+          <EmptyState message="まだ提案した人事はいません" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>先方の回答</th>
+                  <th>人事の回答</th>
+                  <th>会社</th>
+                  <th>ステータス</th>
+                  <th>面談日時</th>
+                  <th className="text-right">報酬</th>
+                  <th>報酬状態</th>
+                </tr>
+              </thead>
+              <tbody>
+                {proposals.map((r) => (
+                  <tr key={r.id} className={cn(rank(r) === 2 && "bg-gray-100 opacity-60", rank(r) === 1 && "bg-emerald-50/60")}>
+                    <td className="whitespace-nowrap">
+                      <AnswerButtons id={r.id} vendorId={vendor.id} side="vendor" value={r.vendorApproval} />
+                    </td>
+                    <td className="whitespace-nowrap">
+                      <AnswerButtons id={r.id} vendorId={vendor.id} side="contact" value={r.contactApproval} />
+                    </td>
+                    <td className="whitespace-nowrap">
+                      <Link href={`/referrals/${r.id}`} className="text-blue-700 hover:underline font-medium">
+                        {r.contact.company ?? r.contact.name}
+                      </Link>
+                    </td>
+                    <td>
+                      <Badge value={r.status} label={REFERRAL_LABEL[r.status]} />
+                    </td>
+                    <td className="whitespace-nowrap">{fmtDateTime(r.meetingAt)}</td>
+                    <td className={cn("text-right whitespace-nowrap", r.rewardUndetermined && "text-amber-700 font-medium")}>
+                      <RewardCell id={r.id} amount={r.rewardAmount} undetermined={r.rewardUndetermined} />
+                    </td>
+                    <td>
+                      <Badge value={r.rewardStatus} label={REWARD_LABEL[r.rewardStatus]} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <p className="text-xs text-gray-500 mb-3">
-            「未実施」のままだと、このベンダーの紹介案件を「紹介先に打診中」以降へ進められません。事前MTGをした場合は「実施済」、MTGなしで紹介する場合は「MTG不要」にしてください。
-          </p>
-          {/* ボタン自身の name/value は送信されないことがあるため、値は hidden で送る */}
-          <div className="flex flex-wrap gap-2">
-            {vendor.meetingStatus !== "DONE" && (
-              <form action={setVendorMeetingStatusAction}>
-                <input type="hidden" name="id" value={vendor.id} />
-                <input type="hidden" name="status" value="DONE" />
-                <SubmitButton className="btn-primary">実施済にする</SubmitButton>
-              </form>
-            )}
-            {vendor.meetingStatus !== "NOT_REQUIRED" && (
-              <form action={setVendorMeetingStatusAction}>
-                <input type="hidden" name="id" value={vendor.id} />
-                <input type="hidden" name="status" value="NOT_REQUIRED" />
-                <SubmitButton className="btn-secondary">MTG不要にする</SubmitButton>
-              </form>
-            )}
-            {vendor.meetingStatus !== "NOT_DONE" && (
-              <form action={setVendorMeetingStatusAction}>
-                <input type="hidden" name="id" value={vendor.id} />
-                <input type="hidden" name="status" value="NOT_DONE" />
-                <SubmitButton className="btn-secondary">未実施に戻す</SubmitButton>
-              </form>
-            )}
-          </div>
-          <form action={toggleVendorActiveAction} className="mt-4 pt-4 border-t border-gray-100">
-            <input type="hidden" name="id" value={vendor.id} />
-            <SubmitButton className={vendor.isActive ? "btn-danger btn-sm" : "btn-secondary btn-sm"}>
-              {vendor.isActive ? "このベンダーを無効にする" : "有効に戻す"}
-            </SubmitButton>
-          </form>
-        </Card>
-      </div>
+        )}
+      </Card>
 
       {(vendor.introSteps || vendor.introMessage) && (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -235,82 +251,66 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         )}
       </Card>
 
-      <Card
-        title={`ベンダーに提案した人事（${vendor.referrals.length}）`}
-        actions={
-          <Link href={`/contacts?notVendor=${vendor.id}`} className="text-xs text-blue-700 hover:underline">
-            まだ紹介していない繋がり {notReferredCount} 人を見る →
-          </Link>
-        }
-      >
-        <p className="text-xs text-gray-500 mb-3">
-          セールスハブのチャットで会社情報を送り、先方が繋いでほしい相手を選んだら「先方の回答」を OK に、人事に打診して了承をもらったら「人事の回答」を OK にします。両方 OK になると紹介案件の一覧に表示されます（どちらかが NG なら紹介見送り）。
-        </p>
-        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-          <span className="flex items-center gap-1">
-            <span className="text-gray-500">先方</span>
-            <span className="badge bg-gray-100 text-gray-700 border-gray-200">確認待ち {approvalCount("vendor", "PENDING")}</span>
-            <span className="badge bg-emerald-100 text-emerald-800 border-emerald-200">✓ OK {approvalCount("vendor", "OK")}</span>
-            <span className="badge bg-rose-100 text-rose-800 border-rose-200">✗ NG {approvalCount("vendor", "NG")}</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="text-gray-500">人事</span>
-            <span className="badge bg-gray-100 text-gray-700 border-gray-200">確認待ち {approvalCount("contact", "PENDING")}</span>
-            <span className="badge bg-emerald-100 text-emerald-800 border-emerald-200">✓ OK {approvalCount("contact", "OK")}</span>
-            <span className="badge bg-rose-100 text-rose-800 border-rose-200">✗ NG {approvalCount("contact", "NG")}</span>
-          </span>
-          <span className="badge bg-emerald-600 text-white border-emerald-600">両方OK {bothOk}</span>
-        </div>
-        <div className="mb-4">
-          <ProposePicker vendorId={vendor.id} candidates={proposeCandidates} />
-        </div>
-        {proposals.length === 0 ? (
-          <EmptyState message="まだ提案した人事はいません" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>先方の回答</th>
-                  <th>人事の回答</th>
-                  <th>会社</th>
-                  <th>ステータス</th>
-                  <th>面談日時</th>
-                  <th className="text-right">報酬</th>
-                  <th>報酬状態</th>
-                </tr>
-              </thead>
-              <tbody>
-                {proposals.map((r) => (
-                  <tr key={r.id} className={cn(rank(r) === 2 && "bg-gray-100 opacity-60", rank(r) === 1 && "bg-emerald-50/60")}>
-                    <td className="whitespace-nowrap">
-                      <AnswerButtons id={r.id} vendorId={vendor.id} side="vendor" value={r.vendorApproval} />
-                    </td>
-                    <td className="whitespace-nowrap">
-                      <AnswerButtons id={r.id} vendorId={vendor.id} side="contact" value={r.contactApproval} />
-                    </td>
-                    <td className="whitespace-nowrap">
-                      <Link href={`/referrals/${r.id}`} className="text-blue-700 hover:underline font-medium">
-                        {r.contact.company ?? r.contact.name}
-                      </Link>
-                    </td>
-                    <td>
-                      <Badge value={r.status} label={REFERRAL_LABEL[r.status]} />
-                    </td>
-                    <td className="whitespace-nowrap">{fmtDateTime(r.meetingAt)}</td>
-                    <td className={cn("text-right whitespace-nowrap", r.rewardUndetermined && "text-amber-700 font-medium")}>
-                      <RewardCell id={r.id} amount={r.rewardAmount} undetermined={r.rewardUndetermined} />
-                    </td>
-                    <td>
-                      <Badge value={r.rewardStatus} label={REWARD_LABEL[r.rewardStatus]} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card title="基本情報" className="lg:col-span-2">
+          <Description
+            items={[
+              { label: "担当者", value: vendor.contactName },
+              { label: "紹介報酬単価", value: feeGroups.length ? `${fmtYen(vendor.referralFee)}（単価表あり・下記）` : fmtYen(vendor.referralFee) },
+              { label: "メール", value: vendor.contactEmail },
+              { label: "電話", value: vendor.contactPhone },
+              {
+                label: "セールスハブ案件URL",
+                value: vendor.saleshubUrl ? (
+                  <a href={vendor.saleshubUrl} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline break-all">
+                    {vendor.saleshubUrl}
+                  </a>
+                ) : null,
+              },
+              { label: "サービス概要", value: vendor.serviceSummary },
+              { label: "メモ", value: vendor.memo },
+            ]}
+          />
+        </Card>
+        <Card title="ベンダーMTGの状態">
+          <div className="flex items-center gap-3 mb-3">
+            <Badge value={vendor.meetingStatus} label={VENDOR_MEETING_STATUS_LABEL[vendor.meetingStatus]} className="text-sm px-2 py-1" />
           </div>
-        )}
-      </Card>
+          <p className="text-xs text-gray-500 mb-3">
+            「未実施」のままだと、このベンダーの紹介案件を「紹介先に打診中」以降へ進められません。事前MTGをした場合は「実施済」、MTGなしで紹介する場合は「MTG不要」にしてください。
+          </p>
+          {/* ボタン自身の name/value は送信されないことがあるため、値は hidden で送る */}
+          <div className="flex flex-wrap gap-2">
+            {vendor.meetingStatus !== "DONE" && (
+              <form action={setVendorMeetingStatusAction}>
+                <input type="hidden" name="id" value={vendor.id} />
+                <input type="hidden" name="status" value="DONE" />
+                <SubmitButton className="btn-primary">実施済にする</SubmitButton>
+              </form>
+            )}
+            {vendor.meetingStatus !== "NOT_REQUIRED" && (
+              <form action={setVendorMeetingStatusAction}>
+                <input type="hidden" name="id" value={vendor.id} />
+                <input type="hidden" name="status" value="NOT_REQUIRED" />
+                <SubmitButton className="btn-secondary">MTG不要にする</SubmitButton>
+              </form>
+            )}
+            {vendor.meetingStatus !== "NOT_DONE" && (
+              <form action={setVendorMeetingStatusAction}>
+                <input type="hidden" name="id" value={vendor.id} />
+                <input type="hidden" name="status" value="NOT_DONE" />
+                <SubmitButton className="btn-secondary">未実施に戻す</SubmitButton>
+              </form>
+            )}
+          </div>
+          <form action={toggleVendorActiveAction} className="mt-4 pt-4 border-t border-gray-100">
+            <input type="hidden" name="id" value={vendor.id} />
+            <SubmitButton className={vendor.isActive ? "btn-danger btn-sm" : "btn-secondary btn-sm"}>
+              {vendor.isActive ? "このベンダーを無効にする" : "有効に戻す"}
+            </SubmitButton>
+          </form>
+        </Card>
+      </div>
 
       <Card title="変更履歴">
         <HistoryList histories={histories} />
