@@ -16,6 +16,11 @@ export function useStickyAction<S>(fn: (prev: Awaited<S>, formData: FormData) =>
     } catch (e) {
       const digest = (e as { digest?: unknown } | null)?.digest;
       if (typeof digest === "string" && /^NEXT_(REDIRECT|NOT_FOUND|HTTP_ERROR)/.test(digest)) throw e;
+      // ツール更新前に開いていた画面からの送信は、新しいサーバーに操作が見つからない（入力が消えないよう自動では読み込み直さない）
+      const err = e as Error | null;
+      if (err?.name === "UnrecognizedActionError" || /was not found on the server/i.test(err?.message ?? "")) {
+        return { error: "ツールが更新されたため送信できませんでした。入力内容を控えてから画面を再読み込み（Cmd+R）し、もう一度送信してください。" } as Awaited<S>;
+      }
       return { error: "送信できませんでした。入力内容や添付ファイルが大きすぎるか、通信に失敗した可能性があります。内容を確認してもう一度お試しください。" } as Awaited<S>;
     }
   };
