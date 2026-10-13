@@ -4,6 +4,7 @@
  * 失敗があれば終了コード 1。
  */
 import assert from "node:assert/strict";
+import { classPartOf, judgeFee } from "../src/lib/fee-table";
 import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
 /** JST の "YYYY-MM-DD HH:mm" を Date に */
@@ -173,6 +174,19 @@ test("ベンダーが紹介見送りと連絡した会社だけを拾う", () =>
 });
 test("見送りの言葉がなければ何も拾わない", () => {
   assert.deepEqual(findDeclinedCompanies("オーダースーツSADA様をぜひご紹介ください。", ["株式会社オーダースーツSADA"]), []);
+});
+
+test("役職の詳細を括弧で併記しても、単価表はクラス部分で判定する", () => {
+  assert.equal(classPartOf("課長クラス（採用統括／採用推進部 課長）"), "課長クラス");
+  assert.equal(classPartOf("一般社員（人事責任者）"), "一般社員");
+  assert.equal(classPartOf("取締役 CHRO"), "取締役 CHRO");
+  const rules = [{ role: "HR_HEAD" as const, min: 100, max: 1000, fee: 50000 }];
+  const memo = "部署: 人事部";
+  const a = judgeFee(rules, { employeeSize: "300名", title: "部長クラス", relationMemo: memo });
+  const b = judgeFee(rules, { employeeSize: "300名", title: "部長クラス（経営企画Div. 人事チーム責任者）", relationMemo: memo });
+  const c = judgeFee(rules, { employeeSize: "300名", title: "一般社員（人事責任者）", relationMemo: memo });
+  assert.deepEqual(b, a);
+  assert.notEqual(c.kind, "matched");
 });
 
 if (failures.length) {

@@ -102,10 +102,20 @@ export function contactDept(c: { name?: string | null; relationMemo?: string | n
   return name ? name[1].trim() : null;
 }
 
+/** 役職欄のクラス部分（「課長クラス（採用統括）」→「課長クラス」）。括弧書きがなければそのまま */
+export function classPartOf(title: string | null | undefined): string | null {
+  if (!title) return title ?? null;
+  const m = title.match(/^(.*?(?:クラス|一般社員|代表取締役|会長|顧問))\s*[（(].*[）)]\s*$/);
+  return m ? m[1] : title;
+}
+
 /** 単価表と繋がりの規模・役職（部署を含む）から協力金を判定する */
 export function judgeFee(rules: FeeRule[], contact: FeeContact): FeeJudgement {
   const dept = contactDept(contact);
-  const title = dept && contact.title && !contact.title.includes(dept) ? `${dept} ${contact.title}` : contact.title;
+  // 「部長クラス（経営企画Div. 人事チーム責任者）」のように詳細な役職を括弧で併記している場合は、
+  // セールスハブ登録と同じクラス部分で判定する（詳細の言い回しで判定がぶれないように）
+  const baseTitle = classPartOf(contact.title);
+  const title = dept && baseTitle && !baseTitle.includes(dept) ? `${dept} ${baseTitle}` : baseTitle;
   const { role, vague } = classifyTitle(title);
   const size = parseEmployeeSize(contact.employeeSize);
   const sizeLabel = contact.employeeSize ?? "空欄";
