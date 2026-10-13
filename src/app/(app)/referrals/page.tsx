@@ -60,7 +60,7 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
       ? { contact: { OR: [{ name: { contains: sp.q, mode: "insensitive" } }, { company: { contains: sp.q, mode: "insensitive" } }] } }
       : {}),
   };
-  const [fetched, vendors, stagnationDays, allForCounts, candidates] = await Promise.all([
+  const [fetched, vendors, stagnationDays, allForCounts, candidateRows] = await Promise.all([
     prisma.referral.findMany({
       where: { AND: [where, LISTED] },
       include: { vendor: true, contact: true },
@@ -71,12 +71,21 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
     prisma.setting.findUnique({ where: { key: "stagnationDays" } }).then((s) => Number(s?.value ?? 7)),
     prisma.referral.findMany({ where: { AND: [{ ...where, vendorId: undefined, status: undefined }, LISTED] }, select: { vendorId: true, status: true } }),
     prisma.referral.findMany({
-      where: { AND: [{ ...where, status: undefined, rewardStatus: undefined }, { NOT: LISTED }] },
+      // 紹介見送りは候補に出さない
+      where: { AND: [{ ...where, status: undefined, rewardStatus: undefined }, { NOT: LISTED }, { status: { not: "DECLINED" } }] },
       include: { vendor: { include: { meetings: { where: { executionStatus: { in: ["CONFIRMED", "SCHEDULING", "RESCHEDULE"] } }, orderBy: { scheduledAt: "asc" }, take: 1 } } }, contact: true },
       orderBy: [{ vendorId: "asc" }, { id: "asc" }],
       take: 300,
     }),
   ]);
+  // 候補の並び順：ベンダーMTGの日時が決まったもの（新しい順）→ MTG日程調整中 → MTG未設定
+  const mtgOf = (r: (typeof candidateRows)[number]) => r.vendor.meetings[0];
+  const mtgAt = (r: (typeof candidateRows)[number]) => {
+    const m = mtgOf(r);
+    return m?.scheduledAt && m.executionStatus === "CONFIRMED" ? m.scheduledAt.getTime() : null;
+  };
+  const mtgRank = (r: (typeof candidateRows)[number]) => (mtgAt(r) !== null ? 0 : mtgOf(r) ? 1 : 2);
+  const candidates = [...candidateRows].sort((a, b) => mtgRank(a) - mtgRank(b) || (mtgAt(b) ?? 0) - (mtgAt(a) ?? 0));
   // 並び順：面談日時が決まったものを一番上（日時の新しい順）→ その他（選んだ並び順のまま）→ 紹介見送りを一番下
   const group = (r: (typeof fetched)[number]) => (r.status === "DECLINED" ? 2 : r.meetingAt ? 0 : 1);
   const referrals = fetched
@@ -214,7 +223,6 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                     {m ? (m.scheduledAt && m.executionStatus === "CONFIRMED" ? `MTG ${fmtDateTime(m.scheduledAt)}` : "MTG日程調整中") : "MTG未設定"}
                   </span>
                   <span className="text-xs whitespace-nowrap">{fmtReward(r.rewardAmount, r.rewardUndetermined)}</span>
-                  {r.status === "DECLINED" && <span className="badge bg-gray-200 text-gray-600 border-gray-300">紹介見送り</span>}
                   <form action={setListedEarlyAction} className="ml-auto">
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="listed" value="1" />
