@@ -89,15 +89,30 @@ export function classifyTitle(raw: string | null | undefined): { role: FeeRole |
   return { role: null, vague: false };
 }
 
-/** 単価表と繋がりの規模・役職から協力金を判定する */
-export function judgeFee(rules: FeeRule[], contact: { employeeSize: string | null; title: string | null }): FeeJudgement {
-  const { role, vague } = classifyTitle(contact.title);
+type FeeContact = { employeeSize: string | null; title: string | null; name?: string | null; relationMemo?: string | null };
+
+/**
+ * 部署（「人事部」など）。セールスハブ取込の繋がりは役職欄が「部長クラス」だけで、
+ * 部署は関係性メモ「部署: 人事部」や氏名「担当者（人事部・部長クラス）」に入っている。
+ */
+export function contactDept(c: { name?: string | null; relationMemo?: string | null }): string | null {
+  const memo = c.relationMemo?.match(/部署[:：]\s*([^/／\n]+)/);
+  if (memo) return memo[1].trim();
+  const name = c.name?.match(/[（(]([^・（()）]+)・/);
+  return name ? name[1].trim() : null;
+}
+
+/** 単価表と繋がりの規模・役職（部署を含む）から協力金を判定する */
+export function judgeFee(rules: FeeRule[], contact: FeeContact): FeeJudgement {
+  const dept = contactDept(contact);
+  const title = dept && contact.title && !contact.title.includes(dept) ? `${dept} ${contact.title}` : contact.title;
+  const { role, vague } = classifyTitle(title);
   const size = parseEmployeeSize(contact.employeeSize);
   const sizeLabel = contact.employeeSize ?? "空欄";
   if (!role) {
     return vague
-      ? { kind: "unknown", reason: contact.title ? `役職「${contact.title}」から対象の役職か判断できません` : "役職が空欄です" }
-      : { kind: "outside", reason: `役職「${contact.title}」は単価表の対象外です` };
+      ? { kind: "unknown", reason: title ? `役職「${title}」から対象の役職か判断できません` : "役職が空欄です" }
+      : { kind: "outside", reason: `役職「${title}」は単価表の対象外です` };
   }
   const roleRules = rules.filter((r) => r.role === role);
   if (roleRules.length === 0) return { kind: "outside", reason: `${FEE_ROLES[role]}は単価表の対象外です` };
@@ -143,7 +158,7 @@ export function groupFeeTable(rules: FeeRule[]) {
  */
 export function rewardFor(
   vendor: { referralFee: number; feeTable: unknown },
-  contact: { employeeSize: string | null; title: string | null },
+  contact: FeeContact,
 ): { rewardAmount: number; rewardUndetermined: boolean; reason: string | null } {
   const rules = parseFeeTable(vendor.feeTable);
   if (rules.length === 0) return { rewardAmount: vendor.referralFee, rewardUndetermined: false, reason: null };

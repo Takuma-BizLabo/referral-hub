@@ -11,7 +11,7 @@ import { MoneyInput } from "@/components/MoneyInput";
 import { judgeFee, type FeeJudgement, type FeeRule } from "@/lib/fee-table";
 
 type VendorOpt = { id: number; name: string; referralFee: number; meetingStatus: string; feeTable: FeeRule[] };
-type ContactOpt = { id: number; name: string; company: string | null; title: string | null; employeeSize: string | null };
+type ContactOpt = { id: number; name: string; company: string | null; title: string | null; employeeSize: string | null; relationMemo?: string | null };
 
 /** ベンダーの単価表と繋がりの規模・役職から判定（単価表がない・未選択なら null） */
 function judge(v: VendorOpt | undefined, c: ContactOpt | undefined): FeeJudgement | null {

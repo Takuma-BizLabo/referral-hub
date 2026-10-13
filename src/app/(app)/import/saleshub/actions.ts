@@ -119,7 +119,7 @@ export async function registerSaleshubAction(_prev: ActionState, formData: FormD
       for (const contactId of contactIds) {
         // 同じベンダー×繋がりの紹介案件が既にあれば作らない（二重送信・再取込での重複防止）
         if (await tx.referral.findFirst({ where: { vendorId, contactId }, select: { id: true } })) continue;
-        const contact = await tx.contact.findUniqueOrThrow({ where: { id: contactId }, select: { employeeSize: true, title: true } });
+        const contact = await tx.contact.findUniqueOrThrow({ where: { id: contactId }, select: { employeeSize: true, title: true, name: true, relationMemo: true } });
         const fee = rewardFor(vendor, contact);
         const r = await tx.referral.create({
           data: {

@@ -12,7 +12,7 @@ export default async function NewReferralPage({ searchParams }: { searchParams: 
   const sp = cleanParams(await searchParams, { vendorId: "int", contactId: "int", undetermined: ["1"] });
   const [vendorRows, contacts] = await Promise.all([
     prisma.vendor.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, referralFee: true, meetingStatus: true, feeTable: true } }),
-    prisma.contact.findMany({ where: { isActive: true }, orderBy: [{ company: "asc" }, { name: "asc" }], select: { id: true, name: true, company: true, title: true, employeeSize: true } }),
+    prisma.contact.findMany({ where: { isActive: true }, orderBy: [{ company: "asc" }, { name: "asc" }], select: { id: true, name: true, company: true, title: true, employeeSize: true, relationMemo: true } }),
   ]);
   const vendors = vendorRows.map((v) => ({ ...v, feeTable: parseFeeTable(v.feeTable) }));
   return (
