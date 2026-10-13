@@ -143,6 +143,74 @@ export async function applyDeclines(vendorId: number, vendorName: string, messag
   return declined;
 }
 
+/** チャットで決まった日時でMTGを「確定」にし、担当者と管理者に知らせる */
+async function confirmMeetingFromChat(
+  meeting: { id: number; assigneeId: number; executionStatus: string; place: string | null },
+  at: Date,
+  sourceBody: string,
+  vendorName: string,
+  line?: false,
+) {
+  const msgUrls = sourceBody.match(URL_RE) ?? [];
+  const roomUrl = msgUrls.find(isMeetingRoomUrl);
+  await prisma.vendorMeeting.update({
+    where: { id: meeting.id },
+    data: {
+      scheduledAt: at,
+      executionStatus: "CONFIRMED",
+      ...(roomUrl && !meeting.place ? { place: roomUrl } : {}),
+      // 日程が決まったので次アクションを「実施→議事メモ入力」に進める
+      nextAction: "MTGを実施し、議事メモと結果（繋げる人物の確認）を入力する",
+      nextActionDue: new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate() + 1, -9, 0)),
+    },
+  });
+  await recordHistory(prisma, {
+    entityType: "VENDOR_MEETING",
+    entityId: meeting.id,
+    field: "executionStatus",
+    fromValue: meeting.executionStatus,
+    toValue: "CONFIRMED",
+    note: `チャットの「${sourceBody.slice(0, 40).replace(/\n/g, " ")}」から日時を読み取り`,
+    changedById: null,
+  });
+  const title = `【MTG確定】${vendorName} ${fmtDateTime(at)}`;
+  await notify({ userId: meeting.assigneeId, type: "TASK_ASSIGNED", title, body: "チャットの日時を読み取って確定にしました。違っていればMTG詳細で修正してください。", linkUrl: `/meetings/${meeting.id}`, dedupeKey: `saleshub:confirm:${meeting.id}:${at.getTime()}`, line });
+  await notifyAdmins({ type: "APPROVED", title, linkUrl: `/meetings/${meeting.id}`, dedupeKey: `saleshub:confirm-admin:${meeting.id}:${at.getTime()}`, line });
+}
+
+/**
+ * 日程調整中のMTGを、取り込み済みのやりとり全体で判定し直し、チャットで日時が決まっていれば確定にする。
+ * 判定ルールを改善したときや、決め手のメッセージが既に取り込まれていた場合のため（定期実行）。
+ * 決め手のメッセージが最後のステータス変更より新しいときだけ確定にする（人が日程調整中へ戻した判断は尊重）。
+ */
+export async function confirmPendingFromChats(): Promise<string[]> {
+  const threads = await prisma.saleshubThread.findMany({
+    where: { importedMeetingId: { not: null } },
+    include: { messages: { orderBy: { sentAt: "asc" } } },
+  });
+  const confirmed: string[] = [];
+  const done = new Set<number>();
+  for (const t of threads) {
+    const meetingId = t.importedMeetingId!;
+    if (done.has(meetingId)) continue;
+    done.add(meetingId);
+    const meeting = await prisma.vendorMeeting.findUnique({ where: { id: meetingId } });
+    if (!meeting || meeting.executionStatus !== "SCHEDULING") continue;
+    const sameVendor = threads.filter((x) => x.importedMeetingId === meetingId || (x.vendorId && x.vendorId === t.vendorId));
+    const msgs = sameVendor.flatMap((x) => x.messages).sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());
+    const sched = evaluateThreadSchedule(msgs);
+    if (!sched.confirmedAt || !sched.sourceAt) continue;
+    const lastChange = await prisma.statusHistory.findFirst({
+      where: { entityType: "VENDOR_MEETING", entityId: meetingId, field: "executionStatus" },
+      orderBy: { changedAt: "desc" },
+    });
+    if (sched.sourceAt <= (lastChange?.changedAt ?? meeting.createdAt)) continue;
+    await confirmMeetingFromChat(meeting, sched.confirmedAt, sched.source ?? "", t.vendorName);
+    confirmed.push(`${t.vendorName}（${fmtDateTime(sched.confirmedAt)}）`);
+  }
+  return confirmed;
+}
+
 export async function applyRules(thread: Thread, newMessages: Msg[], allMessages: Msg[], opts: { quiet?: boolean } = {}) {
   if (newMessages.length === 0) return;
   const line = opts.quiet ? false : undefined;
@@ -212,31 +280,7 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
         found &&
         (meeting.executionStatus === "SCHEDULING" || (meeting.executionStatus === "CONFIRMED" && newer && (!meeting.scheduledAt || meeting.scheduledAt.getTime() !== found.at.getTime())))
       ) {
-        const msgUrls = found.msg.body.match(URL_RE) ?? [];
-        const roomUrl = msgUrls.find(isMeetingRoomUrl);
-        await prisma.vendorMeeting.update({
-          where: { id: meeting.id },
-          data: {
-            scheduledAt: found.at,
-            executionStatus: "CONFIRMED",
-            ...(roomUrl && !meeting.place ? { place: roomUrl } : {}),
-            // 日程が決まったので次アクションを「実施→議事メモ入力」に進める
-            nextAction: "MTGを実施し、議事メモと結果（繋げる人物の確認）を入力する",
-            nextActionDue: new Date(Date.UTC(found.at.getUTCFullYear(), found.at.getUTCMonth(), found.at.getUTCDate() + 1, -9, 0)),
-          },
-        });
-        await recordHistory(prisma, {
-          entityType: "VENDOR_MEETING",
-          entityId: meeting.id,
-          field: "executionStatus",
-          fromValue: meeting.executionStatus,
-          toValue: "CONFIRMED",
-          note: `チャットの「${found.msg.body.slice(0, 40).replace(/\n/g, " ")}」から日時を読み取り`,
-          changedById: null,
-        });
-        const title = `【MTG確定】${thread.vendorName} ${fmtDateTime(found.at)}`;
-        await notify({ userId: meeting.assigneeId, type: "TASK_ASSIGNED", title, body: "チャットの日時を読み取って確定にしました。違っていればMTG詳細で修正してください。", linkUrl: `/meetings/${meeting.id}`, dedupeKey: `saleshub:confirm:${meeting.id}:${found.at.getTime()}`, line });
-        await notifyAdmins({ type: "APPROVED", title, linkUrl: `/meetings/${meeting.id}`, dedupeKey: `saleshub:confirm-admin:${meeting.id}:${found.at.getTime()}`, line });
+        await confirmMeetingFromChat(meeting, found.at, found.msg.body, thread.vendorName, line);
       }
     }
   }

@@ -98,6 +98,9 @@ export async function runReminders(now = new Date()): Promise<{ created: number 
 
   // ---- セールスハブ連携の途絶（拡張からの受信が一定時間ない） ----
   if ((await getSettingRaw("saleshub.enabled")) === "1") {
+    // 日程調整中のMTGで、チャットで日時が決まっているものを確定にする
+    const { confirmPendingFromChats } = await import("../saleshub/rules");
+    await confirmPendingFromChats();
     const last = await getSettingRaw("saleshub.lastIngestAt");
     const staleMin = await getSettingNumber("saleshubStaleMinutes");
     const lastAt = last ? new Date(last) : null;
