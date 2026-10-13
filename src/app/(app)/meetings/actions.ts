@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { assertAdmin, assertUser } from "@/lib/auth";
-import { recordHistory } from "@/lib/history";
+import { recordHistory, reopenVendorMeetingStatus } from "@/lib/history";
 import { notify, notifyAdmins } from "@/lib/notifications";
 import { errorState, type ActionState } from "@/lib/action-state";
 import { fmtDateTime, int, MAX_YEN, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
@@ -63,6 +63,7 @@ export async function createMeetingAction(_prev: ActionState, formData: FormData
         toValue: "PENDING",
         changedById: user.id,
       });
+      if (["SCHEDULING", "CONFIRMED", "RESCHEDULE"].includes(executionStatus)) await reopenVendorMeetingStatus(tx, created.vendorId, created.id, user.id);
       return created;
     });
     id = m.id;
@@ -179,6 +180,8 @@ export async function setExecutionStatusAction(formData: FormData) {
           });
         }
       }
+      // MTGが再び動き出したら、「初回MTGなし」で自動的に不要にしたベンダーを未実施に戻す
+      if (["SCHEDULING", "CONFIRMED", "RESCHEDULE"].includes(status)) await reopenVendorMeetingStatus(tx, m.vendorId, id, user.id);
       // 事前MTGを実施したら、ベンダーのMTG状態も実施済にする（一覧のドロップダウンから変えた場合も含む）
       if (status === "DONE") {
         const v = await tx.vendor.findUniqueOrThrow({ where: { id: m.vendorId } });

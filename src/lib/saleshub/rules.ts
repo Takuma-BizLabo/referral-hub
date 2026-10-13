@@ -1,6 +1,6 @@
 import { addDays } from "date-fns";
 import { prisma } from "../db";
-import { recordHistory } from "../history";
+import { recordHistory, reopenVendorMeetingStatus } from "../history";
 import { notify, notifyAdmins } from "../notifications";
 import { getSettingRaw } from "../settings";
 import { fmtDateTime } from "../utils";
@@ -159,7 +159,7 @@ async function confirmMeetingFromChat(
 ) {
   const msgUrls = sourceBody.match(URL_RE) ?? [];
   const roomUrl = msgUrls.find(isMeetingRoomUrl);
-  await prisma.vendorMeeting.update({
+  const updated = await prisma.vendorMeeting.update({
     where: { id: meeting.id },
     data: {
       scheduledAt: at,
@@ -179,6 +179,7 @@ async function confirmMeetingFromChat(
     note: `チャットの「${sourceBody.slice(0, 40).replace(/\n/g, " ")}」から日時を読み取り`,
     changedById: null,
   });
+  await reopenVendorMeetingStatus(prisma, updated.vendorId, meeting.id, null);
   const title = `【MTG確定】${vendorName} ${fmtDateTime(at)}`;
   await notify({ userId: meeting.assigneeId, type: "TASK_ASSIGNED", title, body: "チャットの日時を読み取って確定にしました。違っていればMTG詳細で修正してください。", linkUrl: `/meetings/${meeting.id}`, dedupeKey: `saleshub:confirm:${meeting.id}:${at.getTime()}`, line });
   await notifyAdmins({ type: "APPROVED", title, linkUrl: `/meetings/${meeting.id}`, dedupeKey: `saleshub:confirm-admin:${meeting.id}:${at.getTime()}`, line });
@@ -259,6 +260,7 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
       },
     });
     meetingId = meeting.id;
+    await reopenVendorMeetingStatus(prisma, vendorId, meeting.id, null);
     await recordHistory(prisma, { entityType: "VENDOR_MEETING", entityId: meeting.id, field: "approvalStatus", fromValue: null, toValue: "APPROVED", note: "セールスハブ連携により自動作成（承認不要）", changedById: null });
     await prisma.saleshubThread.update({ where: { id: thread.id }, data: { importedMeetingId: meeting.id } });
     const { created, unmatched } = await registerCandidates(vendorId, candidates, "松田の初回メッセージ", thread.fee ?? ((await prisma.vendor.findUnique({ where: { id: vendorId } }))?.referralFee || null));

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { assertUser } from "@/lib/auth";
-import { recordHistory } from "@/lib/history";
+import { recordHistory, reopenVendorMeetingStatus } from "@/lib/history";
 import { notify, notifyAdmins } from "@/lib/notifications";
 import { errorState, type ActionState } from "@/lib/action-state";
 import { httpUrl, money, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
@@ -100,6 +100,7 @@ export async function registerSaleshubAction(_prev: ActionState, formData: FormD
             approvalStatus: "PENDING",
           },
         });
+        await reopenVendorMeetingStatus(tx, vendorId, meeting.id, user.id);
         await recordHistory(tx, {
           entityType: "VENDOR_MEETING",
           entityId: meeting.id,
