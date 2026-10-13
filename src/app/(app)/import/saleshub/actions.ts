@@ -9,6 +9,7 @@ import { errorState, type ActionState } from "@/lib/action-state";
 import { httpUrl, money, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
 import { normalizeCompanyName, parseSaleshubText, type ParsedSaleshub } from "@/lib/saleshub-parse";
 import type { MeetingFormat } from "@prisma/client";
+import { rewardFor } from "@/lib/fee-table";
 
 export type MatchedContact = { id: number; name: string; company: string | null; title: string | null; referredBefore: boolean };
 export type AnalyzeResult = {
@@ -117,8 +118,17 @@ export async function registerSaleshubAction(_prev: ActionState, formData: FormD
       for (const contactId of contactIds) {
         // 同じベンダー×繋がりの紹介案件が既にあれば作らない（二重送信・再取込での重複防止）
         if (await tx.referral.findFirst({ where: { vendorId, contactId }, select: { id: true } })) continue;
+        const contact = await tx.contact.findUniqueOrThrow({ where: { id: contactId }, select: { employeeSize: true, title: true } });
+        const fee = rewardFor(vendor, contact);
         const r = await tx.referral.create({
-          data: { vendorId, contactId, rewardAmount: vendor.referralFee, pickupNote, memo: "セールスハブ取込" },
+          data: {
+            vendorId,
+            contactId,
+            rewardAmount: fee.rewardAmount,
+            rewardUndetermined: fee.rewardUndetermined,
+            pickupNote,
+            memo: fee.reason ? `セールスハブ取込／${fee.reason}` : "セールスハブ取込",
+          },
         });
         await recordHistory(tx, {
           entityType: "REFERRAL",

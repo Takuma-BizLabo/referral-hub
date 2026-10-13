@@ -16,6 +16,8 @@ import { setVendorMeetingStatusAction, toggleVendorActiveAction } from "../actio
 import { HistoryList } from "@/components/HistoryList";
 import { SubmitButton } from "@/components/SubmitButton";
 import { idOrNull, idParam } from "@/lib/params";
+import { FEE_ROLES, fmtSizeRange, groupFeeTable, parseFeeTable } from "@/lib/fee-table";
+import { CopyBriefPanel } from "@/components/CopyBrief";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const id = idOrNull((await params).id);
@@ -34,6 +36,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
     },
   });
   if (!vendor) notFound();
+  const feeGroups = groupFeeTable(parseFeeTable(vendor.feeTable));
   const notReferredCount = await prisma.contact.count({ where: { isActive: true, referrals: { none: { vendorId: vendor.id } } } });
   const histories = await prisma.statusHistory.findMany({
     where: { entityType: "VENDOR", entityId: vendor.id },
@@ -67,7 +70,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
           <Description
             items={[
               { label: "担当者", value: vendor.contactName },
-              { label: "紹介報酬単価", value: fmtYen(vendor.referralFee) },
+              { label: "紹介報酬単価", value: feeGroups.length ? `${fmtYen(vendor.referralFee)}（単価表あり・下記）` : fmtYen(vendor.referralFee) },
               { label: "メール", value: vendor.contactEmail },
               { label: "電話", value: vendor.contactPhone },
               {
@@ -122,6 +125,55 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
           </form>
         </Card>
       </div>
+
+      {(vendor.introSteps || vendor.introMessage) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {vendor.introSteps && (
+            <Card title="お繋ぎの手順">
+              <p className="text-sm whitespace-pre-wrap leading-relaxed">{vendor.introSteps}</p>
+            </Card>
+          )}
+          {vendor.introMessage && (
+            <Card title="お繋ぎ文章">
+              <CopyBriefPanel text={vendor.introMessage} />
+            </Card>
+          )}
+        </div>
+      )}
+
+      {feeGroups.length > 0 && (
+        <Card
+          title="単価表（協力金）"
+          actions={
+            <Link href={`/contacts?notVendor=${vendor.id}&target=1`} className="text-xs text-blue-700 hover:underline">
+              単価表に当てはまる繋がりを見る →
+            </Link>
+          }
+        >
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>従業員数</th>
+                  <th>役職</th>
+                  <th className="text-right">協力金</th>
+                </tr>
+              </thead>
+              <tbody>
+                {feeGroups.flatMap((g) =>
+                  g.rows.map((r, i) => (
+                    <tr key={`${g.min}-${g.max}-${i}`}>
+                      <td className="whitespace-nowrap">{i === 0 ? fmtSizeRange(g.min, g.max) : ""}</td>
+                      <td>{FEE_ROLES[r.role]}</td>
+                      <td className="text-right whitespace-nowrap font-medium">{fmtYen(r.fee)}</td>
+                    </tr>
+                  )),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <Card title={`ベンダーMTG（${vendor.meetings.length}）`}>
         {vendor.meetings.length === 0 ? (

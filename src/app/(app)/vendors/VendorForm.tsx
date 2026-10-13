@@ -7,6 +7,8 @@ import { ErrorMessage, Field } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { Vendor } from "@prisma/client";
 import { MoneyInput } from "@/components/MoneyInput";
+import { FeeTableEditor } from "./FeeTableEditor";
+import { parseFeeTable } from "@/lib/fee-table";
 
 export function VendorForm({ vendor }: { vendor?: Vendor }) {
   const [state, action, actionPending, actionSubmit] = useStickyAction(vendor ? updateVendorAction : createVendorAction, undefined);
@@ -34,6 +36,15 @@ export function VendorForm({ vendor }: { vendor?: Vendor }) {
         </Field>
         <Field label="サービス概要" className="sm:col-span-2">
           <textarea name="serviceSummary" className="input" rows={3} defaultValue={vendor?.serviceSummary ?? ""} />
+        </Field>
+        <Field label="お繋ぎの手順" className="sm:col-span-2" hint="紹介するときの流れ・注意点（事前確認、日程調整の方法など）">
+          <textarea name="introSteps" className="input" rows={5} defaultValue={vendor?.introSteps ?? ""} />
+        </Field>
+        <Field label="お繋ぎ文章" className="sm:col-span-2" hint="紹介先へ送る文面。「〇〇様」は紹介案件の画面で紹介先の氏名に置き換わります">
+          <textarea name="introMessage" className="input" rows={8} defaultValue={vendor?.introMessage ?? ""} />
+        </Field>
+        <Field label="単価表（従業員数×役職で協力金が変わる場合）" className="sm:col-span-2">
+          <FeeTableEditor defaultRules={parseFeeTable(vendor?.feeTable)} />
         </Field>
         <Field label="メモ" className="sm:col-span-2">
           <textarea name="memo" className="input" rows={3} defaultValue={vendor?.memo ?? ""} />

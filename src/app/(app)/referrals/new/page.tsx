@@ -3,16 +3,18 @@ import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/ui";
 import { cleanParams } from "@/lib/params";
 import { ReferralForm } from "../ReferralForm";
+import { parseFeeTable } from "@/lib/fee-table";
 
 export const metadata = { title: "紹介案件登録" };
 
 export default async function NewReferralPage({ searchParams }: { searchParams: Promise<{ vendorId?: string; contactId?: string; reward?: string; undetermined?: string; note?: string }> }) {
   await requireUser();
   const sp = cleanParams(await searchParams, { vendorId: "int", contactId: "int", undetermined: ["1"] });
-  const [vendors, contacts] = await Promise.all([
-    prisma.vendor.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, referralFee: true, meetingStatus: true } }),
-    prisma.contact.findMany({ where: { isActive: true }, orderBy: [{ company: "asc" }, { name: "asc" }], select: { id: true, name: true, company: true, title: true } }),
+  const [vendorRows, contacts] = await Promise.all([
+    prisma.vendor.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, referralFee: true, meetingStatus: true, feeTable: true } }),
+    prisma.contact.findMany({ where: { isActive: true }, orderBy: [{ company: "asc" }, { name: "asc" }], select: { id: true, name: true, company: true, title: true, employeeSize: true } }),
   ]);
+  const vendors = vendorRows.map((v) => ({ ...v, feeTable: parseFeeTable(v.feeTable) }));
   return (
     <div>
       <PageHeader title="紹介案件登録" description="ベンダーがピックアップした繋がりを登録します" />

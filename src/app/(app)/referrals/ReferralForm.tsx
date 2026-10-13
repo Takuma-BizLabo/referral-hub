@@ -8,9 +8,16 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { toInputDate, toInputDateTime } from "@/lib/utils";
 import type { Referral } from "@prisma/client";
 import { MoneyInput } from "@/components/MoneyInput";
+import { judgeFee, type FeeJudgement, type FeeRule } from "@/lib/fee-table";
 
-type VendorOpt = { id: number; name: string; referralFee: number; meetingStatus: string };
-type ContactOpt = { id: number; name: string; company: string | null; title: string | null };
+type VendorOpt = { id: number; name: string; referralFee: number; meetingStatus: string; feeTable: FeeRule[] };
+type ContactOpt = { id: number; name: string; company: string | null; title: string | null; employeeSize: string | null };
+
+/** ベンダーの単価表と繋がりの規模・役職から判定（単価表がない・未選択なら null） */
+function judge(v: VendorOpt | undefined, c: ContactOpt | undefined): FeeJudgement | null {
+  if (!v || !c || v.feeTable.length === 0) return null;
+  return judgeFee(v.feeTable, c);
+}
 
 export function ReferralForm({
   referral,
@@ -36,13 +43,32 @@ export function ReferralForm({
   const [vendorId, setVendorId] = useState<number | "">(referral?.vendorId ?? defaultVendorId ?? "");
   const [contactId, setContactId] = useState<number | "">(referral?.contactId ?? defaultContactId ?? "");
   const [filter, setFilter] = useState("");
+  const initialJudgement = referral || defaultReward !== undefined || defaultUndetermined ? null : judge(vendors.find((x) => x.id === defaultVendorId), contacts.find((x) => x.id === defaultContactId));
   const [reward, setReward] = useState<string>(() => {
     if (referral) return String(referral.rewardAmount);
     if (defaultReward !== undefined) return String(defaultReward);
+    if (initialJudgement) return initialJudgement.kind === "matched" ? String(initialJudgement.fee) : "";
     const v = vendors.find((x) => x.id === defaultVendorId);
     return v ? String(v.referralFee) : "";
   });
+  const [undetermined, setUndetermined] = useState<boolean>(
+    referral ? referral.rewardUndetermined : Boolean(defaultUndetermined) || (initialJudgement !== null && initialJudgement.kind !== "matched"),
+  );
   const vendor = vendors.find((v) => v.id === vendorId);
+  const contact = contacts.find((c) => c.id === contactId);
+  const judgement = referral ? null : judge(vendor, contact);
+
+  /** ベンダーか紹介先を選び直したら、単価表（なければベンダー単価）で報酬額を入れ直す */
+  const applyFee = (v: VendorOpt | undefined, c: ContactOpt | undefined) => {
+    const j = judge(v, c);
+    if (j) {
+      setReward(j.kind === "matched" ? String(j.fee) : "");
+      setUndetermined(j.kind !== "matched");
+    } else if (v) {
+      setReward(String(v.referralFee));
+      setUndetermined(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     const f = filter.trim().toLowerCase();
@@ -59,7 +85,7 @@ export function ReferralForm({
         {referral ? (
           <input type="hidden" name="vendorId" value={referral.vendorId} />
         ) : (
-          <Field label="ベンダー" required hint={vendor ? `単価 ¥${vendor.referralFee.toLocaleString()} ／ MTG ${vendor.meetingStatus === "DONE" ? "実施済" : vendor.meetingStatus === "NOT_REQUIRED" ? "不要" : "未実施"}` : undefined}>
+          <Field label="ベンダー" required hint={vendor ? `${vendor.feeTable.length ? "単価表あり" : `単価 ¥${vendor.referralFee.toLocaleString()}`} ／ MTG ${vendor.meetingStatus === "DONE" ? "実施済" : vendor.meetingStatus === "NOT_REQUIRED" ? "不要" : "未実施"}` : undefined}>
             <select
               name="vendorId"
               className="input"
@@ -67,8 +93,7 @@ export function ReferralForm({
               onChange={(e) => {
                 const id = e.target.value ? Number(e.target.value) : "";
                 setVendorId(id);
-                const v = vendors.find((x) => x.id === id);
-                if (v && (reward === "" || reward === String(vendor?.referralFee ?? ""))) setReward(String(v.referralFee));
+                applyFee(vendors.find((x) => x.id === id), contact);
               }}
               required
             >
@@ -86,11 +111,15 @@ export function ReferralForm({
         ) : (
           <Field label="紹介先（繋がり）" required>
             <input className="input mb-1" placeholder="氏名・会社名で絞り込み" value={filter} onChange={(e) => setFilter(e.target.value)} />
-            <select name="contactId" className="input" value={contactId} onChange={(e) => setContactId(e.target.value ? Number(e.target.value) : "")} required size={5}>
+            <select name="contactId" className="input" value={contactId} onChange={(e) => {
+                const id = e.target.value ? Number(e.target.value) : "";
+                setContactId(id);
+                applyFee(vendor, contacts.find((x) => x.id === id));
+              }} required size={5}>
               {filtered.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
-                  {c.company ? `（${c.company}${c.title ? " / " + c.title : ""}）` : ""}
+                  {c.company ? `（${[c.company, c.title, vendor?.feeTable.length ? c.employeeSize : null].filter(Boolean).join(" / ")}）` : ""}
                 </option>
               ))}
             </select>
@@ -99,11 +128,12 @@ export function ReferralForm({
         <Field label="ピックアップ日">
           <input name="pickedUpAt" type="date" className="input" defaultValue={toInputDate(referral?.pickedUpAt ?? new Date())} />
         </Field>
-        <Field label="報酬額（円）" hint="ベンダー単価から自動入力。変更可">
+        <Field label="報酬額（円）" hint={vendor?.feeTable.length ? "単価表から自動入力。変更可" : "ベンダー単価から自動入力。変更可"}>
           <MoneyInput name="rewardAmount" value={reward} onChange={setReward} />
           <label className="flex items-center gap-2 text-sm mt-2">
-            <input type="checkbox" name="rewardUndetermined" defaultChecked={referral?.rewardUndetermined ?? defaultUndetermined ?? false} /> 単価未定（ベンダーに確認中）
+            <input type="checkbox" name="rewardUndetermined" checked={undetermined} onChange={(e) => setUndetermined(e.target.checked)} /> 単価未定（ベンダーに確認中）
           </label>
+          {judgement && <FeeHint judgement={judgement} onPick={(fee) => { setReward(String(fee)); setUndetermined(false); }} />}
         </Field>
         <Field label="謝礼金（円）" hint="紹介先へのお礼。未定なら空欄">
           <MoneyInput name="thankYouFee" defaultValue={referral?.thankYouFee ?? ""} />
@@ -152,5 +182,30 @@ export function ReferralForm({
         </Link>
       </div>
     </form>
+  );
+}
+
+/** 単価表での判定結果（決まらないときは理由と候補の金額） */
+function FeeHint({ judgement: j, onPick }: { judgement: FeeJudgement; onPick: (fee: number) => void }) {
+  if (j.kind === "matched") {
+    return <p className="text-xs text-emerald-700 mt-1.5">単価表：{j.reason} → ¥{j.fee.toLocaleString("ja-JP")}</p>;
+  }
+  return (
+    <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mt-1.5 space-y-1">
+      <p>
+        単価表で決まりません：{j.reason}
+        {j.kind === "outside" ? "。紹介する場合はベンダーに単価を確認してください" : ""}
+      </p>
+      {j.kind === "ambiguous" && (
+        <div className="flex flex-wrap items-center gap-1">
+          <span>規模を確かめて選ぶ：</span>
+          {j.candidates.map((f) => (
+            <button key={f} type="button" className="btn-secondary btn-sm" onClick={() => onPick(f)}>
+              ¥{f.toLocaleString("ja-JP")}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

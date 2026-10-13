@@ -7,6 +7,7 @@ import { fmtDateTime } from "../utils";
 import { evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
 import { isProposed, proposedCompaniesForVendor } from "./proposed";
 import type { SaleshubMessage, SaleshubThread } from "@prisma/client";
+import { parseFeeTable, rewardFor } from "../fee-table";
 
 type Thread = SaleshubThread;
 type Msg = SaleshubMessage;
@@ -69,6 +70,7 @@ export async function registerCandidates(
 ): Promise<{ created: number; unmatched: string[] }> {
   if (candidates.length === 0) return { created: 0, unmatched: [] };
   const contacts = await prisma.contact.findMany({ where: { isActive: true, company: { not: null } } });
+  const vendor = await prisma.vendor.findUniqueOrThrow({ where: { id: vendorId }, select: { referralFee: true, feeTable: true } });
   let created = 0;
   const unmatched: string[] = [];
   for (const c of candidates) {
@@ -84,14 +86,18 @@ export async function registerCandidates(
     for (const h of hits) {
       const exists = await prisma.referral.findFirst({ where: { vendorId, contactId: h.id } });
       if (exists) continue;
+      // 単価表のあるベンダーは繋がりの規模・役職で決める（決まらなければ単価未定）
+      const byTable = fee === null ? null : rewardFor(vendor, h);
+      const rewardAmount = byTable && parseFeeTable(vendor.feeTable).length ? byTable.rewardAmount : fee ?? 0;
+      const rewardUndetermined = fee === null || (byTable?.rewardUndetermined ?? false);
       const r = await prisma.referral.create({
         data: {
           vendorId,
           contactId: h.id,
-          rewardAmount: fee ?? 0,
-          rewardUndetermined: fee === null,
-          pickupNote: `${c.company}${c.dept ? " / " + c.dept : ""}（${note}）${fee === null ? "／単価未定" : ""}`,
-          memo: "セールスハブ連携により自動登録",
+          rewardAmount,
+          rewardUndetermined,
+          pickupNote: `${c.company}${c.dept ? " / " + c.dept : ""}（${note}）${rewardUndetermined ? "／単価未定" : ""}`,
+          memo: byTable?.reason ? `セールスハブ連携により自動登録／${byTable.reason}` : "セールスハブ連携により自動登録",
         },
       });
       await recordHistory(prisma, { entityType: "REFERRAL", entityId: r.id, field: "status", fromValue: null, toValue: "RECEIVED", note: "セールスハブ連携", changedById: null });

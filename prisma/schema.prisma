@@ -107,7 +107,10 @@ model Vendor {
   contactEmail   String?
   contactPhone   String?
   serviceSummary String?
-  referralFee    Int                 @default(0) // 紹介報酬単価（円）
+  referralFee    Int                 @default(0) // 紹介報酬単価（円）。単価表があるときは表に当てはまらない場合の目安
+  introSteps     String? // お繋ぎの手順（紹介するときの流れ・注意点）
+  introMessage   String? // お繋ぎ文章（紹介先へ送る文面。〇〇様 は紹介先の氏名に置き換えてコピー）
+  feeTable       Json? // 単価表（従業員数×役職→協力金）。src/lib/fee-table.ts の FeeRule[]
   saleshubUrl    String?
   meetingStatus  VendorMeetingStatus @default(NOT_DONE)
   memo           String?

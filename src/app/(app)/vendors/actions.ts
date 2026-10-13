@@ -7,7 +7,8 @@ import { assertUser } from "@/lib/auth";
 import { recordHistory } from "@/lib/history";
 import { errorState, type ActionState } from "@/lib/action-state";
 import { httpUrl, money, str } from "@/lib/utils";
-import type { VendorMeetingStatus } from "@prisma/client";
+import { Prisma, type VendorMeetingStatus } from "@prisma/client";
+import { parseFeeTable } from "@/lib/fee-table";
 
 function vendorData(formData: FormData) {
   const name = str(formData.get("name"));
@@ -21,7 +22,23 @@ function vendorData(formData: FormData) {
     referralFee: money(formData.get("referralFee")),
     saleshubUrl: httpUrl(str(formData.get("saleshubUrl")), "セールスハブ案件URL"),
     memo: str(formData.get("memo")),
+    introSteps: str(formData.get("introSteps")),
+    introMessage: str(formData.get("introMessage")),
+    feeTable: feeTableOf(formData),
   };
+}
+
+/** 単価表（空なら null） */
+function feeTableOf(formData: FormData) {
+  let json: unknown = [];
+  try {
+    json = JSON.parse(String(formData.get("feeTable") ?? "[]"));
+  } catch {
+    throw new Error("単価表の形式が正しくありません");
+  }
+  const rules = parseFeeTable(json);
+  if (Array.isArray(json) && rules.length !== json.length) throw new Error("単価表に正しくない行があります（従業員数の上限は下限より大きく、金額は0以上の整数にしてください）");
+  return rules.length ? rules : Prisma.DbNull;
 }
 
 export async function createVendorAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

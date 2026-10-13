@@ -7,16 +7,17 @@ import { cn, fmtYen } from "@/lib/utils";
 import { FilterPanel } from "@/components/FilterPanel";
 import { cleanParams } from "@/lib/params";
 import type { Prisma } from "@prisma/client";
+import { judgeFee, parseFeeTable, type FeeJudgement } from "@/lib/fee-table";
 
 export const metadata = { title: "繋がりリスト" };
 
 export default async function ContactsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; industry?: string; region?: string; saleshub?: string; tag?: string; inactive?: string; notVendor?: string; imported?: string; updated?: string; candidates?: string; removed?: string }>;
+  searchParams: Promise<{ q?: string; industry?: string; region?: string; saleshub?: string; tag?: string; inactive?: string; notVendor?: string; target?: string; imported?: string; updated?: string; candidates?: string; removed?: string }>;
 }) {
   await requireUser();
-  const sp = cleanParams(await searchParams, { notVendor: "int", saleshub: ["0", "1"], inactive: ["1"] });
+  const sp = cleanParams(await searchParams, { notVendor: "int", saleshub: ["0", "1"], inactive: ["1"], target: ["1"] });
   const where: Prisma.ContactWhereInput = {
     isActive: sp.inactive === "1" ? undefined : true,
     ...(sp.q
@@ -37,18 +38,32 @@ export default async function ContactsPage({
   };
   const vendors = await prisma.vendor.findMany({ where: { isActive: true }, orderBy: { name: "asc" } });
   const notVendor = sp.notVendor ? vendors.find((v) => v.id === Number(sp.notVendor)) : undefined;
-  const [contacts, industries, regions, tags, total] = await Promise.all([
+  const [allContacts, industries, regions, tags, allTotal] = await Promise.all([
     prisma.contact.findMany({
       where,
       orderBy: [{ company: "asc" }, { name: "asc" }],
       include: { tags: { include: { tag: true } }, referrals: { select: { vendorId: true } } },
-      take: 500,
+      // 単価表で絞るときは DB で絞れないので全件から判定する
+      take: sp.target === "1" ? undefined : 500,
     }),
     prisma.contact.findMany({ where: { industry: { not: null } }, distinct: ["industry"], select: { industry: true }, orderBy: { industry: "asc" } }),
     prisma.contact.findMany({ where: { region: { not: null } }, distinct: ["region"], select: { region: true }, orderBy: { region: "asc" } }),
     prisma.tag.findMany({ orderBy: { name: "asc" } }),
     prisma.contact.count({ where }),
   ]);
+  // 未紹介ベンダーに単価表があれば、繋がりごとの協力金の見込みを出す
+  const feeRules = notVendor ? parseFeeTable(notVendor.feeTable) : [];
+  const judgements = new Map<number, FeeJudgement>(feeRules.length ? allContacts.map((c) => [c.id, judgeFee(feeRules, c)]) : []);
+  const targetOnly = sp.target === "1" && feeRules.length > 0;
+  // 対象：単価が決まる人を金額の高い順、次に要確認（規模がまたがる）
+  const rank = (j: FeeJudgement | undefined) => (j?.kind === "matched" ? 0 : 1);
+  const top = (j: FeeJudgement | undefined) => (j?.kind === "matched" ? j.fee : j?.kind === "ambiguous" ? Math.max(...j.candidates) : 0);
+  const contacts = targetOnly
+    ? allContacts
+        .filter((c) => ["matched", "ambiguous"].includes(judgements.get(c.id)?.kind ?? ""))
+        .sort((a, b) => rank(judgements.get(a.id)) - rank(judgements.get(b.id)) || top(judgements.get(b.id)) - top(judgements.get(a.id)))
+    : allContacts;
+  const total = targetOnly ? contacts.length : allTotal;
 
   return (
     <div>
@@ -80,7 +95,18 @@ export default async function ContactsPage({
       {notVendor && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 mb-3 flex flex-wrap items-center gap-2">
           <VendorTag id={notVendor.id} name={notVendor.name} />
-          にまだ紹介していない繋がりを表示中（単価 {fmtYen(notVendor.referralFee)}）。右端の「紹介する」で紹介案件を作成できます。
+          にまだ紹介していない繋がりを表示中
+          {feeRules.length ? "（単価表あり：「見込み単価」は規模・役職からの判定）" : `（単価 ${fmtYen(notVendor.referralFee)}）`}。右端の「紹介する」で紹介案件を作成できます。
+          {feeRules.length > 0 &&
+            (targetOnly ? (
+              <Link href={`/contacts?notVendor=${notVendor.id}`} className="btn-secondary btn-sm">
+                全員を表示
+              </Link>
+            ) : (
+              <Link href={`/contacts?notVendor=${notVendor.id}&target=1`} className="btn-primary btn-sm">
+                単価表に当てはまる人だけ表示
+              </Link>
+            ))}
         </div>
       )}
       <FilterPanel activeCount={[sp.q, sp.notVendor, sp.industry, sp.region, sp.saleshub, sp.tag, sp.inactive].filter(Boolean).length}>
@@ -141,6 +167,7 @@ export default async function ContactsPage({
             ))}
           </select>
         </div>
+        {sp.target === "1" && <input type="hidden" name="target" value="1" />}
         <label className="flex items-center gap-1 text-sm pb-2">
           <input type="checkbox" name="inactive" value="1" defaultChecked={sp.inactive === "1"} /> 無効も表示
         </label>
@@ -175,6 +202,7 @@ export default async function ContactsPage({
                     )}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">{[c.industry, c.employeeSize, c.region, c.isOnSaleshub ? "SH済" : null].filter(Boolean).join(" ／ ")}</div>
+                  {judgements.has(c.id) && <div className="mt-1 text-xs">見込み単価：<FeeCell j={judgements.get(c.id)!} /></div>}
                   {(c.tags.length > 0 || vids.length > 0) && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {c.tags.map((t) => (
@@ -206,6 +234,7 @@ export default async function ContactsPage({
                   <th>SH</th>
                   <th>タグ</th>
                   <th>紹介済みベンダー</th>
+                  {feeRules.length > 0 && <th>見込み単価</th>}
                   {notVendor && <th></th>}
                 </tr>
               </thead>
@@ -241,6 +270,11 @@ export default async function ContactsPage({
                         {c.referrals.length === 0 && <span className="text-xs text-gray-400">未紹介</span>}
                       </div>
                     </td>
+                    {feeRules.length > 0 && (
+                      <td className="text-xs">
+                        <FeeCell j={judgements.get(c.id)!} />
+                      </td>
+                    )}
                     {notVendor && (
                       <td className="text-right">
                         <Link href={`/referrals/new?vendorId=${notVendor.id}&contactId=${c.id}`} className="btn-primary btn-sm">
@@ -256,5 +290,21 @@ export default async function ContactsPage({
         </>
       )}
     </div>
+  );
+}
+
+/** 単価表での判定結果の表示（理由はマウスを乗せると出る） */
+function FeeCell({ j }: { j: FeeJudgement }) {
+  if (j.kind === "matched") return <span className="font-medium text-emerald-700 whitespace-nowrap" title={j.reason}>{fmtYen(j.fee)}</span>;
+  if (j.kind === "ambiguous")
+    return (
+      <span className="text-amber-700 whitespace-nowrap" title={j.reason}>
+        要確認（{j.candidates.map((f) => fmtYen(f)).join(" / ")}）
+      </span>
+    );
+  return (
+    <span className="text-gray-400" title={j.reason}>
+      {j.kind === "unknown" ? "判断できない" : "対象外"}
+    </span>
   );
 }

@@ -11,6 +11,7 @@ import { forceUnlockAction, setReferralStatusAction, setRewardStatusAction } fro
 import { RewardForm } from "./RewardForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { idOrNull, idParam } from "@/lib/params";
+import { CopyBriefPanel } from "@/components/CopyBrief";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const id = idOrNull((await params).id);
@@ -168,6 +169,21 @@ export default async function ReferralDetailPage({
         </div>
       </div>
 
+      {(r.vendor.introSteps || r.vendor.introMessage) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {r.vendor.introSteps && (
+            <Card title={`お繋ぎの手順（${r.vendor.name}）`}>
+              <p className="text-sm whitespace-pre-wrap leading-relaxed">{r.vendor.introSteps}</p>
+            </Card>
+          )}
+          {r.vendor.introMessage && (
+            <Card title="お繋ぎ文章（紹介先へ送る文面）">
+              <CopyBriefPanel text={introMessageFor(r.vendor.introMessage, r.contact)} />
+            </Card>
+          )}
+        </div>
+      )}
+
       <Card title="請求・入金">
         <RewardForm
           id={r.id}
@@ -185,4 +201,10 @@ export default async function ReferralDetailPage({
       </Card>
     </div>
   );
+}
+
+/** お繋ぎ文章の「〇〇様」を紹介先の氏名に置き換える（氏名の代わりに会社名が入っている繋がりは「ご担当者様」） */
+function introMessageFor(text: string, contact: { name: string; company: string | null }) {
+  const person = contact.name && contact.name !== contact.company ? contact.name : "ご担当者";
+  return text.replace(/[〇○◯]{1,3}様/g, `${person}様`);
 }
