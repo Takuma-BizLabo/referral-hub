@@ -10,7 +10,7 @@ import { cleanParams } from "@/lib/params";
 import { REFERRAL_LABEL, REFERRAL_ORDER, REWARD_LABEL, REWARD_ORDER } from "@/lib/labels";
 import { cn, fmtDate, fmtDateTime, fmtReward, toInputDateTime } from "@/lib/utils";
 import { setListedEarlyAction, setReferralStatusAction } from "./actions";
-import { MeetingAtCell, ThankYouFeeCell } from "./InlineCells";
+import { MeetingAtCell, RewardCell, ThankYouFeeCell } from "./InlineCells";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { Prisma, ReferralStatus, RewardStatus } from "@prisma/client";
 
@@ -27,12 +27,21 @@ const SORTS: Record<string, { label: string; orderBy: Prisma.ReferralOrderByWith
 };
 
 /**
- * 一覧に出す紹介案件：ベンダーMTGが実施済・不要、または手動で一覧に追加したもの、
- * または既に打診中以降へ進んでいるもの。それ以外は「ベンダーMTG前の候補」として畳んで表示する。
+ * 一覧に出す紹介案件：先方（ベンダー）と人事の両方が OK のもの、または手動で一覧に追加したもの。
+ * それ以外は「OK待ちの候補」として畳んで表示する（回答はベンダー詳細のチェックリストで入力）。
  */
 const LISTED: Prisma.ReferralWhereInput = {
-  OR: [{ vendor: { meetingStatus: { in: ["DONE", "NOT_REQUIRED"] } } }, { listedEarly: true }, { status: { notIn: ["RECEIVED", "DECLINED"] } }],
+  OR: [{ vendorApproval: "OK", contactApproval: "OK" }, { listedEarly: true }],
 };
+
+const ANSWER_LABEL = { PENDING: "確認待ち", OK: "OK", NG: "NG" } as const;
+function AnswerBadge({ who, value }: { who: string; value: keyof typeof ANSWER_LABEL }) {
+  return (
+    <span className={cn("badge", value === "OK" ? "bg-emerald-100 text-emerald-800 border-emerald-200" : value === "NG" ? "bg-rose-100 text-rose-800 border-rose-200" : "bg-gray-100 text-gray-600 border-gray-200")}>
+      {who} {ANSWER_LABEL[value]}
+    </span>
+  );
+}
 
 /** 行の色：紹介見送りはグレーアウト、日程調整中は黄色 */
 function rowTone(status: ReferralStatus) {
@@ -214,8 +223,8 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
       {candidates.length > 0 && (
         <details className="card mb-3 border-gray-200 bg-gray-50">
           <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3 text-sm text-gray-500 select-none">
-            <span className="font-medium text-gray-600">ベンダーMTG前の候補（{candidates.length}件）</span>
-            <span className="text-xs">MTGが実施済になると自動で一覧に表示されます。先に一覧へ出す場合は「一覧に追加」を押してください</span>
+            <span className="font-medium text-gray-600">OK待ちの候補（{candidates.length}件）</span>
+            <span className="text-xs">先方と人事の両方がOKになると自動で一覧に表示されます（回答はベンダー詳細で入力）。先に一覧へ出す場合は「一覧に追加」</span>
           </summary>
           <ul className="divide-y divide-gray-200 border-t border-gray-200">
             {candidates.map((r) => {
@@ -227,10 +236,16 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                     {r.contact.company && <div className="text-xs">{r.contact.name}</div>}
                   </Link>
                   <VendorTag id={r.vendor.id} name={r.vendor.name} />
+                  <span className="flex gap-1">
+                    <AnswerBadge who="先方" value={r.vendorApproval} />
+                    <AnswerBadge who="人事" value={r.contactApproval} />
+                  </span>
                   <span className="text-xs whitespace-nowrap">
                     {m ? (m.scheduledAt && m.executionStatus === "CONFIRMED" ? `MTG ${fmtDateTime(m.scheduledAt)}` : "MTG日程調整中") : "MTG未設定"}
                   </span>
-                  <span className="text-xs whitespace-nowrap">{fmtReward(r.rewardAmount, r.rewardUndetermined)}</span>
+                  <span className={cn("text-xs", r.rewardUndetermined && "text-amber-700")}>
+                    <RewardCell id={r.id} amount={r.rewardAmount} undetermined={r.rewardUndetermined} />
+                  </span>
                   <form action={setListedEarlyAction} className="ml-auto">
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="listed" value="1" />
@@ -263,7 +278,9 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                         <div className="font-medium text-blue-700 truncate">{r.contact.company ?? r.contact.name}</div>
                         {r.contact.company && <div className="text-xs text-gray-500 truncate">{r.contact.name}</div>}
                       </Link>
-                      <span className={cn("text-sm whitespace-nowrap font-medium", r.rewardUndetermined && "text-amber-700")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</span>
+                      <span className={cn("text-sm whitespace-nowrap font-medium", r.rewardUndetermined && "text-amber-700")}>
+                        <RewardCell id={r.id} amount={r.rewardAmount} undetermined={r.rewardUndetermined} />
+                      </span>
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <VendorTag id={r.vendor.id} name={r.vendor.name} />
@@ -318,12 +335,12 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                             {r.contact.company ?? r.contact.name}
                           </Link>
                           {r.contact.company && <div className="text-xs text-gray-500">{r.contact.name}</div>}
-                          {r.listedEarly && r.vendor.meetingStatus === "NOT_DONE" && (
+                          {r.listedEarly && !(r.vendorApproval === "OK" && r.contactApproval === "OK") && (
                             <form action={setListedEarlyAction} className="mt-0.5">
                               <input type="hidden" name="id" value={r.id} />
                               <input type="hidden" name="listed" value="0" />
                               <SubmitButton className="text-[11px] text-gray-400 underline hover:text-gray-700" pendingText="...">
-                                MTG前の候補に戻す
+                                OK待ちの候補に戻す
                               </SubmitButton>
                             </form>
                           )}
@@ -351,7 +368,9 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                         </td>
                         <td className="text-gray-600 max-w-xs truncate">{r.nextAction ?? "-"}</td>
                         <td className={cn("whitespace-nowrap", overdue && "text-rose-600 font-medium")}>{fmtDate(r.nextActionDue)}</td>
-                        <td className={cn("text-right whitespace-nowrap", r.rewardUndetermined && "text-amber-700 font-medium")}>{fmtReward(r.rewardAmount, r.rewardUndetermined)}</td>
+                        <td className={cn("text-right whitespace-nowrap", r.rewardUndetermined && "text-amber-700 font-medium")}>
+                          <RewardCell id={r.id} amount={r.rewardAmount} undetermined={r.rewardUndetermined} />
+                        </td>
                         <td className="text-right">
                           <ThankYouFeeCell id={r.id} value={r.thankYouFee} />
                         </td>

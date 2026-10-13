@@ -145,21 +145,33 @@ export async function proposeContactsAction(formData: FormData) {
 
 const APPROVALS: VendorApproval[] = ["PENDING", "OK", "NG"];
 
-/** 提案した人事に対する先方の回答（OK／NG／確認待ち）。NG は紹介見送りに、NG を取り消したらピックアップ受付に戻す */
+/**
+ * 提案した人事への回答（先方＝ベンダー側／人事側）。OK／NG／確認待ち。
+ * どちらかが NG なら紹介見送りに、NG を取り消して両方 NG でなくなったらピックアップ受付に戻す。
+ */
 export async function setVendorApprovalAction(formData: FormData) {
   await runWithFlash(formData, async () => {
     const user = await assertUser();
     const id = Number(formData.get("id"));
+    const side = formData.get("side") === "contact" ? "contact" : "vendor";
     const approval = formData.get("approval") as VendorApproval;
     if (!APPROVALS.includes(approval)) throw new Error("不正な値です");
     const r = await prisma.referral.findUniqueOrThrow({ where: { id } });
-    if (r.vendorApproval === approval) return;
-    const toDeclined = approval === "NG" && (r.status === "RECEIVED" || r.status === "CONTACTING");
-    const fromDeclined = approval !== "NG" && r.vendorApproval === "NG" && r.status === "DECLINED";
+    const before = side === "contact" ? r.contactApproval : r.vendorApproval;
+    if (before === approval) return;
+    const vendorAfter = side === "vendor" ? approval : r.vendorApproval;
+    const contactAfter = side === "contact" ? approval : r.contactApproval;
+    const anyNg = vendorAfter === "NG" || contactAfter === "NG";
+    const wasNg = r.vendorApproval === "NG" || r.contactApproval === "NG";
+    const toDeclined = anyNg && (r.status === "RECEIVED" || r.status === "CONTACTING");
+    const fromDeclined = !anyNg && wasNg && r.status === "DECLINED";
     const status = toDeclined ? "DECLINED" : fromDeclined ? "RECEIVED" : r.status;
     await prisma.referral.update({
       where: { id },
-      data: { vendorApproval: approval, ...(status !== r.status ? { status, statusChangedAt: new Date() } : {}) },
+      data: {
+        ...(side === "contact" ? { contactApproval: approval } : { vendorApproval: approval }),
+        ...(status !== r.status ? { status, statusChangedAt: new Date() } : {}),
+      },
     });
     if (status !== r.status) {
       await recordHistory(prisma, {
@@ -168,7 +180,7 @@ export async function setVendorApprovalAction(formData: FormData) {
         field: "status",
         fromValue: r.status,
         toValue: status,
-        note: approval === "NG" ? "ベンダーが先方NG" : "先方NGを取り消し",
+        note: toDeclined ? (side === "contact" ? "人事側がNG" : "ベンダーが先方NG") : "NGを取り消し",
         changedById: user.id,
       });
     }

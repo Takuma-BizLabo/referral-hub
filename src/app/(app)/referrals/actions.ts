@@ -357,3 +357,22 @@ export async function setListedEarlyAction(formData: FormData) {
     revalidateReferral(id, r.vendorId, r.contactId);
   });
 }
+
+/** 一覧から報酬額をその場で変更する（空欄で「単価未定」） */
+export async function updateRewardAmountAction(id: number, value: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await assertUser();
+    if (!Number.isSafeInteger(id) || id <= 0) throw new Error("不正なIDです");
+    const raw = value.normalize("NFKC").replace(/[^\d]/g, "");
+    const amount = raw === "" ? null : Number(raw);
+    if (amount !== null && (!Number.isSafeInteger(amount) || amount > 100_000_000)) throw new Error("金額が大きすぎます");
+    const r = await prisma.referral.update({
+      where: { id },
+      data: amount === null ? { rewardAmount: 0, rewardUndetermined: true } : { rewardAmount: amount, rewardUndetermined: false },
+    });
+    revalidateReferral(id, r.vendorId, r.contactId);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "保存できませんでした" };
+  }
+}

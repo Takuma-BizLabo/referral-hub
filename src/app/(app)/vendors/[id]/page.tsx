@@ -15,6 +15,7 @@ import { cn, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import type { VendorApproval } from "@prisma/client";
 import { setVendorApprovalAction, setVendorMeetingStatusAction, toggleVendorActiveAction } from "../actions";
 import { ProposePicker } from "./ProposePicker";
+import { RewardCell } from "@/app/(app)/referrals/InlineCells";
 import { HistoryList } from "@/components/HistoryList";
 import { SubmitButton } from "@/components/SubmitButton";
 import { idOrNull, idParam } from "@/lib/params";
@@ -49,10 +50,13 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
     const f = rewardFor(vendor, c);
     return { id: c.id, company: c.company, name: c.name, title: c.title, employeeSize: c.employeeSize, fee: fmtReward(f.rewardAmount, f.rewardUndetermined) };
   });
-  // 提案した人事のチェックリスト：確認待ち → OK → NG の順
-  const APPROVAL_RANK: Record<VendorApproval, number> = { PENDING: 0, OK: 1, NG: 2 };
-  const proposals = [...vendor.referrals].sort((a, b) => APPROVAL_RANK[a.vendorApproval] - APPROVAL_RANK[b.vendorApproval]);
-  const approvalCount = (a: VendorApproval) => vendor.referrals.filter((r) => r.vendorApproval === a).length;
+  // 提案した人事のチェックリスト：確認待ち（どちらか）→ 両方OK → NG の順
+  const rank = (r: (typeof vendor.referrals)[number]) =>
+    r.vendorApproval === "NG" || r.contactApproval === "NG" ? 2 : r.vendorApproval === "OK" && r.contactApproval === "OK" ? 1 : 0;
+  const proposals = [...vendor.referrals].sort((a, b) => rank(a) - rank(b));
+  const approvalCount = (side: "vendor" | "contact", a: VendorApproval) =>
+    vendor.referrals.filter((r) => (side === "vendor" ? r.vendorApproval : r.contactApproval) === a).length;
+  const bothOk = vendor.referrals.filter((r) => r.vendorApproval === "OK" && r.contactApproval === "OK").length;
   const histories = await prisma.statusHistory.findMany({
     where: { entityType: "VENDOR", entityId: vendor.id },
     include: { changedBy: true },
@@ -240,12 +244,22 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         }
       >
         <p className="text-xs text-gray-500 mb-3">
-          セールスハブのチャットで会社情報を送り、先方が繋いでほしい相手を選んだら「OK」、対象外なら「NG」にします（NG は紹介見送りになります）。
+          セールスハブのチャットで会社情報を送り、先方が繋いでほしい相手を選んだら「先方の回答」を OK に、人事に打診して了承をもらったら「人事の回答」を OK にします。両方 OK になると紹介案件の一覧に表示されます（どちらかが NG なら紹介見送り）。
         </p>
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="badge bg-gray-100 text-gray-700 border-gray-200">確認待ち {approvalCount("PENDING")}</span>
-          <span className="badge bg-emerald-100 text-emerald-800 border-emerald-200">✓ OK {approvalCount("OK")}</span>
-          <span className="badge bg-rose-100 text-rose-800 border-rose-200">✗ NG {approvalCount("NG")}</span>
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+          <span className="flex items-center gap-1">
+            <span className="text-gray-500">先方</span>
+            <span className="badge bg-gray-100 text-gray-700 border-gray-200">確認待ち {approvalCount("vendor", "PENDING")}</span>
+            <span className="badge bg-emerald-100 text-emerald-800 border-emerald-200">✓ OK {approvalCount("vendor", "OK")}</span>
+            <span className="badge bg-rose-100 text-rose-800 border-rose-200">✗ NG {approvalCount("vendor", "NG")}</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="text-gray-500">人事</span>
+            <span className="badge bg-gray-100 text-gray-700 border-gray-200">確認待ち {approvalCount("contact", "PENDING")}</span>
+            <span className="badge bg-emerald-100 text-emerald-800 border-emerald-200">✓ OK {approvalCount("contact", "OK")}</span>
+            <span className="badge bg-rose-100 text-rose-800 border-rose-200">✗ NG {approvalCount("contact", "NG")}</span>
+          </span>
+          <span className="badge bg-emerald-600 text-white border-emerald-600">両方OK {bothOk}</span>
         </div>
         <div className="mb-4">
           <ProposePicker vendorId={vendor.id} candidates={proposeCandidates} />
@@ -258,8 +272,8 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
               <thead>
                 <tr>
                   <th>先方の回答</th>
+                  <th>人事の回答</th>
                   <th>会社</th>
-                  <th>紹介先</th>
                   <th>ステータス</th>
                   <th>面談日時</th>
                   <th className="text-right">報酬</th>
@@ -268,44 +282,25 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
               </thead>
               <tbody>
                 {proposals.map((r) => (
-                  <tr key={r.id} className={cn(r.vendorApproval === "NG" && "bg-gray-100 opacity-60", r.vendorApproval === "OK" && "bg-emerald-50/60")}>
+                  <tr key={r.id} className={cn(rank(r) === 2 && "bg-gray-100 opacity-60", rank(r) === 1 && "bg-emerald-50/60")}>
                     <td className="whitespace-nowrap">
-                      <div className="inline-flex divide-x divide-gray-200 overflow-hidden rounded-md border border-gray-200">
-                        {(
-                          [
-                            ["OK", "✓ OK", "bg-emerald-600 text-white"],
-                            ["NG", "✗ NG", "bg-rose-600 text-white"],
-                            ["PENDING", "確認待ち", "bg-gray-600 text-white"],
-                          ] as const
-                        ).map(([value, label, activeCls]) => (
-                          <form key={value} action={setVendorApprovalAction}>
-                            <input type="hidden" name="id" value={r.id} />
-                            <input type="hidden" name="approval" value={value} />
-                            <input type="hidden" name="returnTo" value={`/vendors/${vendor.id}`} />
-                            <SubmitButton
-                              className={cn(
-                                "px-2.5 py-1 text-xs",
-                                r.vendorApproval === value ? activeCls : "bg-white text-gray-500 hover:bg-gray-50",
-                              )}
-                              pendingText="..."
-                            >
-                              {label}
-                            </SubmitButton>
-                          </form>
-                        ))}
-                      </div>
+                      <AnswerButtons id={r.id} vendorId={vendor.id} side="vendor" value={r.vendorApproval} />
+                    </td>
+                    <td className="whitespace-nowrap">
+                      <AnswerButtons id={r.id} vendorId={vendor.id} side="contact" value={r.contactApproval} />
                     </td>
                     <td className="whitespace-nowrap">
                       <Link href={`/referrals/${r.id}`} className="text-blue-700 hover:underline font-medium">
-                        {r.contact.company ?? "-"}
+                        {r.contact.company ?? r.contact.name}
                       </Link>
                     </td>
-                    <td className="text-gray-700 whitespace-nowrap">{r.contact.name}</td>
                     <td>
                       <Badge value={r.status} label={REFERRAL_LABEL[r.status]} />
                     </td>
                     <td className="whitespace-nowrap">{fmtDateTime(r.meetingAt)}</td>
-                    <td className="text-right whitespace-nowrap">{fmtReward(r.rewardAmount, r.rewardUndetermined)}</td>
+                    <td className={cn("text-right whitespace-nowrap", r.rewardUndetermined && "text-amber-700 font-medium")}>
+                      <RewardCell id={r.id} amount={r.rewardAmount} undetermined={r.rewardUndetermined} />
+                    </td>
                     <td>
                       <Badge value={r.rewardStatus} label={REWARD_LABEL[r.rewardStatus]} />
                     </td>
@@ -320,6 +315,30 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
       <Card title="変更履歴">
         <HistoryList histories={histories} />
       </Card>
+    </div>
+  );
+}
+
+/** 回答（OK／NG／確認待ち）を切り替えるボタン群 */
+function AnswerButtons({ id, vendorId, side, value }: { id: number; vendorId: number; side: "vendor" | "contact"; value: VendorApproval }) {
+  const opts = [
+    ["OK", "✓ OK", "bg-emerald-600 text-white"],
+    ["NG", "✗ NG", "bg-rose-600 text-white"],
+    ["PENDING", "確認待ち", "bg-gray-600 text-white"],
+  ] as const;
+  return (
+    <div className="inline-flex divide-x divide-gray-200 overflow-hidden rounded-md border border-gray-200">
+      {opts.map(([v, label, activeCls]) => (
+        <form key={v} action={setVendorApprovalAction}>
+          <input type="hidden" name="id" value={id} />
+          <input type="hidden" name="side" value={side} />
+          <input type="hidden" name="approval" value={v} />
+          <input type="hidden" name="returnTo" value={`/vendors/${vendorId}`} />
+          <SubmitButton className={cn("px-2.5 py-1 text-xs", value === v ? activeCls : "bg-white text-gray-500 hover:bg-gray-50")} pendingText="...">
+            {label}
+          </SubmitButton>
+        </form>
+      ))}
     </div>
   );
 }
