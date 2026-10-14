@@ -9,7 +9,7 @@ import { FilterPanel } from "@/components/FilterPanel";
 import { cleanParams } from "@/lib/params";
 import { APPROVAL_LABEL, EXECUTION_LABEL, EXECUTION_ORDER, FORMAT_LABEL } from "@/lib/labels";
 import { cn, fmtDate, fmtDateTime, toInputDateTime } from "@/lib/utils";
-import { formatTargetAmount, formatTargetsTotal, meetingTargets, targetBadgeClass } from "@/lib/meeting-targets";
+import { compactTargets, formatTargetAmount, formatTargetsTotal, meetingTargets, targetBadgeClass } from "@/lib/meeting-targets";
 import { proposedCompaniesByVendor } from "@/lib/saleshub/proposed";
 import { buildBulkBrief, buildMeetingBrief } from "@/lib/line-brief";
 import { CopyBriefButton } from "@/components/CopyBrief";
@@ -266,11 +266,12 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                     </div>
                     {targets.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        {targets.map((t) => (
+                        {compactTargets(targets).shown.map((t) => (
                           <span key={t.name} className={cn("badge", targetBadgeClass(t))}>
                             {t.name} ({formatTargetAmount(t.amount)})
                           </span>
                         ))}
+                        {compactTargets(targets).hiddenDeclined > 0 && <span className="text-[11px] text-gray-400 self-center">ほか見送り {compactTargets(targets).hiddenDeclined}社</span>}
                       </div>
                     )}
                     <div className="mt-1.5">
@@ -331,12 +332,13 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                         <td className="max-w-sm">
                           {targets.length ? (
                             <div className="flex flex-wrap gap-1">
-                              {targets.map((t) => (
+                              {compactTargets(targets).shown.map((t) => (
                                 <span key={t.name} className={cn("badge", targetBadgeClass(t))}>
                                   {t.name}
                                   <span className="ml-1 font-normal opacity-80">({formatTargetAmount(t.amount)})</span>
                                 </span>
                               ))}
+                              {compactTargets(targets).hiddenDeclined > 0 && <span className="text-[11px] text-gray-400 self-center">ほか見送り {compactTargets(targets).hiddenDeclined}社</span>}
                             </div>
                           ) : (
                             <span className="text-xs text-gray-400">未定</span>
@@ -397,11 +399,12 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                             </div>
                             {targets.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1">
-                                {targets.map((t) => (
+                                {compactTargets(targets).shown.map((t) => (
                                   <span key={t.name} className={cn("badge", targetBadgeClass(t))}>
                                     {t.name} ({formatTargetAmount(t.amount)})
                                   </span>
                                 ))}
+                                {compactTargets(targets).hiddenDeclined > 0 && <span className="text-[11px] text-gray-400 self-center">ほか見送り {compactTargets(targets).hiddenDeclined}社</span>}
                               </div>
                             )}
                           </>

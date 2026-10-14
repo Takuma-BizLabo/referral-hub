@@ -69,3 +69,10 @@ export function targetBadgeClass(t: MeetingTarget): string {
   if (t.declined) return "bg-gray-100 text-gray-400 border-gray-200 line-through decoration-gray-400";
   return t.amount === null ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-indigo-50 text-indigo-800 border-indigo-200";
 }
+
+/** 一覧用：見送りは最初の数社だけ表示し、残りは件数にまとめる */
+export function compactTargets(targets: MeetingTarget[], maxDeclined = 3): { shown: MeetingTarget[]; hiddenDeclined: number } {
+  const active = targets.filter((t) => !t.declined);
+  const declined = targets.filter((t) => t.declined);
+  return { shown: [...active, ...declined.slice(0, maxDeclined)], hiddenDeclined: Math.max(0, declined.length - maxDeclined) };
+}
