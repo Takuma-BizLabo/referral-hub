@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Badge, EmptyState, PageHeader, Tabs } from "@/components/ui";
+import { MonthCalendar } from "@/components/MonthCalendar";
+import { TodaySchedule } from "@/components/TodaySchedule";
 import { StatusSelect } from "@/components/StatusSelect";
 import { VendorChips, VendorTag } from "@/components/VendorTag";
 import { CountChips } from "@/components/CountChips";
@@ -20,7 +22,7 @@ import type { ApprovalStatus, ExecutionStatus, Prisma } from "@prisma/client";
 
 export const metadata = { title: "ベンダーMTG" };
 
-type SP = { view?: string; assignee?: string; approval?: string; execution?: string; vendor?: string; q?: string; sort?: string };
+type SP = { view?: string; month?: string; assignee?: string; approval?: string; execution?: string; vendor?: string; q?: string; sort?: string };
 
 const SORTS: Record<string, { label: string; orderBy: Prisma.VendorMeetingOrderByWithRelationInput[] }> = {
   date: { label: "日時が早い順", orderBy: [{ scheduledAt: { sort: "asc", nulls: "last" } }, { id: "desc" }] },
@@ -36,10 +38,10 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
     vendor: "int",
     approval: Object.keys(APPROVAL_LABEL),
     execution: Object.keys(EXECUTION_LABEL),
-    view: ["list", "kanban"],
+    view: ["list", "kanban", "calendar"],
     sort: Object.keys(SORTS),
   });
-  const view = sp.view === "kanban" ? "kanban" : "list";
+  const view = sp.view === "kanban" ? "kanban" : sp.view === "calendar" ? "calendar" : "list";
   const where: Prisma.VendorMeetingWhereInput = {
     ...(sp.assignee ? { assigneeId: Number(sp.assignee) } : {}),
     ...(sp.approval ? { approvalStatus: sp.approval as ApprovalStatus } : {}),
@@ -135,7 +137,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
         actions={
           <>
             {bulkBrief && <CopyBriefButton text={bulkBrief} label={`未完了 ${openMeetings.length} 件をまとめてLINE用コピー`} className="btn-sm" />}
-            <Link href="/meetings/calendar" className="btn-secondary">
+            <Link href="/meetings?view=calendar" className="btn-secondary">
               カレンダー
             </Link>
             <Link href="/meetings/new" className="btn-primary">
@@ -144,98 +146,106 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
           </>
         }
       />
+      <TodaySchedule />
       <Tabs
         items={[
           { href: withView("list"), label: "リスト", active: view === "list" },
           { href: withView("kanban"), label: "カンバン", active: view === "kanban" },
+          { href: `/meetings?view=calendar`, label: "カレンダー", active: view === "calendar" },
         ]}
       />
-      <VendorChips
-        vendors={vendors.filter((v) => vendorCounts[v.id])}
-        counts={vendorCounts}
-        activeId={sp.vendor ? Number(sp.vendor) : undefined}
-        hrefFor={(id) => linkWith({ vendor: String(id) })}
-        total={allForCounts.length}
-        allHref={linkWith({ vendor: undefined })}
-      />
-      <CountChips
-        items={EXECUTION_ORDER.map((s) => ({ value: s, label: EXECUTION_LABEL[s], count: execCounts[s] ?? 0, href: linkWith({ execution: s, view: "list" }) }))}
-        active={sp.execution}
-        totalLabel="全件"
-        total={Object.values(execCounts).reduce((a, b) => a + b, 0)}
-        allHref={linkWith({ execution: undefined })}
-      />
-      <FilterPanel activeCount={[sp.q, sp.assignee, sp.approval, sp.execution, sp.vendor].filter(Boolean).length}>
-      <form className="card p-3 mb-3 flex flex-wrap gap-2 items-end">
-        <input type="hidden" name="view" value={view} />
-        <div className="min-w-40">
-          <label className="label">ベンダー名</label>
-          <input name="q" defaultValue={sp.q} className="input" />
-        </div>
-        <div>
-          <label className="label">担当</label>
-          <select name="assignee" defaultValue={sp.assignee ?? ""} className="input">
-            <option value="">すべて</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="label">承認</label>
-          <select name="approval" defaultValue={sp.approval ?? ""} className="input">
-            <option value="">すべて</option>
-            {(Object.keys(APPROVAL_LABEL) as ApprovalStatus[]).map((s) => (
-              <option key={s} value={s}>
-                {APPROVAL_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-        {view === "list" && (
+      {view !== "calendar" && (
+        <>
+        <VendorChips
+          vendors={vendors.filter((v) => vendorCounts[v.id])}
+          counts={vendorCounts}
+          activeId={sp.vendor ? Number(sp.vendor) : undefined}
+          hrefFor={(id) => linkWith({ vendor: String(id) })}
+          total={allForCounts.length}
+          allHref={linkWith({ vendor: undefined })}
+        />
+        <CountChips
+          items={EXECUTION_ORDER.map((s) => ({ value: s, label: EXECUTION_LABEL[s], count: execCounts[s] ?? 0, href: linkWith({ execution: s, view: "list" }) }))}
+          active={sp.execution}
+          totalLabel="全件"
+          total={Object.values(execCounts).reduce((a, b) => a + b, 0)}
+          allHref={linkWith({ execution: undefined })}
+        />
+        <FilterPanel activeCount={[sp.q, sp.assignee, sp.approval, sp.execution, sp.vendor].filter(Boolean).length}>
+        <form className="card p-3 mb-3 flex flex-wrap gap-2 items-end">
+          <input type="hidden" name="view" value={view} />
+          <div className="min-w-40">
+            <label className="label">ベンダー名</label>
+            <input name="q" defaultValue={sp.q} className="input" />
+          </div>
           <div>
-            <label className="label">実施</label>
-            <select name="execution" defaultValue={sp.execution ?? ""} className="input">
+            <label className="label">担当</label>
+            <select name="assignee" defaultValue={sp.assignee ?? ""} className="input">
               <option value="">すべて</option>
-              {EXECUTION_ORDER.map((s) => (
-                <option key={s} value={s}>
-                  {EXECUTION_LABEL[s]}
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
                 </option>
               ))}
             </select>
           </div>
-        )}
-        <div>
-          <label className="label">ベンダー</label>
-          <select name="vendor" defaultValue={sp.vendor ?? ""} className="input">
-            <option value="">すべて</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="label">並び順</label>
-          <select name="sort" defaultValue={sp.sort ?? "date"} className="input">
-            {Object.entries(SORTS).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button className="btn-secondary">絞り込む</button>
-        <Link href={`/meetings?view=${view}`} className="btn-secondary">
-          クリア
-        </Link>
-      </form>
-      </FilterPanel>
+          <div>
+            <label className="label">承認</label>
+            <select name="approval" defaultValue={sp.approval ?? ""} className="input">
+              <option value="">すべて</option>
+              {(Object.keys(APPROVAL_LABEL) as ApprovalStatus[]).map((s) => (
+                <option key={s} value={s}>
+                  {APPROVAL_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+          {view === "list" && (
+            <div>
+              <label className="label">実施</label>
+              <select name="execution" defaultValue={sp.execution ?? ""} className="input">
+                <option value="">すべて</option>
+                {EXECUTION_ORDER.map((s) => (
+                  <option key={s} value={s}>
+                    {EXECUTION_LABEL[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div>
+            <label className="label">ベンダー</label>
+            <select name="vendor" defaultValue={sp.vendor ?? ""} className="input">
+              <option value="">すべて</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">並び順</label>
+            <select name="sort" defaultValue={sp.sort ?? "date"} className="input">
+              {Object.entries(SORTS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button className="btn-secondary">絞り込む</button>
+          <Link href={`/meetings?view=${view}`} className="btn-secondary">
+            クリア
+          </Link>
+        </form>
+        </FilterPanel>
+        </>
+      )}
 
-      {view === "list" ? (
+      {view === "calendar" ? (
+        <MonthCalendar month={sp.month} monthHref={(m) => `/meetings?view=calendar${m ? `&month=${m}` : ""}`} />
+      ) : view === "list" ? (
         meetings.length === 0 ? (
           <div className="card">
             <EmptyState message="該当するMTGがありません" />

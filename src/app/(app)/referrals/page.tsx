@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Badge, EmptyState, PageHeader, Tabs } from "@/components/ui";
+import { MonthCalendar } from "@/components/MonthCalendar";
+import { TodaySchedule } from "@/components/TodaySchedule";
 import { StatusSelect } from "@/components/StatusSelect";
 import { VendorChips, VendorTag } from "@/components/VendorTag";
 import { CountChips } from "@/components/CountChips";
@@ -16,7 +18,7 @@ import type { Prisma, ReferralStatus, RewardStatus } from "@prisma/client";
 
 export const metadata = { title: "紹介案件" };
 
-type SP = { view?: string; vendor?: string; status?: string; reward?: string; q?: string; stagnant?: string; sort?: string };
+type SP = { view?: string; month?: string; vendor?: string; status?: string; reward?: string; q?: string; stagnant?: string; sort?: string };
 
 const SORTS: Record<string, { label: string; orderBy: Prisma.ReferralOrderByWithRelationInput[] }> = {
   updated: { label: "ステータス更新が新しい順", orderBy: [{ statusChangedAt: "desc" }] },
@@ -56,11 +58,11 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
     vendor: "int",
     status: Object.keys(REFERRAL_LABEL),
     reward: Object.keys(REWARD_LABEL),
-    view: ["list", "kanban"],
+    view: ["list", "kanban", "calendar"],
     sort: Object.keys(SORTS),
     stagnant: ["1"],
   });
-  const view = sp.view === "kanban" ? "kanban" : "list";
+  const view = sp.view === "kanban" ? "kanban" : sp.view === "calendar" ? "calendar" : "list";
   const where: Prisma.ReferralWhereInput = {
     ...(sp.vendor ? { vendorId: Number(sp.vendor) } : {}),
     ...(sp.status ? { status: sp.status as ReferralStatus } : {}),
@@ -140,127 +142,135 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
           </Link>
         }
       />
+      <TodaySchedule />
       <Tabs
         items={[
           { href: withView("list"), label: "リスト", active: view === "list" },
           { href: withView("kanban"), label: "カンバン", active: view === "kanban" },
+          { href: `/referrals?view=calendar`, label: "カレンダー", active: view === "calendar" },
         ]}
       />
-      <VendorChips
-        vendors={vendors.filter((v) => vendorCounts[v.id])}
-        counts={vendorCounts}
-        activeId={sp.vendor ? Number(sp.vendor) : undefined}
-        hrefFor={(id) => linkWith({ vendor: String(id) })}
-        total={allForCounts.length}
-        allHref={linkWith({ vendor: undefined })}
-      />
-      <CountChips
-        items={REFERRAL_ORDER.map((s) => ({ value: s, label: REFERRAL_LABEL[s], count: statusCounts[s] ?? 0, href: linkWith({ status: s, view: "list" }) }))}
-        active={sp.status}
-        totalLabel="全件"
-        total={Object.values(statusCounts).reduce((a, b) => a + b, 0)}
-        allHref={linkWith({ status: undefined })}
-      />
-      <FilterPanel activeCount={[sp.q, sp.vendor, sp.status, sp.reward].filter(Boolean).length}>
-      <form className="card p-3 mb-3 flex flex-wrap gap-2 items-end">
-        <input type="hidden" name="view" value={view} />
-        <div className="min-w-40">
-          <label className="label">紹介先</label>
-          <input name="q" defaultValue={sp.q} className="input" placeholder="氏名・会社名" />
-        </div>
-        <div>
-          <label className="label">ベンダー</label>
-          <select name="vendor" defaultValue={sp.vendor ?? ""} className="input">
-            <option value="">すべて</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        {view === "list" && (
+      {view !== "calendar" && (
+        <>
+        <VendorChips
+          vendors={vendors.filter((v) => vendorCounts[v.id])}
+          counts={vendorCounts}
+          activeId={sp.vendor ? Number(sp.vendor) : undefined}
+          hrefFor={(id) => linkWith({ vendor: String(id) })}
+          total={allForCounts.length}
+          allHref={linkWith({ vendor: undefined })}
+        />
+        <CountChips
+          items={REFERRAL_ORDER.map((s) => ({ value: s, label: REFERRAL_LABEL[s], count: statusCounts[s] ?? 0, href: linkWith({ status: s, view: "list" }) }))}
+          active={sp.status}
+          totalLabel="全件"
+          total={Object.values(statusCounts).reduce((a, b) => a + b, 0)}
+          allHref={linkWith({ status: undefined })}
+        />
+        <FilterPanel activeCount={[sp.q, sp.vendor, sp.status, sp.reward].filter(Boolean).length}>
+        <form className="card p-3 mb-3 flex flex-wrap gap-2 items-end">
+          <input type="hidden" name="view" value={view} />
+          <div className="min-w-40">
+            <label className="label">紹介先</label>
+            <input name="q" defaultValue={sp.q} className="input" placeholder="氏名・会社名" />
+          </div>
           <div>
-            <label className="label">ステータス</label>
-            <select name="status" defaultValue={sp.status ?? ""} className="input">
+            <label className="label">ベンダー</label>
+            <select name="vendor" defaultValue={sp.vendor ?? ""} className="input">
               <option value="">すべて</option>
-              {REFERRAL_ORDER.map((s) => (
-                <option key={s} value={s}>
-                  {REFERRAL_LABEL[s]}
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
                 </option>
               ))}
             </select>
           </div>
+          {view === "list" && (
+            <div>
+              <label className="label">ステータス</label>
+              <select name="status" defaultValue={sp.status ?? ""} className="input">
+                <option value="">すべて</option>
+                {REFERRAL_ORDER.map((s) => (
+                  <option key={s} value={s}>
+                    {REFERRAL_LABEL[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div>
+            <label className="label">報酬</label>
+            <select name="reward" defaultValue={sp.reward ?? ""} className="input">
+              <option value="">すべて</option>
+              {REWARD_ORDER.map((s) => (
+                <option key={s} value={s}>
+                  {REWARD_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">並び順</label>
+            <select name="sort" defaultValue={sp.sort ?? "updated"} className="input">
+              {Object.entries(SORTS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button className="btn-secondary">絞り込む</button>
+          <Link href={`/referrals?view=${view}`} className="btn-secondary">
+            クリア
+          </Link>
+        </form>
+        </FilterPanel>
+  
+        {candidates.length > 0 && (
+          <details className="card mb-3 border-gray-200 bg-gray-50">
+            <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3 text-sm text-gray-500 select-none">
+              <span className="font-medium text-gray-600">OK待ちの候補（{candidates.length}件）</span>
+              <span className="text-xs">先方と人事の両方がOKになると自動で一覧に表示されます（回答はベンダー詳細で入力）。先に一覧へ出す場合は「一覧に追加」</span>
+            </summary>
+            <ul className="divide-y divide-gray-200 border-t border-gray-200">
+              {candidates.map((r) => {
+                const m = r.vendor.meetings[0];
+                return (
+                  <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2 text-sm text-gray-500 opacity-70 transition-opacity hover:opacity-100">
+                    <Link href={`/referrals/${r.id}`} className="min-w-44 hover:underline">
+                      <div className="font-medium text-gray-700">{r.contact.company ?? r.contact.name}</div>
+                      {r.contact.company && <div className="text-xs">{r.contact.name}</div>}
+                    </Link>
+                    <VendorTag id={r.vendor.id} name={r.vendor.name} />
+                    <span className="flex gap-1">
+                      <AnswerBadge who="先方" value={r.vendorApproval} />
+                      <AnswerBadge who="人事" value={r.contactApproval} />
+                    </span>
+                    <span className="text-xs whitespace-nowrap">
+                      {m ? (m.scheduledAt && m.executionStatus === "CONFIRMED" ? `MTG ${fmtDateTime(m.scheduledAt)}` : "MTG日程調整中") : "MTG未設定"}
+                    </span>
+                    <span className={cn("text-xs", r.rewardUndetermined && "text-amber-700")}>
+                      <RewardCell id={r.id} amount={r.rewardAmount} undetermined={r.rewardUndetermined} />
+                    </span>
+                    <form action={setListedEarlyAction} className="ml-auto">
+                      <input type="hidden" name="id" value={r.id} />
+                      <input type="hidden" name="listed" value="1" />
+                      <SubmitButton className="btn-secondary btn-sm" pendingText="追加中...">
+                        ＋ 一覧に追加
+                      </SubmitButton>
+                    </form>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
         )}
-        <div>
-          <label className="label">報酬</label>
-          <select name="reward" defaultValue={sp.reward ?? ""} className="input">
-            <option value="">すべて</option>
-            {REWARD_ORDER.map((s) => (
-              <option key={s} value={s}>
-                {REWARD_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="label">並び順</label>
-          <select name="sort" defaultValue={sp.sort ?? "updated"} className="input">
-            {Object.entries(SORTS).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button className="btn-secondary">絞り込む</button>
-        <Link href={`/referrals?view=${view}`} className="btn-secondary">
-          クリア
-        </Link>
-      </form>
-      </FilterPanel>
-
-      {candidates.length > 0 && (
-        <details className="card mb-3 border-gray-200 bg-gray-50">
-          <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3 text-sm text-gray-500 select-none">
-            <span className="font-medium text-gray-600">OK待ちの候補（{candidates.length}件）</span>
-            <span className="text-xs">先方と人事の両方がOKになると自動で一覧に表示されます（回答はベンダー詳細で入力）。先に一覧へ出す場合は「一覧に追加」</span>
-          </summary>
-          <ul className="divide-y divide-gray-200 border-t border-gray-200">
-            {candidates.map((r) => {
-              const m = r.vendor.meetings[0];
-              return (
-                <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2 text-sm text-gray-500 opacity-70 transition-opacity hover:opacity-100">
-                  <Link href={`/referrals/${r.id}`} className="min-w-44 hover:underline">
-                    <div className="font-medium text-gray-700">{r.contact.company ?? r.contact.name}</div>
-                    {r.contact.company && <div className="text-xs">{r.contact.name}</div>}
-                  </Link>
-                  <VendorTag id={r.vendor.id} name={r.vendor.name} />
-                  <span className="flex gap-1">
-                    <AnswerBadge who="先方" value={r.vendorApproval} />
-                    <AnswerBadge who="人事" value={r.contactApproval} />
-                  </span>
-                  <span className="text-xs whitespace-nowrap">
-                    {m ? (m.scheduledAt && m.executionStatus === "CONFIRMED" ? `MTG ${fmtDateTime(m.scheduledAt)}` : "MTG日程調整中") : "MTG未設定"}
-                  </span>
-                  <span className={cn("text-xs", r.rewardUndetermined && "text-amber-700")}>
-                    <RewardCell id={r.id} amount={r.rewardAmount} undetermined={r.rewardUndetermined} />
-                  </span>
-                  <form action={setListedEarlyAction} className="ml-auto">
-                    <input type="hidden" name="id" value={r.id} />
-                    <input type="hidden" name="listed" value="1" />
-                    <SubmitButton className="btn-secondary btn-sm" pendingText="追加中...">
-                      ＋ 一覧に追加
-                    </SubmitButton>
-                  </form>
-                </li>
-              );
-            })}
-          </ul>
-        </details>
+        </>
       )}
 
-      {view === "list" ? (
+      {view === "calendar" ? (
+        <MonthCalendar month={sp.month} monthHref={(m) => `/referrals?view=calendar${m ? `&month=${m}` : ""}`} />
+      ) : view === "list" ? (
         referrals.length === 0 ? (
           <div className="card">
             <EmptyState message="該当する紹介案件がありません" />

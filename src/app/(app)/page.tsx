@@ -159,7 +159,7 @@ export default async function DashboardPage() {
       <div className="card flex flex-wrap overflow-x-auto">
         <Kpi label="今日やること" value={todoCount} sub="下のリストの件数" accent={todoCount > 0 ? "text-rose-600" : undefined} />
         <Kpi label="あなた宛タスク" value={myTaskCount} sub="未完了" href="/tasks" accent={myTaskCount > 0 ? "text-rose-600" : undefined} />
-        <Kpi label="今日の予定" value={todayMeetings.length + todayReferralMeetings.length} sub="MTG・面談" href="/meetings/calendar" />
+        <Kpi label="今日の予定" value={todayMeetings.length + todayReferralMeetings.length} sub="MTG・面談" href="/meetings?view=calendar" />
         <Kpi label="期限切れ" value={overdueMeetings.length + overdueReferrals.length} sub="次アクション超過" accent={overdueMeetings.length + overdueReferrals.length > 0 ? "text-rose-600" : undefined} />
         <Kpi label="メモ未入力" value={minutesMissing.length} sub="実施済MTG" accent={minutesMissing.length > 0 ? "text-amber-600" : undefined} />
         <Kpi label="停滞案件" value={stagnant.length} sub={`${stagnationDays}日以上`} accent={stagnant.length > 0 ? "text-amber-600" : undefined} />
