@@ -163,7 +163,8 @@ export async function setVendorApprovalAction(formData: FormData) {
     const contactAfter = side === "contact" ? approval : r.contactApproval;
     const anyNg = vendorAfter === "NG" || contactAfter === "NG";
     const wasNg = r.vendorApproval === "NG" || r.contactApproval === "NG";
-    const toDeclined = anyNg && (r.status === "RECEIVED" || r.status === "CONTACTING");
+    // 面談実施済まで進んだ案件は変えない（報酬に関わるため）
+    const toDeclined = anyNg && ["RECEIVED", "CONTACTING", "SCHEDULING", "MEETING_CONFIRMED"].includes(r.status);
     const fromDeclined = !anyNg && wasNg && r.status === "DECLINED";
     const status = toDeclined ? "DECLINED" : fromDeclined ? "RECEIVED" : r.status;
     await prisma.referral.update({

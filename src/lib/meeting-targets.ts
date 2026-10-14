@@ -8,22 +8,24 @@ export type MeetingTarget = { name: string; amount: number | null; declined?: bo
  */
 export function meetingTargets(
   requestNote: string | null | undefined,
-  referrals: { status: string; rewardAmount: number; rewardUndetermined: boolean; contact: { company: string | null; name: string } }[],
+  referrals: { status: string; rewardAmount: number; rewardUndetermined: boolean; vendorApproval?: string; contactApproval?: string; contact: { company: string | null; name: string } }[],
   proposed: string[] = [],
   requestFee: number | null = null,
 ): MeetingTarget[] {
   const out: MeetingTarget[] = [];
+  // 紹介見送り、または先方・人事のどちらかが NG の紹介案件は「見送り」扱い
+  const isDeclined = (r: (typeof referrals)[number]) => r.status === "DECLINED" || r.vendorApproval === "NG" || r.contactApproval === "NG";
   const seen = new Set<string>();
   // 見送りになった会社は、提示済みの会社から拾う場合にも出さない
-  const declined = new Set(referrals.filter((r) => r.status === "DECLINED").map((r) => (r.contact.company ?? r.contact.name).replace(/株式会社|\s/g, "")));
-  for (const r of referrals.filter((r) => r.status !== "DECLINED")) {
+  const declined = new Set(referrals.filter(isDeclined).map((r) => (r.contact.company ?? r.contact.name).replace(/株式会社|\s/g, "")));
+  for (const r of referrals.filter((r) => !isDeclined(r))) {
     const name = r.contact.company ?? r.contact.name;
     if (!name || seen.has(name)) continue;
     seen.add(name);
     out.push({ name, amount: r.rewardUndetermined ? null : r.rewardAmount });
   }
   // 見送りになった会社も「¥0・見送り」として最後に残す（提案した経緯が分かるように）
-  for (const r of referrals.filter((r) => r.status === "DECLINED")) {
+  for (const r of referrals.filter(isDeclined)) {
     const name = r.contact.company ?? r.contact.name;
     if (!name || seen.has(name)) continue;
     seen.add(name);
