@@ -1,5 +1,6 @@
 /** ベンダーMTGに表示する「お繋ぎ先」と単価。 */
-export type MeetingTarget = { name: string; amount: number | null }; // amount null = 単価未定
+// amount null = 単価未定。declined = 先方・人事のNGなどで紹介見送り（¥0・グレーで表示し、合計に含めない）
+export type MeetingTarget = { name: string; amount: number | null; declined?: boolean };
 
 /**
  * 紹介案件があればその会社と報酬額、なければセールスハブで提示した会社（依頼の単価）、
@@ -20,6 +21,13 @@ export function meetingTargets(
     if (!name || seen.has(name)) continue;
     seen.add(name);
     out.push({ name, amount: r.rewardUndetermined ? null : r.rewardAmount });
+  }
+  // 見送りになった会社も「¥0・見送り」として最後に残す（提案した経緯が分かるように）
+  for (const r of referrals.filter((r) => r.status === "DECLINED")) {
+    const name = r.contact.company ?? r.contact.name;
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    out.push({ name, amount: 0, declined: true });
   }
   if (out.length) return out;
   const fromProposed = proposed.length
@@ -52,4 +60,10 @@ export function formatTargetsTotal(targets: MeetingTarget[], fallbackFee: number
 
 export function formatTargetAmount(amount: number | null): string {
   return amount === null ? "未定" : `¥${amount.toLocaleString()}`;
+}
+
+/** お繋ぎ先バッジの色：見送りはグレーアウト、未定は黄色 */
+export function targetBadgeClass(t: MeetingTarget): string {
+  if (t.declined) return "bg-gray-100 text-gray-400 border-gray-200 line-through decoration-gray-400";
+  return t.amount === null ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-indigo-50 text-indigo-800 border-indigo-200";
 }

@@ -9,7 +9,7 @@ import { FilterPanel } from "@/components/FilterPanel";
 import { cleanParams } from "@/lib/params";
 import { APPROVAL_LABEL, EXECUTION_LABEL, EXECUTION_ORDER, FORMAT_LABEL } from "@/lib/labels";
 import { cn, fmtDate, fmtDateTime, toInputDateTime } from "@/lib/utils";
-import { formatTargetAmount, formatTargetsTotal, meetingTargets } from "@/lib/meeting-targets";
+import { formatTargetAmount, formatTargetsTotal, meetingTargets, targetBadgeClass } from "@/lib/meeting-targets";
 import { proposedCompaniesByVendor } from "@/lib/saleshub/proposed";
 import { buildBulkBrief, buildMeetingBrief } from "@/lib/line-brief";
 import { CopyBriefButton } from "@/components/CopyBrief";
@@ -267,7 +267,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                     {targets.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {targets.map((t) => (
-                          <span key={t.name} className={cn("badge", t.amount === null ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-indigo-50 text-indigo-800 border-indigo-200")}>
+                          <span key={t.name} className={cn("badge", targetBadgeClass(t))}>
                             {t.name} ({formatTargetAmount(t.amount)})
                           </span>
                         ))}
@@ -332,7 +332,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                           {targets.length ? (
                             <div className="flex flex-wrap gap-1">
                               {targets.map((t) => (
-                                <span key={t.name} className={cn("badge", t.amount === null ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-indigo-50 text-indigo-800 border-indigo-200")}>
+                                <span key={t.name} className={cn("badge", targetBadgeClass(t))}>
                                   {t.name}
                                   <span className="ml-1 font-normal opacity-80">({formatTargetAmount(t.amount)})</span>
                                 </span>
@@ -398,7 +398,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                             {targets.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {targets.map((t) => (
-                                  <span key={t.name} className={cn("badge", t.amount === null ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-indigo-50 text-indigo-800 border-indigo-200")}>
+                                  <span key={t.name} className={cn("badge", targetBadgeClass(t))}>
                                     {t.name} ({formatTargetAmount(t.amount)})
                                   </span>
                                 ))}

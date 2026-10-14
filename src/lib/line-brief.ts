@@ -78,7 +78,7 @@ export function buildMeetingBrief(m: BriefInput, targets: MeetingTarget[], opts:
   const undetermined = targets.filter((t) => t.amount === null);
   if (undetermined.length) todo.push(`単価確認：${undetermined.map((t) => t.name).join("、")} の単価をベンダーに確認`);
   if (m.fee === null && m.vendorFee === 0 && targets.every((t) => t.amount === null || t.amount === 0)) todo.push("単価確認：この依頼の協力金が未登録。金額を確認して共有");
-  if (targets.length === 0) todo.push("お繋ぎ先が未定：繋げる人物をベンダーと相談");
+  if (targets.every((t) => t.declined)) todo.push("お繋ぎ先が未定：繋げる人物をベンダーと相談");
   // 個別の次アクション（自動文言と重複しないものだけ）
   if (m.nextAction && !/^(日程調整URLから|ベンダーと日程調整|MTGを実施し)/.test(m.nextAction)) todo.push(`${m.nextAction}${due}`);
 
@@ -89,7 +89,7 @@ export function buildMeetingBrief(m: BriefInput, targets: MeetingTarget[], opts:
   // ---- お繋ぎ先・単価 ----
   lines.push("▼お繋ぎ先・単価");
   if (targets.length) {
-    for (const t of targets) lines.push(`・${t.name}（${formatTargetAmount(t.amount)}）`);
+    for (const t of targets) lines.push(`・${t.name}（${t.declined ? "見送り・¥0" : formatTargetAmount(t.amount)}）`);
     lines.push(`合計：${formatTargetsTotal(targets, m.fee ?? m.vendorFee)}`);
   } else {
     lines.push(`・未定（依頼の協力金 ${m.fee !== null ? `¥${m.fee.toLocaleString()}` : m.vendorFee ? `¥${m.vendorFee.toLocaleString()}` : "未登録"}）`);

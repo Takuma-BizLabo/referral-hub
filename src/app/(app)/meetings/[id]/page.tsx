@@ -7,7 +7,7 @@ import { HistoryList } from "@/components/HistoryList";
 import { APPROVAL_LABEL, EXECUTION_LABEL, FORMAT_LABEL, VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
 import { cn, fmtDate, fmtDateTime, fmtReward, fmtYen, toInputDate } from "@/lib/utils";
 import { REFERRAL_LABEL } from "@/lib/labels";
-import { formatTargetAmount, formatTargetsTotal, meetingTargets } from "@/lib/meeting-targets";
+import { formatTargetAmount, formatTargetsTotal, meetingTargets, targetBadgeClass } from "@/lib/meeting-targets";
 import { proposedCompaniesForVendor } from "@/lib/saleshub/proposed";
 import { approveMeetingAction } from "../actions";
 import { advanceToContactingAction } from "../../referrals/actions";
@@ -203,7 +203,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
             ) : targets.length > 0 ? (
               <div className="text-sm">
                 {targets.map((t) => (
-                  <span key={t.name} className="badge bg-indigo-50 text-indigo-800 border-indigo-200 mr-1">
+                  <span key={t.name} className={`badge mr-1 ${targetBadgeClass(t)}`}>
                     {t.name} ({formatTargetAmount(t.amount)})
                   </span>
                 ))}
