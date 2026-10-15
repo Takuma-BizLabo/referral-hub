@@ -9,6 +9,7 @@ import { errorState, type ActionState } from "@/lib/action-state";
 import { httpUrl, money, str } from "@/lib/utils";
 import { Prisma, type VendorApproval, type VendorMeetingStatus } from "@prisma/client";
 import { parseFeeTable, rewardFor } from "@/lib/fee-table";
+import { hasCriteria, parseCriteria } from "@/lib/candidates";
 
 function vendorData(formData: FormData) {
   const name = str(formData.get("name"));
@@ -25,7 +26,32 @@ function vendorData(formData: FormData) {
     introSteps: str(formData.get("introSteps")),
     introMessage: str(formData.get("introMessage")),
     feeTable: feeTableOf(formData),
+    criteria: criteriaOf(formData),
   };
+}
+
+/** 候補ピックアップの条件（何も入っていなければ null） */
+function criteriaOf(formData: FormData) {
+  const num = (k: string) => {
+    const v = String(formData.get(k) ?? "").normalize("NFKC").replace(/[^\d]/g, "");
+    return v === "" ? null : Number(v);
+  };
+  const list = (k: string, sep: RegExp) =>
+    String(formData.get(k) ?? "")
+      .split(sep)
+      .map((x) => x.trim())
+      .filter(Boolean);
+  const c = parseCriteria({
+    minEmployees: num("criteriaMin"),
+    maxEmployees: num("criteriaMax"),
+    classes: formData.getAll("criteriaClasses").map(String),
+    dept: String(formData.get("criteriaDept") ?? ""),
+    industries: list("criteriaIndustries", /[、,，]/),
+    regions: list("criteriaRegions", /[、,，]/),
+    excludeCompanies: list("criteriaExclude", /\r?\n/),
+  });
+  if (c.minEmployees != null && c.maxEmployees != null && c.maxEmployees <= c.minEmployees) throw new Error("候補の条件：従業員数の「未満」は「以上」より大きくしてください");
+  return hasCriteria(c) ? c : Prisma.DbNull;
 }
 
 /** 単価表（空なら null） */

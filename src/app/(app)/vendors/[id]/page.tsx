@@ -20,6 +20,7 @@ import { HistoryList } from "@/components/HistoryList";
 import { SubmitButton } from "@/components/SubmitButton";
 import { idOrNull, idParam } from "@/lib/params";
 import { FEE_ROLES, fmtSizeRange, groupFeeTable, parseFeeTable, rewardFor } from "@/lib/fee-table";
+import { describeCriteria, hasCriteria, matchCandidate, parseCriteria } from "@/lib/candidates";
 import { CopyBriefPanel } from "@/components/CopyBrief";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -46,10 +47,28 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
     take: 1000,
   });
   const notReferredCount = notReferred.length;
-  const proposeCandidates = notReferred.map((c) => {
-    const f = rewardFor(vendor, c);
-    return { id: c.id, company: c.company, name: c.name, title: c.title, employeeSize: c.employeeSize, fee: fmtReward(f.rewardAmount, f.rewardUndetermined) };
-  });
+  // 候補ピックアップ：条件と単価表に合う順（返信なしは各段の最後）
+  const criteria = parseCriteria(vendor.criteria);
+  const feeRules = parseFeeTable(vendor.feeTable);
+  const usesFilter = hasCriteria(criteria) || feeRules.length > 0;
+  const LEVEL_RANK = { match: 0, maybe: 1, no: 2 } as const;
+  const proposeCandidates = notReferred
+    .map((c) => {
+      const f = rewardFor(vendor, c);
+      const m = matchCandidate(criteria, feeRules, c);
+      return {
+        id: c.id,
+        company: c.company,
+        name: c.name,
+        title: c.title,
+        employeeSize: c.employeeSize,
+        fee: fmtReward(f.rewardAmount, f.rewardUndetermined),
+        level: m.level,
+        notes: m.level === "no" ? m.ng : m.level === "maybe" ? m.check : m.ok,
+        noReply: c.noReply,
+      };
+    })
+    .sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level] || Number(a.noReply) - Number(b.noReply));
   // 提案した人事のチェックリスト：確認待ち（どちらか）→ 両方OK → NG の順
   const rank = (r: (typeof vendor.referrals)[number]) =>
     r.vendorApproval === "NG" || r.contactApproval === "NG" ? 2 : r.vendorApproval === "OK" && r.contactApproval === "OK" ? 1 : 0;
@@ -111,7 +130,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
           <span className="badge bg-emerald-600 text-white border-emerald-600">両方OK {bothOk}</span>
         </div>
         <div className="mb-4">
-          <ProposePicker vendorId={vendor.id} candidates={proposeCandidates} />
+          <ProposePicker vendorId={vendor.id} candidates={proposeCandidates} usesFilter={usesFilter} criteriaSummary={[...describeCriteria(criteria), ...(feeRules.length ? ["単価表"] : [])]} />
         </div>
         {proposals.length === 0 ? (
           <EmptyState message="まだ提案した人事はいません" />
@@ -142,6 +161,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
                       <Link href={`/referrals/${r.id}`} className="text-blue-700 hover:underline font-medium">
                         {r.contact.company ?? r.contact.name}
                       </Link>
+                      {r.contact.noReply && <span className="badge ml-1.5 bg-gray-200 text-gray-600 border-gray-300">返信なし</span>}
                     </td>
                     <td>
                       <Badge value={r.status} label={REFERRAL_LABEL[r.status]} />

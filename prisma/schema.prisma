@@ -118,6 +118,7 @@ model Vendor {
   introSteps     String? // お繋ぎの手順（紹介するときの流れ・注意点）
   introMessage   String? // お繋ぎ文章（紹介先へ送る文面。〇〇様 は紹介先の氏名に置き換えてコピー）
   feeTable       Json? // 単価表（従業員数×役職→協力金）。src/lib/fee-table.ts の FeeRule[]
+  criteria       Json? // 候補ピックアップの条件。src/lib/candidates.ts の Criteria
   saleshubUrl    String?
   meetingStatus  VendorMeetingStatus @default(NOT_DONE)
   memo           String?
@@ -177,6 +178,8 @@ model Contact {
   isOnSaleshub Boolean  @default(false)
   relationMemo String?
   isActive     Boolean  @default(true)
+  noReply      Boolean  @default(false) // 返信が返ってこない（一覧・候補でグレーアウト）
+  noReplyAt    DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

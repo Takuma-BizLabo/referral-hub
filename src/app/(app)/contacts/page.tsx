@@ -9,18 +9,20 @@ import { cleanParams } from "@/lib/params";
 import type { Prisma } from "@prisma/client";
 import { judgeFee, parseFeeTable, type FeeJudgement } from "@/lib/fee-table";
 import { splitTitle } from "@/lib/title";
+import { thankYouTotal } from "@/lib/thank-you";
 
 export const metadata = { title: "繋がりリスト" };
 
 export default async function ContactsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; industry?: string; region?: string; saleshub?: string; tag?: string; inactive?: string; notVendor?: string; target?: string; imported?: string; updated?: string; candidates?: string; removed?: string }>;
+  searchParams: Promise<{ q?: string; industry?: string; region?: string; saleshub?: string; tag?: string; inactive?: string; noreply?: string; notVendor?: string; target?: string; imported?: string; updated?: string; candidates?: string; removed?: string }>;
 }) {
   await requireUser();
-  const sp = cleanParams(await searchParams, { notVendor: "int", saleshub: ["0", "1"], inactive: ["1"], target: ["1"] });
+  const sp = cleanParams(await searchParams, { notVendor: "int", saleshub: ["0", "1"], inactive: ["1"], noreply: ["hide"], target: ["1"] });
   const where: Prisma.ContactWhereInput = {
     isActive: sp.inactive === "1" ? undefined : true,
+    ...(sp.noreply === "hide" ? { noReply: false } : {}),
     ...(sp.q
       ? {
           OR: [
@@ -43,7 +45,7 @@ export default async function ContactsPage({
     prisma.contact.findMany({
       where,
       orderBy: [{ company: "asc" }, { name: "asc" }],
-      include: { tags: { include: { tag: true } }, referrals: { select: { vendorId: true } } },
+      include: { tags: { include: { tag: true } }, referrals: { select: { vendorId: true, thankYouFee: true, status: true } } },
       // 単価表で絞るときは DB で絞れないので全件から判定する
       take: sp.target === "1" ? undefined : 500,
     }),
@@ -59,11 +61,13 @@ export default async function ContactsPage({
   // 対象：単価が決まる人を金額の高い順、次に要確認（規模がまたがる）
   const rank = (j: FeeJudgement | undefined) => (j?.kind === "matched" ? 0 : 1);
   const top = (j: FeeJudgement | undefined) => (j?.kind === "matched" ? j.fee : j?.kind === "ambiguous" ? Math.max(...j.candidates) : 0);
+  // 返信なしの人事は一番下（並びはそのまま）
+  const sorted = [...allContacts].sort((a, b) => Number(a.noReply) - Number(b.noReply));
   const contacts = targetOnly
-    ? allContacts
+    ? sorted
         .filter((c) => ["matched", "ambiguous"].includes(judgements.get(c.id)?.kind ?? ""))
         .sort((a, b) => rank(judgements.get(a.id)) - rank(judgements.get(b.id)) || top(judgements.get(b.id)) - top(judgements.get(a.id)))
-    : allContacts;
+    : sorted;
   const total = targetOnly ? contacts.length : allTotal;
 
   return (
@@ -172,6 +176,9 @@ export default async function ContactsPage({
         <label className="flex items-center gap-1 text-sm pb-2">
           <input type="checkbox" name="inactive" value="1" defaultChecked={sp.inactive === "1"} /> 無効も表示
         </label>
+        <label className="flex items-center gap-1 text-sm pb-2">
+          <input type="checkbox" name="noreply" value="hide" defaultChecked={sp.noreply === "hide"} /> 返信なしを隠す
+        </label>
         <button className="btn-secondary">絞り込む</button>
         <Link href="/contacts" className="btn-secondary">
           クリア
@@ -190,7 +197,7 @@ export default async function ContactsPage({
             {contacts.map((c) => {
               const vids = Array.from(new Set(c.referrals.map((r) => r.vendorId)));
               return (
-                <li key={c.id} className={cn("card p-3", !c.isActive && "opacity-50")}>
+                <li key={c.id} className={cn("card p-3", !c.isActive && "opacity-50", c.noReply && "bg-gray-100 opacity-60")}>
                   <div className="flex items-start justify-between gap-2">
                     <Link href={`/contacts/${c.id}`} className="min-w-0">
                       <div className="font-medium text-blue-700">{c.company ?? c.name}</div>
@@ -236,17 +243,19 @@ export default async function ContactsPage({
                   <th>SH</th>
                   <th>タグ</th>
                   <th>紹介済みベンダー</th>
+                  <th className="text-right">謝礼金</th>
                   {feeRules.length > 0 && <th>見込み単価</th>}
                   {notVendor && <th></th>}
                 </tr>
               </thead>
               <tbody>
                 {contacts.map((c) => (
-                  <tr key={c.id} className={c.isActive ? "" : "opacity-50"}>
+                  <tr key={c.id} className={cn(!c.isActive && "opacity-50", c.noReply && "bg-gray-100 opacity-60")}>
                     <td className="whitespace-nowrap">
                       <Link href={`/contacts/${c.id}`} className="text-blue-700 hover:underline font-medium">
                         {c.name}
                       </Link>
+                      {c.noReply && <span className="badge ml-1.5 bg-gray-200 text-gray-600 border-gray-300">返信なし</span>}
                     </td>
                     <td>{c.company ?? "-"}</td>
                     <td className="whitespace-nowrap">{splitTitle(c.title).cls ?? "-"}</td>
@@ -273,6 +282,7 @@ export default async function ContactsPage({
                         {c.referrals.length === 0 && <span className="text-xs text-gray-400">未紹介</span>}
                       </div>
                     </td>
+                    <td className="text-right whitespace-nowrap">{thankYouText(c.referrals)}</td>
                     {feeRules.length > 0 && (
                       <td className="text-xs">
                         <FeeCell j={judgements.get(c.id)!} />
@@ -310,4 +320,10 @@ function FeeCell({ j }: { j: FeeJudgement }) {
       {j.kind === "unknown" ? "判断できない" : "対象外"}
     </span>
   );
+}
+
+/** 一覧の謝礼金欄：合計（件数）。無ければ「-」 */
+function thankYouText(refs: { thankYouFee: number | null; status: string }[]) {
+  const t = thankYouTotal(refs);
+  return t.count ? `${fmtYen(t.total)}（${t.count}件）` : "-";
 }

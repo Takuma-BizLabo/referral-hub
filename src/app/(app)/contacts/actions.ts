@@ -76,6 +76,19 @@ export async function toggleContactActiveAction(formData: FormData) {
   });
 }
 
+/** 「返信なし」を付ける／外す（一覧・候補でグレーアウトし、一番下に並べる） */
+export async function toggleNoReplyAction(formData: FormData) {
+  await runWithFlash(formData, async () => {
+    await assertUser();
+    const id = Number(formData.get("id"));
+    const c = await prisma.contact.findUniqueOrThrow({ where: { id } });
+    await prisma.contact.update({ where: { id }, data: { noReply: !c.noReply, noReplyAt: c.noReply ? null : new Date() } });
+    revalidatePath("/contacts");
+    revalidatePath(`/contacts/${id}`);
+    revalidatePath("/vendors", "layout");
+  });
+}
+
 // ---------- CSV 取込 ----------
 
 export type ImportRow = Record<string, string>; // key = ContactFieldKey

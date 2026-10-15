@@ -60,6 +60,23 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
 
   const countOf = (s: RewardStatus) => counts.find((c) => c.rewardStatus === s);
 
+  // 人事ごとの謝礼金（紹介見送りを除く、謝礼金が入っている紹介案件の合計）
+  const thankRows = await prisma.referral.findMany({
+    where: { thankYouFee: { gt: 0 }, status: { not: "DECLINED" } },
+    select: { thankYouFee: true, status: true, contact: { select: { id: true, name: true, company: true, noReply: true } }, vendor: { select: { name: true } } },
+  });
+  const byContact = new Map<number, { id: number; name: string; company: string | null; total: number; done: number; count: number; vendors: string[] }>();
+  for (const r of thankRows) {
+    const e = byContact.get(r.contact.id) ?? { id: r.contact.id, name: r.contact.name, company: r.contact.company, total: 0, done: 0, count: 0, vendors: [] };
+    e.total += r.thankYouFee ?? 0;
+    if (r.status === "MEETING_DONE") e.done += r.thankYouFee ?? 0;
+    e.count += 1;
+    if (!e.vendors.includes(r.vendor.name)) e.vendors.push(r.vendor.name);
+    byContact.set(r.contact.id, e);
+  }
+  const thankList = [...byContact.values()].sort((a, b) => b.total - a.total);
+  const thankSum = thankList.reduce((a, x) => a + x.total, 0);
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -84,6 +101,42 @@ export default async function RewardsPage({ searchParams }: { searchParams: Prom
           );
         })}
       </div>
+
+      <Card title={`人事ごとの謝礼金（${thankList.length}人・合計 ${fmtYen(thankSum)}）`}>
+        {thankList.length === 0 ? (
+          <EmptyState message="謝礼金が入っている紹介案件はまだありません（紹介案件の一覧で謝礼金を入力すると、ここで人事ごとに合計します）" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>人事</th>
+                  <th>ベンダー</th>
+                  <th className="text-right">件数</th>
+                  <th className="text-right">うち面談実施済</th>
+                  <th className="text-right">謝礼金の合計</th>
+                </tr>
+              </thead>
+              <tbody>
+                {thankList.map((x) => (
+                  <tr key={x.id}>
+                    <td className="whitespace-nowrap">
+                      <Link href={`/contacts/${x.id}`} className="font-medium text-blue-700 hover:underline">
+                        {x.company ?? x.name}
+                      </Link>
+                      {x.company && <div className="text-xs text-gray-500">{x.name}</div>}
+                    </td>
+                    <td className="text-xs text-gray-600">{x.vendors.join("、")}</td>
+                    <td className="text-right">{x.count}</td>
+                    <td className="text-right whitespace-nowrap">{fmtYen(x.done)}</td>
+                    <td className="text-right whitespace-nowrap font-semibold">{fmtYen(x.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
       <Card title="月次集計（直近6ヶ月）">
         <div className="overflow-x-auto">

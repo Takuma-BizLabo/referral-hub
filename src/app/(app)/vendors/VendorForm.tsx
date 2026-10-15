@@ -9,8 +9,11 @@ import type { Vendor } from "@prisma/client";
 import { MoneyInput } from "@/components/MoneyInput";
 import { FeeTableEditor } from "./FeeTableEditor";
 import { parseFeeTable } from "@/lib/fee-table";
+import { parseCriteria } from "@/lib/candidates";
+import { TITLE_CLASSES } from "@/lib/title";
 
 export function VendorForm({ vendor }: { vendor?: Vendor }) {
+  const cr = parseCriteria(vendor?.criteria);
   const [state, action, actionPending, actionSubmit] = useStickyAction(vendor ? updateVendorAction : createVendorAction, undefined);
   return (
     <form action={action} onSubmit={actionSubmit} className="card p-4 space-y-4 max-w-3xl">
@@ -46,6 +49,39 @@ export function VendorForm({ vendor }: { vendor?: Vendor }) {
         <Field label="単価表（従業員数×役職で協力金が変わる場合）" className="sm:col-span-2">
           <FeeTableEditor defaultRules={parseFeeTable(vendor?.feeTable)} />
         </Field>
+        <div className="sm:col-span-2 rounded-lg border border-gray-200 p-3">
+          <div className="mb-1 text-sm font-semibold text-gray-800">候補の条件（候補ピックアップに使う）</div>
+          <p className="mb-3 text-xs text-gray-500">入れた条件と単価表に合う人事を、ベンダー詳細の「提案した人事を追加」で上に出します。空の項目は問いません。</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="従業員数（以上）">
+              <input name="criteriaMin" type="number" min={0} className="input" placeholder="例: 100" defaultValue={cr.minEmployees ?? ""} />
+            </Field>
+            <Field label="従業員数（未満）">
+              <input name="criteriaMax" type="number" min={0} className="input" placeholder="例: 1000" defaultValue={cr.maxEmployees ?? ""} />
+            </Field>
+            <Field label="役職クラス" className="sm:col-span-2">
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+                {TITLE_CLASSES.map((c) => (
+                  <label key={c} className="flex items-center gap-1.5">
+                    <input type="checkbox" name="criteriaClasses" value={c} defaultChecked={cr.classes?.includes(c)} /> {c}
+                  </label>
+                ))}
+              </div>
+            </Field>
+            <Field label="部署" hint="例: 人事">
+              <input name="criteriaDept" className="input" defaultValue={cr.dept ?? ""} />
+            </Field>
+            <Field label="業種" hint="「、」区切りでどれか">
+              <input name="criteriaIndustries" className="input" placeholder="例: IT、人材" defaultValue={cr.industries?.join("、") ?? ""} />
+            </Field>
+            <Field label="地域" hint="「、」区切りでどれか">
+              <input name="criteriaRegions" className="input" placeholder="例: 東京都、大阪府" defaultValue={cr.regions?.join("、") ?? ""} />
+            </Field>
+            <Field label="除外する企業（NGリスト）" hint="1行に1社" className="sm:col-span-2">
+              <textarea name="criteriaExclude" className="input" rows={3} defaultValue={cr.excludeCompanies?.join("\n") ?? ""} />
+            </Field>
+          </div>
+        </div>
         <Field label="メモ" className="sm:col-span-2">
           <textarea name="memo" className="input" rows={3} defaultValue={vendor?.memo ?? ""} />
         </Field>

@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { classPartOf, judgeFee } from "../src/lib/fee-table";
 import { joinTitle, splitTitle } from "../src/lib/title";
+import { matchCandidate, parseCriteria } from "../src/lib/candidates";
 import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
 /** JST の "YYYY-MM-DD HH:mm" を Date に */
@@ -200,6 +201,17 @@ test("役職をクラスと正確な役職に分ける・まとめる", () => {
   assert.equal(joinTitle("代表取締役", "代表取締役"), "代表取締役");
   assert.equal(joinTitle(null, "執行役員"), "執行役員");
   assert.equal(joinTitle("一般社員", null), "一般社員");
+});
+
+test("候補ピックアップ：条件に合う・要確認・合わない", () => {
+  const c = parseCriteria({ minEmployees: 100, maxEmployees: 1000, classes: ["部長クラス", "課長クラス"], dept: "人事", excludeCompanies: ["株式会社NG商事"] });
+  const base = { company: "株式会社A", name: "山田", industry: null, region: null, relationMemo: "部署: 人事部" };
+  assert.equal(matchCandidate(c, [], { ...base, title: "部長クラス（人事部長）", employeeSize: "300名" }).level, "match");
+  assert.equal(matchCandidate(c, [], { ...base, title: "部長クラス", employeeSize: null }).level, "maybe");
+  assert.equal(matchCandidate(c, [], { ...base, title: "一般社員", employeeSize: "300名" }).level, "no");
+  assert.equal(matchCandidate(c, [], { ...base, title: "部長クラス", employeeSize: "50名" }).level, "no");
+  assert.equal(matchCandidate(c, [], { ...base, company: "NG商事株式会社", title: "部長クラス", employeeSize: "300名" }).level, "no");
+  assert.equal(matchCandidate(parseCriteria(null), [], { ...base, title: null, employeeSize: null }).level, "match");
 });
 
 if (failures.length) {

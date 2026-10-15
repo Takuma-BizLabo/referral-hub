@@ -6,7 +6,8 @@ import { Badge, Card, Description, EmptyState, PageHeader } from "@/components/u
 import { REFERRAL_LABEL, REWARD_LABEL, VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
 import { VendorTag } from "@/components/VendorTag";
 import { fmtDate, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
-import { toggleContactActiveAction } from "../actions";
+import { toggleContactActiveAction, toggleNoReplyAction } from "../actions";
+import { thankYouTotal } from "@/lib/thank-you";
 import { SubmitButton } from "@/components/SubmitButton";
 import { idOrNull, idParam } from "@/lib/params";
 import { splitTitle } from "@/lib/title";
@@ -35,7 +36,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
     <div className="space-y-4">
       <PageHeader
         title={contact.name}
-        description={[contact.company, contact.title].filter(Boolean).join(" / ") + (contact.isActive ? "" : "（無効）")}
+        description={[contact.company, contact.title].filter(Boolean).join(" / ") + (contact.isActive ? "" : "（無効）") + (contact.noReply ? "（返信なし）" : "")}
         actions={
           <>
             <Link href={`/referrals/new?contactId=${contact.id}`} className="btn-secondary">
@@ -79,6 +80,15 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           />
         </Card>
         <Card title="操作">
+          <form action={toggleNoReplyAction} className="mb-2">
+            <input type="hidden" name="id" value={contact.id} />
+            <SubmitButton className="btn-secondary btn-sm">{contact.noReply ? "返信ありに戻す" : "返信なしにする"}</SubmitButton>
+            <p className="mt-1 text-xs text-gray-500">
+              {contact.noReply
+                ? `${contact.noReplyAt ? fmtDate(contact.noReplyAt) + " から" : ""}返信なし。一覧と候補でグレーアウトしています`
+                : "返信が返ってこない人事は、一覧と候補でグレーアウトして一番下に並べます"}
+            </p>
+          </form>
           <form action={toggleContactActiveAction}>
             <input type="hidden" name="id" value={contact.id} />
             <SubmitButton className={contact.isActive ? "btn-danger btn-sm" : "btn-secondary btn-sm"}>
@@ -127,7 +137,14 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         )}
       </Card>
 
-      <Card title={`紹介履歴（${contact.referrals.length}）`}>
+      <Card
+        title={`紹介履歴（${contact.referrals.length}）`}
+        actions={
+          <span className="text-sm text-gray-600">
+            謝礼金の合計 <b className="text-gray-900">{fmtYen(thankYouTotal(contact.referrals).total)}</b>（{thankYouTotal(contact.referrals).count}件・紹介見送りを除く）
+          </span>
+        }
+      >
         {contact.referrals.length === 0 ? (
           <EmptyState message="紹介履歴はありません" />
         ) : (
@@ -140,6 +157,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                   <th>ステータス</th>
                   <th>面談日時</th>
                   <th className="text-right">報酬</th>
+                  <th className="text-right">謝礼金</th>
                   <th>報酬状態</th>
                 </tr>
               </thead>
@@ -157,6 +175,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
                     </td>
                     <td className="whitespace-nowrap">{fmtDateTime(r.meetingAt)}</td>
                     <td className="text-right whitespace-nowrap">{fmtReward(r.rewardAmount, r.rewardUndetermined)}</td>
+                    <td className="text-right whitespace-nowrap">{r.thankYouFee === null ? "-" : fmtYen(r.thankYouFee)}</td>
                     <td>
                       <Badge value={r.rewardStatus} label={REWARD_LABEL[r.rewardStatus]} />
                     </td>
