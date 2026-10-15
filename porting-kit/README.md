@@ -1,0 +1,74 @@
+# 紹介案件管理ツール 移植キット
+
+紹介案件管理ツール（このリポジトリ）の機能を、**別のコードに部品ごとに移す**ための設計書。
+主な行き先は BizLabo の「人事のチカラ」（`/hr`）だが、どの Next.js アプリにも使える。
+セールスハブ連携（Chrome 拡張・チャット取込・日程の自動確定）は移さないので含めていない。
+
+## 使い方（BizLabo などの別のコードで）
+
+1. 下の「選択リスト」で、移したい部品に ✅ を付ける（`porting-kit/SELECTION.md` を書き換えるだけ）。
+2. 移す先のフォルダで Claude Code を開き、次の文をそのまま渡す：
+
+```
+/Users/johnnydeppstreasures/Downloads/referral-hub/porting-kit/README.md と SELECTION.md を読んで、
+✅ の付いた部品をこのリポジトリに移植して。
+各部品の設計書（porting-kit/modules/*.md）と、そこに書かれた referral-hub の参照コードを読んでから、
+このリポジトリの作法（CLAUDE.md）に合わせて実装すること。
+まず「データの置き場所」と「部品ごとの作業順」を提案して、私の確認をとってから書き始めて。
+```
+
+3. 移したら、各設計書の「動作確認チェックリスト」で確かめる。
+
+> 設計書はこのリポジトリの今のコードから書いている。referral-hub を直したあとに移植する場合は、設計書より参照コードを正とする。
+
+## 部品の一覧
+
+| 番号 | 部品 | 中身 | 今回の選択 |
+|---|---|---|---|
+| 00 | [ベンダーMTG管理](modules/00-vendor-meetings.md) | 一覧・カンバン・状態の色分け・日時/URL のその場入力・お繋ぎ先と単価 | 任意（06・07 が使う） |
+| 01 | [紹介案件（先方・人事OK）](modules/01-referrals.md) | 先方OK×人事OKで一覧に出る・OK待ちの候補・報酬/謝礼金/面談日時のその場入力・並び順と色 | ✅ |
+| 02 | [ベンダー詳細・単価表](modules/02-vendors.md) | 提案した人事のチェックリスト（先方／人事の回答）・従業員数×役職の単価表で報酬を自動入力 | ✅ |
+| 03 | [繋がりリスト](modules/03-contacts.md) | 人事の一覧・CSV 取込・役職クラス＋正確な役職・紹介マトリクス | ✅ |
+| 04 | [タスク](modules/04-tasks.md) | メンバー間の依頼・タスクごとのチャット・画像の貼り付け/添付・リマインド | ✅ |
+| 05 | [通知・LINE連携](modules/05-notifications-line.md) | ツール内通知・公式 LINE への通知（種類ごとに ON/OFF）・前日/1時間前などのリマインド | ✅ |
+| 06 | [今日の商談・カレンダー](modules/06-today-calendar.md) | 一覧の上の「今日の商談」・月カレンダー | ✅ |
+| 07 | [LINE用コピー](modules/07-line-copy.md) | MTG ごとに「次にやること」を LINE で送れる文章にしてコピー | ✅ |
+| 08 | [報酬管理・承認キュー](modules/08-rewards-approvals.md) | 未確定→計上申請→承認→請求→入金・管理者の承認 | ✅ |
+| 09 | [目標・ダッシュボード](modules/09-goals-dashboard.md) | 月の目標と実績・今日やること・KPI | ✅ |
+| 10 | [画面のデザイン一式](modules/10-ui-kit.md) | 色・ボタン・バッジ・その場編集・エラー画面など、見た目と使い勝手の部品 | ✅ |
+
+### 部品どうしのつながり（先に入れるもの → 後のもの）
+
+```
+10 画面のデザイン一式（最初に。ほかの部品の見た目の土台）
+03 繋がりリスト ─┐
+02 ベンダー詳細 ─┼─→ 01 紹介案件 ─→ 08 報酬・承認 ─→ 09 目標・ダッシュボード
+00 ベンダーMTG ─┘        │
+                          ├─→ 06 今日の商談・カレンダー（00 が無ければ紹介面談だけ）
+                          └─→ 07 LINE用コピー（00 が前提）
+05 通知・LINE ─→ 04 タスク・01・08 の通知、06 のリマインド
+```
+
+## 移す前に決めること（BizLabo の場合）
+
+1. **データの置き場所**：BizLabo の「人事のチカラ」は、今は元の管理画面（`hr-tool/index.html`）を枠で出していて、データは Apps Script 経由のスプレッドシートが正（BizLabo の DB には入れていない）。この部品を入れるなら、
+   - A. BizLabo の DB（SQLite）に新しいテーブルを作って、こちらを正にする（設計書の「データ」をそのまま使える）
+   - B. スプレッドシートを正のまま、読み書きを Apps Script 経由にする（設計書の「データ」を列の対応表として使う）
+   のどちらかを選ぶ。A のほうが設計書どおりに作れて速い。
+2. **権限の対応**：このツールは「管理者／商談担当者」の2つ。BizLabo は「管理者／営業事務／本部／メンバー」。承認・設定・目標は管理者（と営業事務）だけにする、が目安。
+3. **LINE**：このツールは公式 LINE（Messaging API）で各自に通知している。BizLabo 側で同じチャネルを使うか、別にするか。
+
+## 技術の違い（読み替え）
+
+| このツール | BizLabo |
+|---|---|
+| Next.js 15 App Router・Server Actions | Next.js 16 App Router・Route Handlers |
+| Prisma 6 ＋ PostgreSQL（`prisma/schema.prisma`） | better-sqlite3（`src/lib/server/db.ts`。追加は `CREATE TABLE IF NOT EXISTS`、列は `MIGRATIONS` に ALTER） |
+| Tailwind v4（`src/app/globals.css` の部品クラス） | Tailwind v4 |
+| ログイン：ID＋パスワード、セッションは DB | ID＋パスワード（scrypt）、署名クッキー |
+| 日時は DB に `timestamp`、表示は日本時間 | 設計書の SQLite 例に合わせて統一する |
+
+## 参照コードの場所
+
+このリポジトリ：`/Users/johnnydeppstreasures/Downloads/referral-hub`（GitHub：Takuma-BizLabo/referral-hub）。
+設計書の「参照コード」にあるパスは、このリポジトリのルートからの相対パス。
