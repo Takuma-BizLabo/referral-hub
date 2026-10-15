@@ -249,6 +249,14 @@ export async function approveRewardAction(formData: FormData) {
   });
 }
 
+const isApprovedOrLater = (s: RewardStatus) => s === "APPROVED" || s === "INVOICED" || s === "PAID";
+
+/** 承認済み以降の報酬額は管理者しか変えられない（承認した金額が後から変わらないように） */
+function assertCanChangeApprovedAmount(user: { role: string }, r: { rewardStatus: RewardStatus; rewardAmount: number; rewardUndetermined: boolean }, amount: number, undetermined: boolean) {
+  if (user.role === "ADMIN" || !isApprovedOrLater(r.rewardStatus)) return;
+  if (amount !== r.rewardAmount || undetermined !== r.rewardUndetermined) throw new Error("承認済みの報酬額は管理者のみ変更できます");
+}
+
 /** 報酬ステータスの変更（承認済→請求済→入金済 など）。承認は管理者のみ。 */
 export async function setRewardStatusAction(formData: FormData) {
   await runWithFlash(formData, async () => {
@@ -258,8 +266,10 @@ export async function setRewardStatusAction(formData: FormData) {
     if (!Object.hasOwn(REWARD_LABEL, status)) throw new Error("不正なステータスです");
     const r = await prisma.referral.findUniqueOrThrow({ where: { id } });
     if (r.rewardStatus === status) return;
-    if ((status === "APPROVED" || (r.rewardStatus === "APPROVED" && status === "APPLIED")) && user.role !== "ADMIN") {
-      throw new Error("報酬の承認・取消は管理者のみ行えます");
+    // 承認・承認の取り消し（承認済以降 → 未確定・計上申請に戻す）は管理者のみ
+    const approvedOrLater = isApprovedOrLater(r.rewardStatus);
+    if ((status === "APPROVED" || (approvedOrLater && !isApprovedOrLater(status))) && user.role !== "ADMIN") {
+      throw new Error("報酬の承認・承認の取り消しは管理者のみ行えます");
     }
     // 承認を飛ばした請求・入金は管理者のみ（商談担当者が「計上申請」から直接「請求済」「入金済」へ進めない）
     if ((status === "INVOICED" || status === "PAID") && (r.rewardStatus === "UNFIXED" || r.rewardStatus === "APPLIED") && user.role !== "ADMIN") {
@@ -296,9 +306,11 @@ export async function setRewardStatusAction(formData: FormData) {
 
 export async function saveRewardAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   try {
-    await assertUser();
+    const user = await assertUser();
     const id = Number(formData.get("id"));
     const r = await prisma.referral.findUniqueOrThrow({ where: { id } });
+    const undetermined = formData.get("rewardUndetermined") === "on";
+    assertCanChangeApprovedAmount(user, r, undetermined ? 0 : money(formData.get("rewardAmount"), r.rewardAmount), undetermined);
     await prisma.referral.update({
       where: { id },
       data: {
@@ -361,11 +373,13 @@ export async function setListedEarlyAction(formData: FormData) {
 /** 一覧から報酬額をその場で変更する（空欄で「単価未定」） */
 export async function updateRewardAmountAction(id: number, value: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    await assertUser();
+    const user = await assertUser();
     if (!Number.isSafeInteger(id) || id <= 0) throw new Error("不正なIDです");
     const raw = value.normalize("NFKC").replace(/[^\d]/g, "");
     const amount = raw === "" ? null : Number(raw);
     if (amount !== null && (!Number.isSafeInteger(amount) || amount > 100_000_000)) throw new Error("金額が大きすぎます");
+    const before = await prisma.referral.findUniqueOrThrow({ where: { id } });
+    assertCanChangeApprovedAmount(user, before, amount ?? 0, amount === null);
     const r = await prisma.referral.update({
       where: { id },
       data: amount === null ? { rewardAmount: 0, rewardUndetermined: true } : { rewardAmount: amount, rewardUndetermined: false },

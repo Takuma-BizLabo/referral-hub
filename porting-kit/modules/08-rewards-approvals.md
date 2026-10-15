@@ -122,7 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_status_histories_entity ON status_histories(entit
   - UNFIXED / APPLIED → INVOICED / PAID（承認を飛ばした請求・入金）
 - **金額チェック**：APPROVED / INVOICED / PAID へは、単価未定 または 金額 0 以下なら誰でもエラー「報酬額が未定です…」。
 - 上記以外は全員可（例：APPLIED↔UNFIXED、APPROVED→INVOICED→PAID、PAID→INVOICED）。
-  - 注意：現コードでは APPROVED→UNFIXED や INVOICED→APPLIED のような「承認より前への戻し」はメンバーでもできる。移植時は「現在が APPROVED 以降で、移動先が APPLIED 以前なら管理者のみ」に締めるのが望ましい。
+  - 「承認より前への戻し」（現在が APPROVED・INVOICED・PAID で、移動先が UNFIXED・APPLIED）は管理者のみ（`isApprovedOrLater`）。承認済み以降の報酬額の変更も管理者のみ（`assertCanChangeApprovedAmount`。`saveRewardAction` と一覧の `updateRewardAmountAction` の両方）。2026-10-15 に referral-hub でも対応済み。
 - 日時の自動記入（どれも「空のときだけ」入れる。戻しても消さない）：
   - APPROVED / INVOICED / PAID にしたとき rewardApprovedAt が空なら今（管理者が承認を飛ばした場合も計上集計に載るように）。
   - INVOICED にしたとき invoicedAt が空なら今。
