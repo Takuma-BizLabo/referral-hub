@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { classPartOf, judgeFee } from "../src/lib/fee-table";
 import { joinTitle, splitTitle } from "../src/lib/title";
 import { matchCandidate, parseCriteria } from "../src/lib/candidates";
+import { referralTotals } from "../src/lib/referral-totals";
 import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
 /** JST の "YYYY-MM-DD HH:mm" を Date に */
@@ -212,6 +213,20 @@ test("候補ピックアップ：条件に合う・要確認・合わない", ()
   assert.equal(matchCandidate(c, [], { ...base, title: "部長クラス", employeeSize: "50名" }).level, "no");
   assert.equal(matchCandidate(c, [], { ...base, company: "NG商事株式会社", title: "部長クラス", employeeSize: "300名" }).level, "no");
   assert.equal(matchCandidate(parseCriteria(null), [], { ...base, title: null, employeeSize: null }).level, "match");
+});
+
+test("紹介案件の確定・見込みの金額", () => {
+  const r = (status: string, rewardStatus: string, rewardAmount: number, rewardUndetermined = false, thankYouFee: number | null = null) => ({ status, rewardStatus, rewardAmount, rewardUndetermined, thankYouFee });
+  const t = referralTotals([
+    r("MEETING_DONE", "UNFIXED", 40000, false, 5000),
+    r("MEETING_CONFIRMED", "APPLIED", 30000),
+    r("MEETING_CONFIRMED", "UNFIXED", 70000, false, 10000),
+    r("SCHEDULING", "UNFIXED", 0, true),
+    r("DECLINED", "UNFIXED", 90000, false, 3000),
+  ]);
+  assert.deepEqual(t.fixed, { amount: 70000, count: 2, undetermined: 0, thankYou: 5000 });
+  assert.deepEqual(t.expected, { amount: 70000, count: 2, undetermined: 1, thankYou: 10000 });
+  assert.equal(t.total, 140000);
 });
 
 if (failures.length) {

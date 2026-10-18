@@ -10,7 +10,8 @@ import { CountChips } from "@/components/CountChips";
 import { FilterPanel } from "@/components/FilterPanel";
 import { cleanParams } from "@/lib/params";
 import { REFERRAL_LABEL, REFERRAL_ORDER, REWARD_LABEL, REWARD_ORDER } from "@/lib/labels";
-import { cn, fmtDate, fmtDateTime, fmtReward, toInputDateTime } from "@/lib/utils";
+import { cn, fmtDate, fmtDateTime, fmtReward, fmtYen, toInputDateTime } from "@/lib/utils";
+import { referralTotals, type TotalsBucket } from "@/lib/referral-totals";
 import { setListedEarlyAction, setReferralStatusAction } from "./actions";
 import { MeetingAtCell, RewardCell, ThankYouFeeCell } from "./InlineCells";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -42,6 +43,22 @@ function AnswerBadge({ who, value }: { who: string; value: keyof typeof ANSWER_L
     <span className={cn("badge", value === "OK" ? "bg-emerald-100 text-emerald-800 border-emerald-200" : value === "NG" ? "bg-rose-100 text-rose-800 border-rose-200" : "bg-gray-100 text-gray-600 border-gray-200")}>
       {who} {ANSWER_LABEL[value]}
     </span>
+  );
+}
+
+function TotalBox({ label, b, tone, note }: { label: string; b: TotalsBucket; tone: string; note: string }) {
+  return (
+    <div className={cn("rounded-lg border px-4 py-2.5", tone)}>
+      <div className="text-xs text-gray-500">
+        {label}
+        <span className="ml-1 text-[11px] text-gray-400">{note}</span>
+      </div>
+      <div className="text-xl font-semibold">{fmtYen(b.amount)}</div>
+      <div className="text-xs text-gray-500">
+        {b.count}件{b.undetermined > 0 && <span className="text-amber-700">（うち金額未定 {b.undetermined}件）</span>}
+        {b.thankYou > 0 && <span className="ml-2">謝礼金 {fmtYen(b.thankYou)}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -80,7 +97,9 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
     }),
     prisma.vendor.findMany({ orderBy: { name: "asc" } }),
     prisma.setting.findUnique({ where: { key: "stagnationDays" } }).then((s) => Number(s?.value ?? 7)),
-    prisma.referral.findMany({ where: { AND: [{ ...where, vendorId: undefined, status: undefined }, LISTED] }, select: { vendorId: true, status: true } }),
+    prisma.referral.findMany({ where: { AND: [{ ...where, vendorId: undefined, status: undefined }, LISTED] },
+      select: { vendorId: true, status: true, rewardStatus: true, rewardAmount: true, rewardUndetermined: true, thankYouFee: true },
+    }),
     prisma.referral.findMany({
       // 紹介見送りは候補に出さない
       where: { AND: [{ ...where, status: undefined, rewardStatus: undefined }, { NOT: LISTED }, { status: { not: "DECLINED" } }] },
@@ -115,6 +134,8 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
   for (const r of allForCounts) vendorCounts[r.vendorId] = (vendorCounts[r.vendorId] ?? 0) + 1;
   const statusCounts: Record<string, number> = {};
   for (const r of allForCounts.filter((x) => !sp.vendor || x.vendorId === Number(sp.vendor))) statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
+  // 確定・見込みの金額（ベンダーの絞り込みだけ効かせる。ステータスの絞り込みは無視）
+  const totals = referralTotals(allForCounts.filter((x) => !sp.vendor || x.vendorId === Number(sp.vendor)));
   const linkWith = (patch: Record<string, string | undefined>) => {
     const o: Record<string, string> = { ...Object.fromEntries(Object.entries(sp).filter(([, v]) => v) as [string, string][]), view };
     for (const [k, v] of Object.entries(patch)) {
@@ -266,6 +287,21 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
           </details>
         )}
         </>
+      )}
+
+      {view !== "calendar" && (
+        <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <TotalBox label="確定" note="面談実施済・計上申請以降" b={totals.fixed} tone="border-emerald-200 bg-emerald-50/60" />
+          <TotalBox label="見込み" note="面談前（紹介見送りを除く）" b={totals.expected} tone="border-amber-200 bg-amber-50/60" />
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-2.5">
+            <div className="text-xs text-gray-500">確定＋見込み</div>
+            <div className="text-xl font-semibold">{fmtYen(totals.total)}</div>
+            <div className="text-xs text-gray-500">
+              {totals.fixed.count + totals.expected.count}件
+              {totals.fixed.thankYou + totals.expected.thankYou > 0 && <span className="ml-2">謝礼金 {fmtYen(totals.fixed.thankYou + totals.expected.thankYou)}</span>}
+            </div>
+          </div>
+        </div>
       )}
 
       {view === "calendar" ? (
