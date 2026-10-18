@@ -29,11 +29,11 @@ const SORTS: Record<string, { label: string; orderBy: Prisma.ReferralOrderByWith
 };
 
 /**
- * 一覧に出す紹介案件：先方（ベンダー）と人事の両方が OK のもの、または手動で一覧に追加したもの。
- * それ以外は「OK待ちの候補」として畳んで表示する（回答はベンダー詳細のチェックリストで入力）。
+ * 一覧に出す紹介案件：先方（ベンダー）が OK のもの（人事が確認待ちでも出す）、または手動で一覧に追加したもの。
+ * それ以外は「先方OK待ちの候補」として畳んで表示する（回答はベンダー詳細のチェックリストで入力）。
  */
 const LISTED: Prisma.ReferralWhereInput = {
-  OR: [{ vendorApproval: "OK", contactApproval: "OK" }, { listedEarly: true }],
+  OR: [{ vendorApproval: "OK" }, { listedEarly: true }],
 };
 
 const ANSWER_LABEL = { PENDING: "確認待ち", OK: "OK", NG: "NG" } as const;
@@ -229,8 +229,8 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
         {candidates.length > 0 && (
           <details className="card mb-3 border-gray-200 bg-gray-50">
             <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3 text-sm text-gray-500 select-none">
-              <span className="font-medium text-gray-600">OK待ちの候補（{candidates.length}件）</span>
-              <span className="text-xs">先方と人事の両方がOKになると自動で一覧に表示されます（回答はベンダー詳細で入力）。先に一覧へ出す場合は「一覧に追加」</span>
+              <span className="font-medium text-gray-600">先方OK待ちの候補（{candidates.length}件）</span>
+              <span className="text-xs">先方がOKになると自動で一覧に表示されます（回答はベンダー詳細で入力）。先に一覧へ出す場合は「一覧に追加」</span>
             </summary>
             <ul className="divide-y divide-gray-200 border-t border-gray-200">
               {candidates.map((r) => {
@@ -295,6 +295,7 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <VendorTag id={r.vendor.id} name={r.vendor.name} />
                       <Badge value={r.rewardStatus} label={`報酬 ${REWARD_LABEL[r.rewardStatus]}`} />
+                      {r.contactApproval === "PENDING" && r.status !== "DECLINED" && <AnswerBadge who="人事" value="PENDING" />}
                       {isStagnant(r) && <span className="badge bg-amber-100 text-amber-800 border-amber-200">停滞</span>}
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
@@ -345,12 +346,17 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
                             {r.contact.company ?? r.contact.name}
                           </Link>
                           {r.contact.company && <div className="text-xs text-gray-500">{r.contact.name}</div>}
-                          {r.listedEarly && !(r.vendorApproval === "OK" && r.contactApproval === "OK") && (
+                          {r.contactApproval === "PENDING" && r.status !== "DECLINED" && (
+                            <div className="mt-0.5">
+                              <AnswerBadge who="人事" value="PENDING" />
+                            </div>
+                          )}
+                          {r.listedEarly && r.vendorApproval !== "OK" && (
                             <form action={setListedEarlyAction} className="mt-0.5">
                               <input type="hidden" name="id" value={r.id} />
                               <input type="hidden" name="listed" value="0" />
                               <SubmitButton className="text-[11px] text-gray-400 underline hover:text-gray-700" pendingText="...">
-                                OK待ちの候補に戻す
+                                先方OK待ちの候補に戻す
                               </SubmitButton>
                             </form>
                           )}

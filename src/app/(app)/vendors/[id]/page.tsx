@@ -112,7 +112,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         }
       >
         <p className="text-xs text-gray-500 mb-3">
-          セールスハブのチャットで会社情報を送り、先方が繋いでほしい相手を選んだら「先方の回答」を OK に、人事に打診して了承をもらったら「人事の回答」を OK にします。両方 OK になると紹介案件の一覧に表示されます（どちらかが NG なら紹介見送り）。
+          セールスハブのチャットで会社情報を送り、先方が繋いでほしい相手を選んだら「先方の回答」を OK に、人事に打診して了承をもらったら「人事の回答」を OK にします。先方が OK になると紹介案件の一覧に表示されます（人事が確認待ちの間も表示。どちらかが NG なら紹介見送り）。
         </p>
         <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
           <span className="flex items-center gap-1">

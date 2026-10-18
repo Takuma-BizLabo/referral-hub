@@ -1,12 +1,13 @@
 # 01. 紹介案件（先方・人事OK）
 
-> 一言で：ベンダーに紹介する「繋がり（人事）」1件ごとの案件を、ピックアップ受付〜面談実施済〜紹介見送りのステータスで管理する。先方（ベンダー）と人事の両方が OK になった案件だけを一覧に出し、それ以外は「OK待ちの候補」に畳む。
+> 一言で：ベンダーに紹介する「繋がり（人事）」1件ごとの案件を、ピックアップ受付〜面談実施済〜紹介見送りのステータスで管理する。先方（ベンダー）が OK になった案件を一覧に出し（人事が確認待ちでも消さない）、それ以外は「先方OK待ちの候補」に畳む。
 
 ## できること（使う人の目線）
 
 - 紹介案件の一覧をリスト／カンバン／カレンダーで見る。
 - 一覧には「先方OK かつ 人事OK」の案件（または手動で「一覧に追加」した案件）だけが出る。
-- まだ両方 OK でない案件は、畳まれた「OK待ちの候補（N件）」に先方・人事の回答バッジ付きで並ぶ。「＋ 一覧に追加」で先に一覧へ出せ、一覧側の「OK待ちの候補に戻す」で戻せる。
+- まだ先方 OK でない案件は、畳まれた「先方OK待ちの候補（N件）」に先方・人事の回答バッジ付きで並ぶ。「＋ 一覧に追加」で先に一覧へ出せ、一覧側の「先方OK待ちの候補に戻す」で戻せる。
+- 一覧の行で人事がまだ確認待ちなら、紹介先の下に「人事 確認待ち」バッジ（紹介見送りの行には出さない）。
 - 一覧上で、ステータス（ドロップダウン）、面談日時、報酬（空欄＝未定）、謝礼金をその場で変更できる。
 - 面談日時が決まった案件が一番上、紹介見送りは一番下にグレーで出る。日程調整中は黄色。
 - ステータスが一定日数（設定「stagnationDays」、既定7日）変わらない案件に「停滞」バッジが付く。
@@ -25,7 +26,7 @@
   - ベンダーチップ（`VendorChips`）：一覧対象（LISTED）の件数があるベンダーだけ表示。ステータス絞り込みは無視して数える。
   - ステータス件数チップ（`CountChips`）：REFERRAL_ORDER 順。ベンダー選択中はそのベンダーの件数。クリックで `status=…&view=list`。
   - 絞り込みパネル（`FilterPanel`、スマホでは折りたたみ）：紹介先（氏名・会社名の部分一致、大文字小文字無視）、ベンダー、ステータス（リスト時のみ）、報酬状態、並び順。「絞り込む」「クリア」。
-  - 「OK待ちの候補」：`<details>` で既定は閉じる。`card mb-3 border-gray-200 bg-gray-50`。見出し「OK待ちの候補（N件）」＋説明文。
+  - 「先方OK待ちの候補」：`<details>` で既定は閉じる。`card mb-3 border-gray-200 bg-gray-50`。見出し「先方OK待ちの候補（N件）」＋説明文。
     - 各行（`text-gray-500 opacity-70 hover:opacity-100`）：会社名（太字）→ 下に氏名（会社名があるときのみ）、ベンダータグ、回答バッジ「先方 OK/NG/確認待ち」「人事 …」、ベンダーMTGの状況（`MTG 日時`／`MTG日程調整中`／`MTG未設定`）、報酬セル（その場編集可）、右端に「＋ 一覧に追加」（`btn-secondary btn-sm`）。
     - 回答バッジ色：OK＝`bg-emerald-100 text-emerald-800 border-emerald-200`、NG＝`bg-rose-100 text-rose-800 border-rose-200`、確認待ち＝`bg-gray-100 text-gray-600 border-gray-200`。
     - 候補が0件ならセクションごと出さない。
@@ -35,7 +36,7 @@
 列：紹介先／ベンダー／ステータス／面談日時／次アクション／期限／報酬（右寄せ）／謝礼金（右寄せ）／報酬状態。
 
 - 紹介先セル：会社名（`text-blue-700 font-medium`、詳細へのリンク）→ 下に氏名（`text-xs text-gray-500`）。会社名が無ければ氏名だけ。
-  - `listedEarly` で一覧に出ていて、まだ両方 OK でない行には小さく「OK待ちの候補に戻す」（`text-[11px] text-gray-400 underline`）。
+  - `listedEarly` で一覧に出ていて、まだ先方 OK でない行には小さく「先方OK待ちの候補に戻す」（`text-[11px] text-gray-400 underline`）。
 - ステータス：`StatusSelect`（選ぶと即送信）。停滞なら横に「停滞」バッジ（`bg-amber-100 text-amber-800 border-amber-200`、title に「N日以上停滞」）。
 - 面談日時・報酬・謝礼金：その場編集セル（後述）。
 - 期限：期限切れ（今日より前、かつ MEETING_DONE / DECLINED 以外）は `text-rose-600 font-medium`。
@@ -108,7 +109,7 @@
 | thank_you_fee | INTEGER NULL | | 謝礼金（紹介先へのお礼）。null＝未入力 |
 | vendor_approval | TEXT | 'PENDING' | 先方（ベンダー）の回答 |
 | contact_approval | TEXT | 'PENDING' | 人事（紹介先）の回答 |
-| listed_early | INTEGER(bool) | 0 | 両方OK前でも一覧に出す |
+| listed_early | INTEGER(bool) | 0 | 先方OK前でも一覧に出す |
 | reward_status | TEXT | 'UNFIXED' | 報酬状態 |
 | reward_approved_at / invoiced_at / payment_due_at / paid_at | TEXT NULL | | 計上承認・請求・入金予定・入金 |
 | force_unlocked | INTEGER(bool) | 0 | ベンダーMTG未実施ブロックの強制解除 |
@@ -195,11 +196,12 @@ ISO 文字列は辞書順＝時刻順になるので、`<`・ORDER BY がその�
 
 ### 一覧に出す条件（LISTED）
 
-- `(vendor_approval='OK' AND contact_approval='OK') OR listed_early=1` の案件だけを一覧・件数チップ・ベンダーチップの対象にする。
-- 「OK待ちの候補」＝ LISTED でない かつ status≠DECLINED。ステータス・報酬状態の絞り込みは候補には効かない（ベンダー・紹介先検索は効く）。
+- `vendor_approval='OK' OR listed_early=1` の案件だけを一覧・件数チップ・ベンダーチップの対象にする。
+- 「先方OK待ちの候補」＝ LISTED でない かつ status≠DECLINED。ステータス・報酬状態の絞り込みは候補には効かない（ベンダー・紹介先検索は効く）。
 - 候補から除外：そのベンダーの最新のベンダーMTG（created_at 降順の先頭）が CANCELLED のもの。
 - 候補の並び：確定済み（CONFIRMED かつ日時あり）のベンダーMTGがある → 日時の新しい順、次に MTG 日程調整中（SCHEDULING / RESCHEDULE / CONFIRMED で日時なし）、最後に MTG 未設定。同順位は vendor_id, id 昇順。
-- 「一覧に追加」＝ `listed_early=1`、「OK待ちの候補に戻す」＝ `listed_early=0`（両方 OK の行には戻すボタンを出さない）。
+- 「一覧に追加」＝ `listed_early=1`、「先方OK待ちの候補に戻す」＝ `listed_early=0`（先方 OK の行には戻すボタンを出さない）。
+- 以前は「先方OK かつ 人事OK」で一覧に出していたが、人事が確認待ちの間に一覧から消えて追えなくなるため、先方OKだけで出すように変えた。
 
 ### 一覧の並び順
 
@@ -281,7 +283,7 @@ ISO 文字列は辞書順＝時刻順になるので、`<`・ORDER BY がその�
 
 ## 移植のポイント
 
-- Prisma の `findMany` + `include` は JOIN で書く。一覧は `referrals r JOIN vendors v JOIN contacts c` を1本で取り、LISTED を `WHERE ((r.vendor_approval='OK' AND r.contact_approval='OK') OR r.listed_early=1)` で書く。
+- Prisma の `findMany` + `include` は JOIN で書く。一覧は `referrals r JOIN vendors v JOIN contacts c` を1本で取り、LISTED を `WHERE (r.vendor_approval='OK' OR r.listed_early=1)` で書く。
 - `meetingAt: { sort: 'asc', nulls: 'last' }` は SQLite では `ORDER BY meeting_at IS NULL, meeting_at`。
 - `contains` + `mode: insensitive` は `LIKE '%'||?||'%'`（SQLite の LIKE は ASCII のみ大文字小文字無視。日本語はそのままで問題ない）。
 - グループ並べ替え（面談日時あり→その他→見送り）は SQL で取得後に JS で安定ソートするのが確実（元コードもそうしている）。
@@ -309,8 +311,8 @@ ISO 文字列は辞書順＝時刻順になるので、`<`・ORDER BY がその�
 
 ## 動作確認チェックリスト
 
-- [ ] 先方OK・人事OKの両方がそろった案件だけが一覧に出て、片方だけの案件は「OK待ちの候補」に出る
-- [ ] 候補の「＋ 一覧に追加」で一覧に出て、一覧の「OK待ちの候補に戻す」で候補に戻る（両方OKの行には戻すボタンが出ない）
+- [ ] 先方OKの案件は人事が確認待ちでも一覧に出て「人事 確認待ち」バッジが付き、先方が確認待ちの案件は「先方OK待ちの候補」に出る
+- [ ] 候補の「＋ 一覧に追加」で一覧に出て、一覧の「先方OK待ちの候補に戻す」で候補に戻る（先方OKの行には戻すボタンが出ない）
 - [ ] 候補に DECLINED が出ない。最新のベンダーMTGがキャンセルのベンダーの候補も出ない
 - [ ] 候補の並びが「MTG確定（新しい順）→ 日程調整中 → 未設定」になる
 - [ ] 面談日時のある案件が一番上（日時の新しい順）、DECLINED が一番下に `bg-gray-100 opacity-60` で出る
