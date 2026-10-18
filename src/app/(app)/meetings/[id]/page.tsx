@@ -9,7 +9,8 @@ import { cn, fmtDate, fmtDateTime, fmtReward, fmtYen, toInputDate } from "@/lib/
 import { REFERRAL_LABEL } from "@/lib/labels";
 import { formatTargetAmount, formatTargetsTotal, meetingTargets, targetBadgeClass } from "@/lib/meeting-targets";
 import { proposedCompaniesForVendor } from "@/lib/saleshub/proposed";
-import { approveMeetingAction } from "../actions";
+import { approveMeetingAction, deleteMeetingAction } from "../actions";
+import { mergeTargetFor } from "@/lib/meetings";
 import { advanceToContactingAction } from "../../referrals/actions";
 import { setVendorMeetingStatusAction } from "../../vendors/actions";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -40,6 +41,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
     orderBy: { changedAt: "desc" },
   });
   const isAdmin = user.role === "ADMIN";
+  const mergeTarget = isAdmin ? await mergeTargetFor(m) : null;
   const receivedReferrals = m.vendor.referrals.filter((r) => r.status === "RECEIVED");
   const brief = buildMeetingBrief(
     {
@@ -241,6 +243,23 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
           />
         </Card>
       </div>
+
+      {isAdmin && (
+        <Card title="このMTGを削除（管理者）">
+          <p className="text-sm text-gray-600 mb-3">
+            {mergeTarget
+              ? `重複して作られたときなどに使います。依頼内容とセールスハブの紐づけは、同じベンダーの ${mergeTarget.scheduledAt ? fmtDateTime(mergeTarget.scheduledAt) : "日時未定"} のMTG${mergeTarget.place ? "（打ち合わせURLあり）" : ""}にまとめてから削除します。`
+              : "重複して作られたときなどに使います。削除すると元に戻せません。"}
+          </p>
+          <form action={deleteMeetingAction}>
+            <input type="hidden" name="id" value={m.id} />
+            <input type="hidden" name="returnTo" value={mergeTarget ? `/meetings/${mergeTarget.id}` : "/meetings"} />
+            <SubmitButton className="btn-danger btn-sm" confirm="このMTGを削除しますか？元に戻せません。">
+              このMTGを削除
+            </SubmitButton>
+          </form>
+        </Card>
+      )}
 
       <Card title="変更履歴">
         <HistoryList histories={histories} />

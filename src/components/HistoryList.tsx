@@ -17,6 +17,8 @@ const FIELD_LABEL: Record<string, string> = {
   rewardStatus: "報酬",
   forceUnlocked: "強制解除",
   assigneeId: "担当者",
+  merged: "MTGの統合（MTG番号）",
+  scheduledAt: "日時",
 };
 
 function valueLabel(field: string, v: string | null) {

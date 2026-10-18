@@ -235,6 +235,46 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
     const own = mine.flatMap((m) => extractCompanies(m.body, [thread.vendorName]));
     const others = await proposedCompaniesForVendor(vendorId);
     const candidates = [...own, ...others].filter((c, i, arr) => arr.findIndex((x) => normalizeCompanyName(x.company) === normalizeCompanyName(c.company)) === i);
+    // 同じベンダーにまだ終わっていないMTGがあれば、新しく作らずそこにまとめる（別の依頼でも事前MTGは1回のことが多い）
+    const open = await prisma.vendorMeeting.findFirst({
+      where: { vendorId, executionStatus: { in: ["SCHEDULING", "CONFIRMED", "RESCHEDULE"] } },
+      orderBy: { id: "asc" },
+    });
+    if (open) {
+      const fee = thread.fee ?? ((await prisma.vendor.findUnique({ where: { id: vendorId } }))?.referralFee || null);
+      await prisma.vendorMeeting.update({
+        where: { id: open.id },
+        data: {
+          requestNote: [
+            open.requestNote,
+            [
+              `―― 同じベンダーの別の依頼（${fmtDateTime(requestMsg.sentAt)}）――`,
+              thread.requestTitle ? `依頼: ${thread.requestTitle}` : "",
+              thread.fee ? `紹介単価（協力金）: ¥${thread.fee.toLocaleString()}` : "",
+              own.length ? `ピックアップ: ${own.map((c) => c.company + (c.dept ? " / " + c.dept : "")).join("、")}` : "",
+              `ベンダーからの連絡:\n${requestMsg.body}`,
+              `セールスハブ: https://saleshub.jp/proposals/${thread.proposalId}`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+        },
+      });
+      await prisma.saleshubThread.update({ where: { id: thread.id }, data: { importedMeetingId: open.id } });
+      meetingId = open.id;
+      const { created } = await registerCandidates(vendorId, own, "松田の初回メッセージ（別の依頼）", fee);
+      await notify({
+        userId: open.assigneeId,
+        type: "TASK_ASSIGNED",
+        title: `【同じMTGにまとめました】${thread.vendorName} の別の依頼`,
+        body: [thread.requestTitle ?? "", created ? `紹介候補 ${created} 件を登録` : "", "事前MTGは今のMTGにまとめています。別に行う場合はMTGを登録してください。"].filter(Boolean).join("\n"),
+        linkUrl: `/meetings/${open.id}`,
+        dedupeKey: `saleshub:task:${thread.id}`,
+        line,
+      });
+    } else {
     const meeting = await prisma.vendorMeeting.create({
       data: {
         vendorId,
@@ -273,6 +313,7 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
       dedupeKey: `saleshub:task:${thread.id}`,
       line,
     });
+    }
   }
 
   // --- 2. 日時の読み取り → 確定 ---

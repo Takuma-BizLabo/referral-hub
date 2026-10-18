@@ -10,6 +10,7 @@ import { errorState, type ActionState } from "@/lib/action-state";
 import { fmtDateTime, int, MAX_YEN, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
 import type { ExecutionStatus, MeetingFormat } from "@prisma/client";
 import { EXECUTION_LABEL } from "@/lib/labels";
+import { mergeTargetFor } from "@/lib/meetings";
 
 function meetingData(formData: FormData) {
   const vendorId = Number(formData.get("vendorId"));
@@ -311,4 +312,42 @@ export async function updateMeetingScheduledAtAction(id: number, value: string):
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "保存できませんでした" };
   }
+}
+
+/**
+ * MTGを削除する（管理者のみ・重複して作られたときなど）。
+ * 同じベンダーに別のMTGがあれば、依頼内容とセールスハブのスレッドの紐づけをそちらへ移してから消す。
+ */
+export async function deleteMeetingAction(formData: FormData) {
+  await runWithFlash(formData, async () => {
+    const admin = await assertAdmin();
+    const id = Number(formData.get("id"));
+    const m = await prisma.vendorMeeting.findUniqueOrThrow({ where: { id } });
+    const target = await mergeTargetFor(m);
+    await prisma.$transaction(async (tx) => {
+      if (target) {
+        await tx.vendorMeeting.update({
+          where: { id: target.id },
+          data: {
+            requestNote: [target.requestNote, m.requestNote ? `―― 削除したMTG（${m.scheduledAt ? fmtDateTime(m.scheduledAt) : "日時未定"}）の依頼内容 ――\n${m.requestNote}` : null]
+              .filter(Boolean)
+              .join("\n\n"),
+          },
+        });
+        await recordHistory(tx, {
+          entityType: "VENDOR_MEETING",
+          entityId: target.id,
+          field: "merged",
+          fromValue: String(m.id),
+          toValue: String(target.id),
+          note: `重複していたMTG（${m.scheduledAt ? fmtDateTime(m.scheduledAt) : "日時未定"}）をこのMTGにまとめて削除`,
+          changedById: admin.id,
+        });
+      }
+      await tx.saleshubThread.updateMany({ where: { importedMeetingId: m.id }, data: { importedMeetingId: target?.id ?? null } });
+      await tx.vendorMeeting.delete({ where: { id: m.id } });
+    });
+    revalidateMeeting(target?.id ?? id, m.vendorId);
+    return { notice: target ? "MTGを削除し、依頼内容をこのMTGにまとめました" : "MTGを削除しました" };
+  });
 }
