@@ -4,7 +4,7 @@ import { recordHistory, reopenVendorMeetingStatus } from "../history";
 import { notify, notifyAdmins } from "../notifications";
 import { getSettingRaw } from "../settings";
 import { fmtDateTime } from "../utils";
-import { evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
+import { evaluateThreadSchedule, extractCompanies, findApprovedCompanies, findDeclinedCompanies, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
 import { isProposed, proposedCompaniesForVendor } from "./proposed";
 import type { SaleshubMessage, SaleshubThread } from "@prisma/client";
 import { parseFeeTable, rewardFor } from "../fee-table";
@@ -147,6 +147,42 @@ export async function applyDeclines(vendorId: number, vendorName: string, messag
     });
   }
   return declined;
+}
+
+/**
+ * ベンダーが「ターゲット企業です」「ぜひご紹介いただきたく」「正式依頼」などと返した会社の紹介案件を「先方OK」にする。
+ * 先方の回答が確認待ちのものだけ（人が NG・OK にしたものは触らない）。紹介見送りも触らない。
+ */
+export async function applyApprovals(vendorId: number, vendorName: string, messages: Msg[], opts: { line?: false } = {}): Promise<string[]> {
+  const fromVendor = messages.filter((m) => !m.isMine);
+  if (fromVendor.length === 0) return [];
+  const referrals = await prisma.referral.findMany({
+    where: { vendorId, vendorApproval: "PENDING", status: { not: "DECLINED" } },
+    include: { contact: { select: { company: true, name: true } } },
+  });
+  const approved: string[] = [];
+  const done = new Set<number>();
+  for (const m of fromVendor) {
+    for (const r of referrals) {
+      if (done.has(r.id) || !r.contact.company) continue;
+      if (findApprovedCompanies(m.body, [r.contact.company]).length === 0) continue;
+      await prisma.referral.update({ where: { id: r.id }, data: { vendorApproval: "OK" } });
+      await recordHistory(prisma, { entityType: "REFERRAL", entityId: r.id, field: "vendorApproval", fromValue: "PENDING", toValue: "OK", note: `ベンダーが繋いでほしいと連絡（${fmtDateTime(m.sentAt)}）`, changedById: null });
+      done.add(r.id);
+      approved.push(`${r.contact.company}（${r.contact.name}）`);
+    }
+  }
+  if (approved.length) {
+    await notifyAdmins({
+      type: "SALESHUB_MESSAGE",
+      title: `【先方OK】${vendorName}：${approved.join("、")}`,
+      body: "ベンダーからの連絡を読み取り、先方の回答を OK にしました（紹介案件の一覧に表示されます）。違っていればベンダー詳細で回答を戻してください。",
+      linkUrl: `/vendors/${vendorId}`,
+      dedupeKey: `saleshub:approve:${vendorId}:${[...done].join(",")}`,
+      line: opts.line,
+    });
+  }
+  return approved;
 }
 
 /** チャットで決まった日時でMTGを「確定」にし、担当者と管理者に知らせる */
@@ -362,6 +398,7 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
     }
     // 候補登録のあとで判定する（同じメッセージで挙がって断られた会社も見送りにする）
     await applyDeclines(vendorId, thread.vendorName, vendorMessages, { line });
+    await applyApprovals(vendorId, thread.vendorName, vendorMessages, { line });
   }
 }
 
@@ -410,7 +447,10 @@ export async function rebuildCandidates(): Promise<{ threads: number; created: n
   // ベンダーが見送りと連絡した会社は「紹介見送り」へ
   for (const t of threads) {
     const vendorId = t.vendorId ?? (await prisma.saleshubThread.findUnique({ where: { id: t.id } }))?.vendorId;
-    if (vendorId) await applyDeclines(vendorId, t.vendorName, t.messages, { line: false });
+    if (vendorId) {
+      await applyDeclines(vendorId, t.vendorName, t.messages, { line: false });
+      await applyApprovals(vendorId, t.vendorName, t.messages, { line: false });
+    }
   }
   return { threads: threads.length, created, unmatched: [...unmatched] };
 }

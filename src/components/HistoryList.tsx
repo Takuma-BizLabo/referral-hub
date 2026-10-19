@@ -13,6 +13,8 @@ import { EmptyState } from "./ui";
 const FIELD_LABEL: Record<string, string> = {
   meetingStatus: "MTG状態",
   proposalStatus: "提案状況",
+  vendorApproval: "先方の回答",
+  contactApproval: "人事の回答",
   approvalStatus: "承認",
   executionStatus: "実施",
   status: "紹介ステータス",
@@ -23,11 +25,15 @@ const FIELD_LABEL: Record<string, string> = {
   scheduledAt: "日時",
 };
 
+const ANSWER_LABEL: Record<string, string> = { PENDING: "確認待ち", OK: "OK", NG: "NG" };
+
 function valueLabel(field: string, v: string | null) {
   if (v === null) return "（なし）";
   const maps: Record<string, Record<string, string>> = {
     meetingStatus: VENDOR_MEETING_STATUS_LABEL,
     proposalStatus: VENDOR_PROPOSAL_LABEL,
+    vendorApproval: ANSWER_LABEL,
+    contactApproval: ANSWER_LABEL,
     approvalStatus: APPROVAL_LABEL,
     executionStatus: EXECUTION_LABEL,
     status: REFERRAL_LABEL,

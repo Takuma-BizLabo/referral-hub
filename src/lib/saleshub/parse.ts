@@ -262,6 +262,32 @@ export function findDeclinedCompanies(body: string, companies: string[]): string
   });
 }
 
+/**
+ * ベンダーが「ターゲット企業です」「ぜひご紹介いただきたく」「正式依頼」などと、繋いでほしいと返した会社を返す（先方OK）。
+ * - 段落（空行区切り）か文（。区切り）の中に、了承の言葉と会社名が両方あるもの
+ * - 「正式依頼」はその後ろに並んだ会社すべて（箇条書きで会社が別の行にあるため）
+ * - 見送り・昔の話の文は除く
+ */
+const APPROVE_RE =
+  /ターゲット(企業|先)?(と|に)(なって|なり|該当)|ターゲットとなる|ターゲットです|対象(企業)?(と|に)(なって|なり|該当)|ぜひ(ご)?紹介|ぜひ(お|ご)?繋ぎ|ぜひお願い|(お|ご)?繋ぎ(いただ|して(ほしい|欲しい|いただ)|をお願い|お願い)|繋いで(ほしい|欲しい|いただ)|ご紹介(いただきたく|いただけますと|をお願い|お願い)|紹介を希望/;
+const FORMAL_RE = /正式(に)?(ご)?依頼/;
+
+export function findApprovedCompanies(body: string, companies: string[]): string[] {
+  const has = (text: string, c: string) => {
+    const s = text.replace(/[\s　]+/g, "").toLowerCase();
+    return companyTokens(c).some((t) => s.includes(t));
+  };
+  const chunks = body.split(/\n\s*\n|。/).filter((x) => APPROVE_RE.test(x) && !DECLINE_RE.test(x) && !PAST_RE.test(x));
+  const formal = body.search(FORMAL_RE);
+  const afterFormal = formal >= 0 ? body.slice(formal) : "";
+  return companies.filter((c) => {
+    if (chunks.some((x) => has(x, c))) return true;
+    if (!afterFormal) return false;
+    // 正式依頼の後ろの行のうち、見送り・昔の話でない行に会社名があるもの
+    return afterFormal.split("\n").some((l) => !DECLINE_RE.test(l) && !PAST_RE.test(l) && has(l, c));
+  });
+}
+
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const DOW = "[月火水木金土日]";
 /** 時刻: 11:40 / 午前11:00 / 15時 / 13時半 / 9時30分 */

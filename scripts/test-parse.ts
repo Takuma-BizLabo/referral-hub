@@ -8,7 +8,7 @@ import { classPartOf, judgeFee } from "../src/lib/fee-table";
 import { joinTitle, splitTitle } from "../src/lib/title";
 import { matchCandidate, matchVendorCriteria, parseCriteria, parseVendorCriteria } from "../src/lib/candidates";
 import { referralTotals } from "../src/lib/referral-totals";
-import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
+import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, findApprovedCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
 /** JST の "YYYY-MM-DD HH:mm" を Date に */
 function jst(s: string): Date {
@@ -175,6 +175,17 @@ test("ベンダーが紹介見送りと連絡した会社だけを拾う", () =>
   const body = "松田様\n\nご連絡ありがとうございます。\nDriveXの辻です。\n\nオーダースーツSADA様の代表取締役の方をご紹介いただけるとのこと、ありがとうございます。\n\n同社は、生産計画AIスケジューラ「スマート生産計画」のご提案対象ですが、すでに別のサポーター様を通じてお話を進めております。\n重複でのご連絡を避けるため、今回はSADA様へのご紹介を見送らせていただければと存じます。せっかくお声がけいただいたところ、申し訳ございません。\n一方で、松田様のおつながりにあるカネ美食品様にも関心を持っております。";
   assert.deepEqual(findDeclinedCompanies(body, ["株式会社オーダースーツSADA", "カネ美食品株式会社", "株式会社イメージ・マジック"]), ["株式会社オーダースーツSADA"]);
 });
+test("ベンダーが繋いでほしいと返した会社を拾う（先方OK）", () => {
+  const pf = "松田様\n\nお世話になっております。\nペイメントフォーの佐久間です。\n\nご連絡が遅くなり、大変申し訳ございません。\n株式会社アッカ・インターナショナル様は弊社のターゲット企業となっておりますので、\nぜひご紹介いただきたく存じます。\n\nぜひ一度、松田様へ弊社サービスのご説明とお知り合いの企業様への具体的なメリット、\n同業他社様への事例などを共有させていただければと思います。";
+  assert.deepEqual(findApprovedCompanies(pf, ["株式会社アッカ・インターナショナル", "株式会社エヌイチ"]), ["株式会社アッカ・インターナショナル"]);
+  const fl = "下記に正式にご依頼する企業様を記載いたします。\n【正式依頼】\n・株式会社アドインテ様（経営企画Div. 人事チーム責任者）\nご協力金：¥50,000\n・カネ美食品株式会社様（総務人事本部 部長）\nご協力金：¥60,000\n※カネ美食品様は3年前に人事部の方とお打ち合わせの機会がありましたが、当時はeラーニングを採用するとのことでお見送りされておりました。";
+  assert.deepEqual(findApprovedCompanies(fl, ["株式会社アドインテ", "カネ美食品株式会社", "株式会社Enjin"]), ["株式会社アドインテ", "カネ美食品株式会社"]);
+  assert.deepEqual(findApprovedCompanies("株式会社エヌイチ様はターゲットで、お繋ぎしてほしいです", ["株式会社エヌイチ"]), ["株式会社エヌイチ"]);
+  assert.deepEqual(findApprovedCompanies("株式会社エヌイチ様はご紹介を見送らせてください", ["株式会社エヌイチ"]), []);
+  assert.deepEqual(findApprovedCompanies("候補企業様ございましたら、ぜひご紹介いただけますと幸いです。", ["株式会社エヌイチ"]), []);
+  assert.deepEqual(findApprovedCompanies("こちらで精査しまして、正式にご依頼させていただきますので、少々お待ちくださいませ。", ["株式会社エヌイチ"]), []);
+});
+
 test("昔の見送りの話は今回の見送りにしない（フライヤーの正式依頼）", () => {
   const body = "下記に正式にご依頼する企業様を記載いたします。\n【正式依頼】\n・株式会社アドインテ様（経営企画Div. 人事チーム責任者）\nご協力金：¥50,000\n・カネ美食品株式会社様（総務人事本部 部長）\nご協力金：¥60,000\n※カネ美食品様は3年前に人事部の方とお打ち合わせの機会がありましたが、当時はeラーニングを採用するとのことでお見送りされておりました。当時お話していた方は現在はご退職されていて、松田様が問題なければお声がけお願いしたく存じます。";
   assert.deepEqual(findDeclinedCompanies(body, ["株式会社アドインテ", "カネ美食品株式会社"]), []);
