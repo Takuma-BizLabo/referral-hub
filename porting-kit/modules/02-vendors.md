@@ -51,6 +51,14 @@
 7. ベンダーMTGの状態カード：現在の状態バッジ、説明文、ボタン「実施済にする」（primary）「MTG不要にする」「未実施に戻す」（現在値のボタンは出さない）。下に「このベンダーを無効にする」（`btn-danger btn-sm`）／「有効に戻す」。
 8. 変更履歴（VENDOR の StatusHistory、新しい順に20件）。
 
+### 提案状況（MTG後）
+
+- MTG状態が「実施済」のベンダーだけ、提案状況「提案前／提案中／提案済み」を手動で切り替える（`vendors.proposal_status`、既定 `NOT_PROPOSED`）。
+- ベンダー一覧：「提案状況」列にその場で変えられるセレクト（実施済以外は「-」）、絞り込み「提案状況（MTG実施済）」。
+- ベンダー詳細：「紹介の条件」の上に「提案状況」カード（セレクト＋説明「MTG後、人事の提案を始める前は提案前、会社情報を送って回答待ちは提案中、提案し終えたら提案済み」）。
+- 変更は履歴（field=`proposalStatus`）に残す。色：提案前 slate、提案中 amber、提案済み emerald。
+- 参照コード：`setVendorProposalStatusAction`（`src/app/(app)/vendors/actions.ts`）、`VENDOR_PROPOSAL_LABEL`・`VENDOR_PROPOSAL_ORDER`（`src/lib/labels.ts`）。
+
 ## データ
 
 ### vendors（Prisma `Vendor`）

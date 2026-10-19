@@ -10,10 +10,13 @@ import {
   REFERRAL_LABEL,
   REWARD_LABEL,
   VENDOR_MEETING_STATUS_LABEL,
+  VENDOR_PROPOSAL_LABEL,
+  VENDOR_PROPOSAL_ORDER,
 } from "@/lib/labels";
+import { StatusSelect } from "@/components/StatusSelect";
 import { cn, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import type { VendorApproval } from "@prisma/client";
-import { setVendorApprovalAction, setVendorMeetingStatusAction, toggleVendorActiveAction } from "../actions";
+import { setVendorApprovalAction, setVendorMeetingStatusAction, setVendorProposalStatusAction, toggleVendorActiveAction } from "../actions";
 import { ProposePicker } from "./ProposePicker";
 import { RewardCell } from "@/app/(app)/referrals/InlineCells";
 import { HistoryList } from "@/components/HistoryList";
@@ -103,6 +106,20 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
           </>
         }
       />
+
+      {vendor.meetingStatus === "DONE" && (
+        <div className="card flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+          <span className="text-sm font-semibold text-gray-800">提案状況</span>
+          <StatusSelect
+            action={setVendorProposalStatusAction}
+            id={vendor.id}
+            value={vendor.proposalStatus}
+            options={VENDOR_PROPOSAL_ORDER.map((p) => ({ value: p, label: VENDOR_PROPOSAL_LABEL[p] }))}
+            className="input text-sm py-1 w-auto"
+          />
+          <span className="text-xs text-gray-500">MTG後、人事の提案を始める前は「提案前」、会社情報を送って回答待ちは「提案中」、提案し終えたら「提案済み」</span>
+        </div>
+      )}
 
       <VendorCriteriaCard vendorId={vendor.id} criteria={criteria} />
 

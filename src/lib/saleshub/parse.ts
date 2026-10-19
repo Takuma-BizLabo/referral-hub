@@ -247,10 +247,13 @@ function companyTokens(name: string): string[] {
  * ベンダーが「ご紹介を見送らせて」「対象外」などと断った会社を返す。
  * companies（紹介案件の会社名）のうち、見送りの文と同じ文に出てくるものだけを対象にする。
  */
+/** 昔の話（「3年前に…お見送りされておりました」など）は今回の見送りとして扱わない */
+const PAST_RE = /\d+\s*(年|ヶ月|か月|カ月)前|当時|以前|過去に|前回|かつて|昔/;
+
 export function findDeclinedCompanies(body: string, companies: string[]): string[] {
   const sentences = body
     .split(/[。！!？?\n]/)
-    .filter((s) => DECLINE_RE.test(s))
+    .filter((s) => DECLINE_RE.test(s) && !PAST_RE.test(s))
     .map((s) => s.replace(/[\s　]+/g, "").toLowerCase());
   if (sentences.length === 0) return [];
   return companies.filter((c) => {

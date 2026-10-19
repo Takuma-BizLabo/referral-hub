@@ -25,6 +25,13 @@ enum VendorMeetingStatus {
   NOT_REQUIRED // 不要（初回MTGなしで紹介可）
 }
 
+// MTG後の人事の提案状況（手動で切り替え）
+enum VendorProposalStatus {
+  NOT_PROPOSED // 提案前
+  PROPOSING // 提案中
+  PROPOSED // 提案済み
+}
+
 enum ApprovalStatus {
   PENDING // 承認待ち
   APPROVED // 承認済
@@ -121,6 +128,7 @@ model Vendor {
   criteria       Json? // 候補ピックアップの条件。src/lib/candidates.ts の Criteria
   saleshubUrl    String?
   meetingStatus  VendorMeetingStatus @default(NOT_DONE)
+  proposalStatus VendorProposalStatus @default(NOT_PROPOSED)
   memo           String?
   isActive       Boolean             @default(true)
   createdAt      DateTime            @default(now())

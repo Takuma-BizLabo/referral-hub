@@ -6,6 +6,7 @@ import type {
   RewardStatus,
   Role,
   VendorMeetingStatus,
+  VendorProposalStatus,
 } from "@prisma/client";
 
 export const ROLE_LABEL: Record<Role, string> = {
@@ -23,6 +24,13 @@ export const VENDOR_MEETING_STATUS_LABEL: Record<VendorMeetingStatus, string> = 
   DONE: "実施済",
   NOT_REQUIRED: "不要",
 };
+
+export const VENDOR_PROPOSAL_LABEL: Record<VendorProposalStatus, string> = {
+  NOT_PROPOSED: "提案前",
+  PROPOSING: "提案中",
+  PROPOSED: "提案済み",
+};
+export const VENDOR_PROPOSAL_ORDER: VendorProposalStatus[] = ["NOT_PROPOSED", "PROPOSING", "PROPOSED"];
 
 export const APPROVAL_LABEL: Record<ApprovalStatus, string> = {
   PENDING: "承認待ち",
@@ -100,6 +108,10 @@ export const STATUS_COLOR: Record<string, string> = {
   NOT_DONE: "bg-slate-100 text-slate-700 border-slate-200",
   NOT_REQUIRED: "bg-teal-50 text-teal-800 border-teal-200",
   NO_MEETING: "bg-teal-50 text-teal-800 border-teal-200",
+  // ベンダーの提案状況
+  NOT_PROPOSED: "bg-slate-100 text-slate-700 border-slate-200",
+  PROPOSING: "bg-amber-100 text-amber-800 border-amber-200",
+  PROPOSED: "bg-emerald-100 text-emerald-800 border-emerald-200",
 };
 
 export const NOTIFICATION_TYPES = [

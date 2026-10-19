@@ -6,11 +6,13 @@ import {
   REFERRAL_LABEL,
   REWARD_LABEL,
   VENDOR_MEETING_STATUS_LABEL,
+  VENDOR_PROPOSAL_LABEL,
 } from "@/lib/labels";
 import { EmptyState } from "./ui";
 
 const FIELD_LABEL: Record<string, string> = {
   meetingStatus: "MTG状態",
+  proposalStatus: "提案状況",
   approvalStatus: "承認",
   executionStatus: "実施",
   status: "紹介ステータス",
@@ -25,6 +27,7 @@ function valueLabel(field: string, v: string | null) {
   if (v === null) return "（なし）";
   const maps: Record<string, Record<string, string>> = {
     meetingStatus: VENDOR_MEETING_STATUS_LABEL,
+    proposalStatus: VENDOR_PROPOSAL_LABEL,
     approvalStatus: APPROVAL_LABEL,
     executionStatus: EXECUTION_LABEL,
     status: REFERRAL_LABEL,

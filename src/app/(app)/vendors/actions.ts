@@ -7,7 +7,7 @@ import { assertUser } from "@/lib/auth";
 import { recordHistory } from "@/lib/history";
 import { errorState, type ActionState } from "@/lib/action-state";
 import { httpUrl, money, str } from "@/lib/utils";
-import { Prisma, type VendorApproval, type VendorMeetingStatus } from "@prisma/client";
+import { Prisma, type VendorApproval, type VendorMeetingStatus, type VendorProposalStatus } from "@prisma/client";
 import { parseFeeTable, rewardFor } from "@/lib/fee-table";
 import { parseVendorCriteria, setNameOf } from "@/lib/candidates";
 
@@ -66,6 +66,31 @@ export async function updateVendorAction(_prev: ActionState, formData: FormData)
   revalidatePath("/vendors");
   revalidatePath(`/vendors/${id}`);
   redirect(`/vendors/${id}`);
+}
+
+/** MTG後の提案状況（提案前／提案中／提案済み）を切り替える */
+export async function setVendorProposalStatusAction(formData: FormData) {
+  await runWithFlash(formData, async () => {
+    const user = await assertUser();
+    const id = Number(formData.get("id"));
+    const status = String(formData.get("status")) as VendorProposalStatus;
+    if (!["NOT_PROPOSED", "PROPOSING", "PROPOSED"].includes(status)) throw new Error("不正な値です");
+    await prisma.$transaction(async (tx) => {
+      const v = await tx.vendor.findUniqueOrThrow({ where: { id } });
+      if (v.proposalStatus === status) return;
+      await tx.vendor.update({ where: { id }, data: { proposalStatus: status } });
+      await recordHistory(tx, {
+        entityType: "VENDOR",
+        entityId: id,
+        field: "proposalStatus",
+        fromValue: v.proposalStatus,
+        toValue: status,
+        changedById: user.id,
+      });
+    });
+    revalidatePath(`/vendors/${id}`);
+    revalidatePath("/vendors");
+  });
 }
 
 /** ベンダーMTGの状態（未実施／実施済）を手動で切り替える */

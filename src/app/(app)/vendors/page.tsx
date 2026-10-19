@@ -2,7 +2,9 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Badge, EmptyState, PageHeader } from "@/components/ui";
-import { VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
+import { VENDOR_MEETING_STATUS_LABEL, VENDOR_PROPOSAL_LABEL, VENDOR_PROPOSAL_ORDER } from "@/lib/labels";
+import { StatusSelect } from "@/components/StatusSelect";
+import { setVendorProposalStatusAction } from "./actions";
 import { fmtYen } from "@/lib/utils";
 import { cleanParams } from "@/lib/params";
 import type { Prisma } from "@prisma/client";
@@ -12,14 +14,15 @@ export const metadata = { title: "ベンダー" };
 export default async function VendorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; inactive?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; inactive?: string; proposal?: string }>;
 }) {
   await requireUser();
-  const { q, status, inactive } = cleanParams(await searchParams);
+  const { q, status, inactive, proposal } = cleanParams(await searchParams);
   const where: Prisma.VendorWhereInput = {
     isActive: inactive === "1" ? undefined : true,
     ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { contactName: { contains: q, mode: "insensitive" } }, { serviceSummary: { contains: q, mode: "insensitive" } }] } : {}),
     ...(status === "DONE" || status === "NOT_DONE" || status === "NOT_REQUIRED" ? { meetingStatus: status } : {}),
+    ...(proposal && (VENDOR_PROPOSAL_ORDER as string[]).includes(proposal) ? { meetingStatus: "DONE", proposalStatus: proposal as (typeof VENDOR_PROPOSAL_ORDER)[number] } : {}),
   };
   const vendors = await prisma.vendor.findMany({
     where,
@@ -57,6 +60,17 @@ export default async function VendorsPage({
             <option value="DONE">実施済</option>
           </select>
         </div>
+        <div>
+          <label className="label">提案状況（MTG実施済）</label>
+          <select name="proposal" defaultValue={proposal ?? ""} className="input">
+            <option value="">すべて</option>
+            {VENDOR_PROPOSAL_ORDER.map((p) => (
+              <option key={p} value={p}>
+                {VENDOR_PROPOSAL_LABEL[p]}
+              </option>
+            ))}
+          </select>
+        </div>
         <label className="flex items-center gap-1 text-sm pb-2">
           <input type="checkbox" name="inactive" value="1" defaultChecked={inactive === "1"} /> 無効も表示
         </label>
@@ -75,6 +89,7 @@ export default async function VendorsPage({
                 <th>サービス概要</th>
                 <th className="text-right">単価</th>
                 <th>MTG状態</th>
+                <th>提案状況</th>
                 <th className="text-right">MTG</th>
                 <th className="text-right">紹介</th>
               </tr>
@@ -92,6 +107,18 @@ export default async function VendorsPage({
                   <td className="text-right whitespace-nowrap">{fmtYen(v.referralFee)}</td>
                   <td>
                     <Badge value={v.meetingStatus} label={VENDOR_MEETING_STATUS_LABEL[v.meetingStatus]} />
+                  </td>
+                  <td>
+                    {v.meetingStatus === "DONE" ? (
+                      <StatusSelect
+                        action={setVendorProposalStatusAction}
+                        id={v.id}
+                        value={v.proposalStatus}
+                        options={VENDOR_PROPOSAL_ORDER.map((p) => ({ value: p, label: VENDOR_PROPOSAL_LABEL[p] }))}
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
                   </td>
                   <td className="text-right">{v._count.meetings}</td>
                   <td className="text-right">{v._count.referrals}</td>
