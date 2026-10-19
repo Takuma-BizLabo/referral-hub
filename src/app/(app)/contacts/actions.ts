@@ -7,7 +7,14 @@ import { assertUser } from "@/lib/auth";
 import { errorState, type ActionState } from "@/lib/action-state";
 import { str } from "@/lib/utils";
 import { joinTitle } from "@/lib/title";
+import { HIRING_FIELDS, type HiringData } from "@/lib/hiring";
 import { findDuplicate, normalizeCompany, normalizeName, parseBool, parseTags, writeContact, type ContactInput } from "@/lib/contacts";
+
+/** 編集画面の「採用の情報」（フォームに欄があるときだけ更新する） */
+function hiringInput(formData: FormData): HiringData | null {
+  if (!formData.has("hiringForm")) return null;
+  return Object.fromEntries(HIRING_FIELDS.map((f) => [f.key, str(formData.get(f.key))]));
+}
 
 function contactInput(formData: FormData): ContactInput {
   const name = str(formData.get("name"));
@@ -42,7 +49,12 @@ export async function createContactAction(_prev: ActionState, formData: FormData
         };
       }
     }
-    const c = await prisma.$transaction((tx) => writeContact(tx, input));
+    const hiring = hiringInput(formData);
+    const c = await prisma.$transaction(async (tx) => {
+      const c = await writeContact(tx, input);
+      if (hiring) await tx.contact.update({ where: { id: c.id }, data: hiring });
+      return c;
+    });
     id = c.id;
   } catch (e) {
     return errorState(e);
@@ -56,7 +68,11 @@ export async function updateContactAction(_prev: ActionState, formData: FormData
   try {
     await assertUser();
     const input = contactInput(formData);
-    await prisma.$transaction((tx) => writeContact(tx, input, id));
+    const hiring = hiringInput(formData);
+    await prisma.$transaction(async (tx) => {
+      await writeContact(tx, input, id);
+      if (hiring) await tx.contact.update({ where: { id }, data: hiring });
+    });
   } catch (e) {
     return errorState(e);
   }

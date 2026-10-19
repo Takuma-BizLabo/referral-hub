@@ -250,6 +250,17 @@ test("紹介の条件（複数）：どれか1つに合えば合う・以前の1
   assert.equal(matchVendorCriteria(noHaken, [], { ...base, title: null, employeeSize: "500名" }).level, "match");
 });
 
+test("候補ピックアップ：新卒・中途の採用人数", () => {
+  const c = parseCriteria({ minNewGrad: 20 });
+  const base = { company: "A社", name: "山田", industry: null, region: null, title: null, employeeSize: null };
+  assert.equal(matchCandidate(c, [], { ...base, hiresNewGrad: "31-50名" }).level, "match");
+  assert.equal(matchCandidate(c, [], { ...base, hiresNewGrad: "11-30名" }).level, "maybe");
+  assert.equal(matchCandidate(c, [], { ...base, hiresNewGrad: "1-10名" }).level, "no");
+  assert.equal(matchCandidate(c, [], { ...base, hiresNewGrad: "0名" }).level, "no");
+  assert.equal(matchCandidate(c, [], { ...base, hiresNewGrad: null }).level, "maybe");
+  assert.equal(matchCandidate(parseCriteria({ minMidCareer: 50 }), [], { ...base, hiresMidCareer: "101名以上" }).level, "match");
+});
+
 test("紹介案件の確定・見込みの金額", () => {
   const r = (status: string, rewardStatus: string, rewardAmount: number, rewardUndetermined = false, thankYouFee: number | null = null) => ({ status, rewardStatus, rewardAmount, rewardUndetermined, thankYouFee });
   const t = referralTotals([

@@ -8,9 +8,9 @@ import { TITLE_CLASSES } from "@/lib/title";
 import { describeSet, setHasRules, setNameOf, type VendorCriteria } from "@/lib/candidates";
 
 /** 入力中の1条件（入力欄はすべて文字列で持つ） */
-type Draft = { label: string; min: string; max: string; classes: string[]; dept: string; industries: string; regions: string; note: string };
+type Draft = { label: string; min: string; max: string; newGrad: string; mid: string; classes: string[]; dept: string; industries: string; regions: string; note: string };
 
-const emptyDraft = (): Draft => ({ label: "", min: "", max: "", classes: [], dept: "", industries: "", regions: "", note: "" });
+const emptyDraft = (): Draft => ({ label: "", min: "", max: "", newGrad: "", mid: "", classes: [], dept: "", industries: "", regions: "", note: "" });
 const splitList = (s: string) =>
   s
     .split(/[、,，\n]/)
@@ -26,6 +26,8 @@ function toDrafts(vc: VendorCriteria): Draft[] {
     label: s.label ?? "",
     min: s.minEmployees != null ? String(s.minEmployees) : "",
     max: s.maxEmployees != null ? String(s.maxEmployees) : "",
+    newGrad: s.minNewGrad != null ? String(s.minNewGrad) : "",
+    mid: s.minMidCareer != null ? String(s.minMidCareer) : "",
     classes: s.classes ?? [],
     dept: s.dept ?? "",
     industries: (s.industries ?? []).join("、"),
@@ -40,6 +42,8 @@ function toJson(drafts: Draft[], exclude: string, excludeInd: string) {
       label: d.label,
       minEmployees: toNum(d.min),
       maxEmployees: toNum(d.max),
+      minNewGrad: toNum(d.newGrad),
+      minMidCareer: toNum(d.mid),
       classes: d.classes,
       dept: d.dept,
       industries: splitList(d.industries),
@@ -155,6 +159,12 @@ export function VendorCriteriaCard({ vendorId, criteria }: { vendorId: number; c
               </Field>
               <Field label="従業員数（未満）">
                 <input type="number" min={0} className="input" placeholder="例: 1000" value={d.max} onChange={(e) => update(i, { max: e.target.value })} />
+              </Field>
+              <Field label="新卒採用（年間・以上）" hint="例: 20">
+                <input type="number" min={0} className="input" placeholder="例: 20" value={d.newGrad} onChange={(e) => update(i, { newGrad: e.target.value })} />
+              </Field>
+              <Field label="中途採用（年間・以上）">
+                <input type="number" min={0} className="input" placeholder="例: 10" value={d.mid} onChange={(e) => update(i, { mid: e.target.value })} />
               </Field>
               <Field label="役職クラス" className="sm:col-span-2">
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">

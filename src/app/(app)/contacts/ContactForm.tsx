@@ -1,4 +1,5 @@
 "use client";
+import { HIRING_FIELDS } from "@/lib/hiring";
 import { useStickyAction } from "@/lib/use-sticky-action";
 
 import Link from "next/link";
@@ -75,6 +76,21 @@ export function ContactForm({
         <Field label="関係性メモ" className="sm:col-span-2">
           <textarea name="relationMemo" className="input" rows={3} defaultValue={contact?.relationMemo ?? ""} />
         </Field>
+        <div className="sm:col-span-2 rounded-lg border border-gray-200 p-3">
+          <input type="hidden" name="hiringForm" value="1" />
+          <div className="mb-2 text-sm font-semibold text-gray-800">採用の情報</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {HIRING_FIELDS.map((f) => (
+              <Field key={f.key} label={f.label} className={f.long ? "sm:col-span-2" : undefined}>
+                {f.long ? (
+                  <textarea name={f.key} className="input" rows={2} defaultValue={contact?.[f.key] ?? ""} />
+                ) : (
+                  <input name={f.key} className="input" defaultValue={contact?.[f.key] ?? ""} />
+                )}
+              </Field>
+            ))}
+          </div>
+        </div>
       </div>
       <ErrorMessage message={state?.error} />
       {!contact && state?.error?.startsWith("重複") && (

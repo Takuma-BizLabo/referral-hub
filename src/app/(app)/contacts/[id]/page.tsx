@@ -11,6 +11,7 @@ import { thankYouTotal } from "@/lib/thank-you";
 import { SubmitButton } from "@/components/SubmitButton";
 import { idOrNull, idParam } from "@/lib/params";
 import { splitTitle } from "@/lib/title";
+import { HIRING_FIELDS, hasHiring } from "@/lib/hiring";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const id = idOrNull((await params).id);
@@ -95,6 +96,13 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
               {contact.isActive ? "この繋がりを無効にする" : "有効に戻す"}
             </SubmitButton>
           </form>
+        </Card>
+        <Card title="採用の情報" className="lg:col-span-2">
+          {hasHiring(contact) ? (
+            <Description items={HIRING_FIELDS.map((f) => ({ label: f.label, value: contact[f.key] }))} />
+          ) : (
+            <EmptyState message="まだ入っていません（編集画面の「採用の情報」で入力できます）" />
+          )}
         </Card>
       </div>
 

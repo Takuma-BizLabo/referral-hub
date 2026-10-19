@@ -9,6 +9,10 @@ export type Criteria = {
   minEmployees?: number | null;
   /** 従業員数の上限（未満） */
   maxEmployees?: number | null;
+  /** 年間の採用人数（新卒）の下限（以上） */
+  minNewGrad?: number | null;
+  /** 年間の採用人数（中途）の下限（以上） */
+  minMidCareer?: number | null;
   /** 役職クラス（TITLE_CLASSES のどれか。空＝問わない） */
   classes?: string[];
   /** 部署のキーワード（例：人事）。空＝問わない */
@@ -29,6 +33,8 @@ export type CandidateContact = {
   employeeSize: string | null;
   region: string | null;
   relationMemo?: string | null;
+  hiresNewGrad?: string | null;
+  hiresMidCareer?: string | null;
 };
 
 /** match＝条件に合う、maybe＝データが足りず要確認、no＝合わない */
@@ -44,6 +50,8 @@ export function parseCriteria(json: unknown): Criteria {
   return {
     minEmployees: numOf(o.minEmployees),
     maxEmployees: numOf(o.maxEmployees),
+    minNewGrad: numOf(o.minNewGrad),
+    minMidCareer: numOf(o.minMidCareer),
     classes: listOf(o.classes),
     dept: typeof o.dept === "string" && o.dept.trim() ? o.dept.trim() : null,
     industries: listOf(o.industries),
@@ -56,6 +64,8 @@ export function hasCriteria(c: Criteria): boolean {
   return (
     c.minEmployees != null ||
     c.maxEmployees != null ||
+    c.minNewGrad != null ||
+    c.minMidCareer != null ||
     !!c.classes?.length ||
     !!c.dept ||
     !!c.industries?.length ||
@@ -77,6 +87,8 @@ const fmtRange = (min: number | null | undefined, max: number | null | undefined
 export function describeCriteria(c: Criteria): string[] {
   const out: string[] = [];
   if (c.minEmployees != null || c.maxEmployees != null) out.push(`従業員数 ${fmtRange(c.minEmployees, c.maxEmployees)}`);
+  if (c.minNewGrad != null) out.push(`新卒採用 ${c.minNewGrad}名以上`);
+  if (c.minMidCareer != null) out.push(`中途採用 ${c.minMidCareer}名以上`);
   if (c.classes?.length) out.push(`役職 ${c.classes.join("・")}`);
   if (c.dept) out.push(`部署「${c.dept}」`);
   if (c.industries?.length) out.push(`業種 ${c.industries.join("・")}`);
@@ -108,6 +120,17 @@ export function matchCandidate(c: Criteria, feeRules: FeeRule[], contact: Candid
       else ng.push(`従業員数 ${contact.employeeSize}`);
     }
   }
+
+  const hires = (min: number | null | undefined, raw: string | null | undefined, label: string) => {
+    if (min == null) return;
+    const r = parseEmployeeSize(raw);
+    if (!r) check.push(`${label}が不明`);
+    else if (r[0] >= min) ok.push(`${label} ${raw}`);
+    else if (r[1] >= min) check.push(`${label} ${raw} は${min}名にまたがる`);
+    else ng.push(`${label} ${raw}`);
+  };
+  hires(c.minNewGrad, contact.hiresNewGrad, "新卒採用");
+  hires(c.minMidCareer, contact.hiresMidCareer, "中途採用");
 
   if (c.classes?.length) {
     const cls = splitTitle(contact.title).cls;
@@ -176,6 +199,8 @@ function parseSet(o: unknown): CriteriaSet {
     label: textOf(r.label),
     minEmployees: c.minEmployees,
     maxEmployees: c.maxEmployees,
+    minNewGrad: c.minNewGrad,
+    minMidCareer: c.minMidCareer,
     classes: c.classes,
     dept: c.dept,
     industries: c.industries,

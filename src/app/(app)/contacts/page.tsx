@@ -9,6 +9,7 @@ import { cleanParams } from "@/lib/params";
 import type { Prisma } from "@prisma/client";
 import { judgeFee, parseFeeTable, type FeeJudgement } from "@/lib/fee-table";
 import { splitTitle } from "@/lib/title";
+import { hiresSummary } from "@/lib/hiring";
 import { thankYouTotal } from "@/lib/thank-you";
 
 export const metadata = { title: "繋がりリスト" };
@@ -209,7 +210,7 @@ export default async function ContactsPage({
                       </Link>
                     )}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">{[c.industry, c.employeeSize, c.region, c.isOnSaleshub ? "SH済" : null].filter(Boolean).join(" ／ ")}</div>
+                  <div className="text-xs text-gray-500 mt-1">{[c.industry, c.employeeSize, hiresSummary(c), c.region, c.isOnSaleshub ? "SH済" : null].filter(Boolean).join(" ／ ")}</div>
                   {judgements.has(c.id) && <div className="mt-1 text-xs">見込み単価：<FeeCell j={judgements.get(c.id)!} /></div>}
                   {(c.tags.length > 0 || vids.length > 0) && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
@@ -239,6 +240,7 @@ export default async function ContactsPage({
                   <th>正確な役職</th>
                   <th>業種</th>
                   <th>規模</th>
+                  <th>採用人数</th>
                   <th>地域</th>
                   <th>SH</th>
                   <th>タグ</th>
@@ -262,6 +264,7 @@ export default async function ContactsPage({
                     <td className="min-w-40">{splitTitle(c.title).detail ?? "-"}</td>
                     <td className="whitespace-nowrap">{c.industry ?? "-"}</td>
                     <td className="whitespace-nowrap">{c.employeeSize ?? "-"}</td>
+                    <td className="whitespace-nowrap text-xs">{hiresSummary(c) ?? "-"}</td>
                     <td className="whitespace-nowrap">{c.region ?? "-"}</td>
                     <td className="text-xs">{c.isOnSaleshub ? "済" : "-"}</td>
                     <td>

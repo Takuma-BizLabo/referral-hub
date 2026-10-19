@@ -188,6 +188,15 @@ model Contact {
   isActive     Boolean  @default(true)
   noReply      Boolean  @default(false) // 返信が返ってこない（一覧・候補でグレーアウト）
   noReplyAt    DateTime?
+  // 採用の情報（人事のチカラのフォーム回答。src/lib/hiring.ts）
+  hiresNewGrad        String? // 年間の採用人数（新卒）例: 1-10名
+  hiresMidCareer      String? // 年間の採用人数（中途）
+  hardestRole         String? // 最も採用に苦戦している職種
+  hiringRoles         String? // 採用している職種
+  hiringMethods       String? // 取り組んでいる採用手法
+  hiringIssues        String? // 抱えている悩み
+  interestedSolutions String? // 興味がある・検討したい解決策
+  considerTiming      String? // 検討時期
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
