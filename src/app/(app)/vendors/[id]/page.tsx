@@ -66,7 +66,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         employeeSize: c.employeeSize,
         fee: fmtReward(f.rewardAmount, f.rewardUndetermined),
         level: m.level,
-        notes: [...(m.setName && m.level !== "no" ? [`${m.setName}に合う`] : []), ...(m.level === "no" ? m.ng : m.level === "maybe" ? m.check : m.ok)],
+        notes: [...(m.setName && m.level !== "no" ? [m.level === "match" ? `${m.setName}に合う` : `${m.setName}：要確認`] : []), ...(m.level === "no" ? m.ng : m.level === "maybe" ? m.check : m.ok)],
         noReply: c.noReply,
       };
     })
