@@ -238,7 +238,11 @@ test("紹介の条件（複数）：どれか1つに合えば合う・以前の1
   const old = parseVendorCriteria({ minEmployees: 100, classes: ["部長クラス"], excludeCompanies: ["X社"] });
   assert.equal(old.sets.length, 1);
   assert.deepEqual(old.excludeCompanies, ["X社"]);
-  assert.deepEqual(parseVendorCriteria(null), { sets: [], excludeCompanies: [] });
+  assert.deepEqual(parseVendorCriteria(null), { sets: [], excludeCompanies: [], excludeIndustries: [] });
+  const noHaken = parseVendorCriteria({ sets: [{ minEmployees: 300 }], excludeIndustries: ["派遣"] });
+  assert.equal(matchVendorCriteria(noHaken, [], { ...base, industry: "人材派遣", title: null, employeeSize: "500名" }).level, "no");
+  assert.equal(matchVendorCriteria(noHaken, [], { ...base, company: "テスト派遣株式会社", title: null, employeeSize: "500名" }).level, "no");
+  assert.equal(matchVendorCriteria(noHaken, [], { ...base, title: null, employeeSize: "500名" }).level, "match");
 });
 
 test("紹介案件の確定・見込みの金額", () => {

@@ -159,7 +159,12 @@ export type CriteriaSet = Omit<Criteria, "excludeCompanies"> & {
   /** 自由記述の条件・メモ（判定には使わず表示だけ。例：上場企業はNG、IT企業優先） */
   note?: string | null;
 };
-export type VendorCriteria = { sets: CriteriaSet[]; excludeCompanies: string[] };
+export type VendorCriteria = {
+  sets: CriteriaSet[];
+  excludeCompanies: string[];
+  /** 除外する業種のキーワード（業種か会社名に含めば合わない。例：派遣） */
+  excludeIndustries?: string[];
+};
 export type VendorMatchResult = MatchResult & { setName: string | null };
 
 const textOf = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
@@ -188,14 +193,14 @@ const setIsEmpty = (s: CriteriaSet) => !setHasRules(s) && !s.label && !s.note;
 export function parseVendorCriteria(json: unknown): VendorCriteria {
   const o = (json && typeof json === "object" ? json : {}) as Record<string, unknown>;
   if (Array.isArray(o.sets)) {
-    return { sets: o.sets.map(parseSet).filter((s) => !setIsEmpty(s)), excludeCompanies: listOf(o.excludeCompanies) };
+    return { sets: o.sets.map(parseSet).filter((s) => !setIsEmpty(s)), excludeCompanies: listOf(o.excludeCompanies), excludeIndustries: listOf(o.excludeIndustries) };
   }
   const one = parseSet(o);
-  return { sets: setIsEmpty(one) ? [] : [one], excludeCompanies: listOf(o.excludeCompanies) };
+  return { sets: setIsEmpty(one) ? [] : [one], excludeCompanies: listOf(o.excludeCompanies), excludeIndustries: listOf(o.excludeIndustries) };
 }
 
 export function hasVendorCriteria(vc: VendorCriteria) {
-  return vc.sets.some(setHasRules) || vc.excludeCompanies.length > 0;
+  return vc.sets.some(setHasRules) || vc.excludeCompanies.length > 0 || !!vc.excludeIndustries?.length;
 }
 
 export const setNameOf = (s: CriteriaSet, i: number) => s.label || `条件${i + 1}`;
@@ -212,6 +217,7 @@ export function describeVendorCriteria(vc: VendorCriteria): string[] {
     return arr.length > 1 || s.label ? `${setNameOf(s, vc.sets.indexOf(s))}（${d}）` : d;
   });
   if (vc.excludeCompanies.length) out.push(`除外 ${vc.excludeCompanies.length}社`);
+  if (vc.excludeIndustries?.length) out.push(`除外業種 ${vc.excludeIndustries.join("・")}`);
   return out;
 }
 
@@ -219,6 +225,8 @@ const LEVEL_ORDER: Record<MatchLevel, number> = { match: 0, maybe: 1, no: 2 };
 
 /** 繋がりがベンダーの紹介条件のどれかに合うか（一番合う条件の結果を返す） */
 export function matchVendorCriteria(vc: VendorCriteria, feeRules: FeeRule[], contact: CandidateContact): VendorMatchResult {
+  const hitIndustry = vc.excludeIndustries?.find((k) => contact.industry?.includes(k) || contact.company?.includes(k));
+  if (hitIndustry) return { level: "no", ok: [], check: [], ng: [`除外する業種（${hitIndustry}）`], setName: null };
   const ruled = vc.sets.map((s, i) => ({ s, i })).filter(({ s }) => setHasRules(s));
   if (!ruled.length) return { ...matchCandidate({ excludeCompanies: vc.excludeCompanies }, feeRules, contact), setName: null };
   let best: VendorMatchResult | null = null;

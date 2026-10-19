@@ -209,7 +209,7 @@ export async function saveVendorCriteriaAction(_prev: ActionState, formData: For
     });
     await prisma.vendor.update({
       where: { id },
-      data: { criteria: vc.sets.length || vc.excludeCompanies.length ? vc : Prisma.DbNull },
+      data: { criteria: vc.sets.length || vc.excludeCompanies.length || vc.excludeIndustries?.length ? vc : Prisma.DbNull },
     });
   } catch (e) {
     return errorState(e);

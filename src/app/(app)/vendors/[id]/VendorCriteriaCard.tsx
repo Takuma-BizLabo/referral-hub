@@ -34,7 +34,7 @@ function toDrafts(vc: VendorCriteria): Draft[] {
   }));
 }
 
-function toJson(drafts: Draft[], exclude: string) {
+function toJson(drafts: Draft[], exclude: string, excludeInd: string) {
   return JSON.stringify({
     sets: drafts.map((d) => ({
       label: d.label,
@@ -50,6 +50,7 @@ function toJson(drafts: Draft[], exclude: string) {
       .split(/\r?\n/)
       .map((x) => x.trim())
       .filter(Boolean),
+    excludeIndustries: splitList(excludeInd),
   });
 }
 
@@ -58,6 +59,7 @@ export function VendorCriteriaCard({ vendorId, criteria }: { vendorId: number; c
   const [editing, setEditing] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>(() => toDrafts(criteria));
   const [exclude, setExclude] = useState(criteria.excludeCompanies.join("\n"));
+  const [excludeInd, setExcludeInd] = useState((criteria.excludeIndustries ?? []).join("、"));
   const [state, action, pending, onSubmit] = useStickyAction(saveVendorCriteriaAction, undefined);
 
   // 保存できたら表示に戻す
@@ -68,6 +70,7 @@ export function VendorCriteriaCard({ vendorId, criteria }: { vendorId: number; c
   const startEdit = () => {
     setDrafts(criteria.sets.length ? toDrafts(criteria) : [emptyDraft()]);
     setExclude(criteria.excludeCompanies.join("\n"));
+    setExcludeInd((criteria.excludeIndustries ?? []).join("、"));
     setEditing(true);
   };
   const update = (i: number, patch: Partial<Draft>) => setDrafts((ds) => ds.map((d, j) => (j === i ? { ...d, ...patch } : d)));
@@ -83,7 +86,7 @@ export function VendorCriteriaCard({ vendorId, criteria }: { vendorId: number; c
         </div>
         <div className="p-4">
           {state?.success && <p className="mb-2 text-xs text-emerald-700">{state.success}</p>}
-          {criteria.sets.length === 0 && criteria.excludeCompanies.length === 0 ? (
+          {criteria.sets.length === 0 && criteria.excludeCompanies.length === 0 && !criteria.excludeIndustries?.length ? (
             <p className="text-sm text-gray-500">まだ条件がありません。「＋ 条件を追加」で、紹介してほしい企業・人事の条件を入れると、下の「提案した人事を追加」で条件に合う人事が上に並びます。</p>
           ) : (
             <>
@@ -101,6 +104,12 @@ export function VendorCriteriaCard({ vendorId, criteria }: { vendorId: number; c
                   </li>
                 ))}
               </ul>
+              {!!criteria.excludeIndustries?.length && (
+                <p className="mt-2 text-xs text-gray-600">
+                  <span className="text-gray-500">除外する業種：</span>
+                  {criteria.excludeIndustries.join("、")}
+                </p>
+              )}
               {criteria.excludeCompanies.length > 0 && (
                 <p className="mt-2 text-xs text-gray-600">
                   <span className="text-gray-500">除外する企業：</span>
@@ -117,7 +126,7 @@ export function VendorCriteriaCard({ vendorId, criteria }: { vendorId: number; c
   return (
     <form id="vendor-criteria" action={action} onSubmit={onSubmit} className="card scroll-mt-20">
       <input type="hidden" name="vendorId" value={vendorId} />
-      <input type="hidden" name="criteriaJson" value={toJson(drafts, exclude)} />
+      <input type="hidden" name="criteriaJson" value={toJson(drafts, exclude, excludeInd)} />
       <div className="border-b border-gray-100 px-4 py-3">
         <h2 className="text-sm font-semibold text-gray-800">紹介の条件を編集</h2>
         <p className="mt-0.5 text-xs text-gray-500">条件はいくつでも追加できます。どれか1つに合えば「条件に合う」になります。各条件の中の空の項目は問いません。</p>
@@ -179,6 +188,9 @@ export function VendorCriteriaCard({ vendorId, criteria }: { vendorId: number; c
         <button type="button" onClick={() => setDrafts((ds) => [...ds, emptyDraft()])} className="btn-secondary btn-sm">
           ＋ 条件を追加
         </button>
+        <Field label="除外する業種（全条件共通）" hint="「、」区切り。業種か会社名に含めば「合わない」（例: 派遣）">
+          <input className="input" placeholder="例: 派遣" value={excludeInd} onChange={(e) => setExcludeInd(e.target.value)} />
+        </Field>
         <Field label="除外する企業（NGリスト・全条件共通）" hint="1行に1社">
           <textarea className="input" rows={3} value={exclude} onChange={(e) => setExclude(e.target.value)} />
         </Field>
