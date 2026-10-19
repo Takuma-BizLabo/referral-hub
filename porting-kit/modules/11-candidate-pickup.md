@@ -1,10 +1,12 @@
 # 11. 候補ピックアップ
 
-> 一言で：ベンダーごとに「候補の条件」（従業員数・役職クラス・部署・業種・地域・除外企業）を入れておくと、まだ提案していない人事を「条件に合う／要確認／合わない」に分けて上から出す。
+> 一言で：ベンダーごとに「紹介の条件」（従業員数・役職クラス・部署・業種・地域。**いくつでも追加でき、どれか1つに合えば可**）と除外企業を入れておくと、まだ提案していない人事を「条件に合う／要確認／合わない」に分けて上から出す。
 
 ## できること（使う人の目線）
 
-- ベンダーの編集画面で「候補の条件」を入れる（空の項目は問わない）。
+- ベンダー詳細の「紹介の条件」カードで「＋ 条件を追加」。条件ごとに名前（任意）・従業員数・役職クラス・部署・業種・地域・その他の条件メモ（表示だけ）を入れる。複製・削除ができる。各条件の中の空の項目は問わない。
+- 除外する企業（NGリスト）は全条件共通。
+- 候補の各行に「（条件名）に合う」と、どの条件で合ったかが出る。
 - ベンダー詳細の「＋ 提案した人事を追加」を開くと、条件と単価表に合う人事が上に並ぶ。
 - 「条件に合う」「要確認（データが足りない）」「すべて」で切り替え、チェックして「選んだ ○ 人を提案に追加」で一括登録（→ 01・02 の紹介案件になる）。
 - 各行に、合う理由・確認すること・合わない理由が小さく出る（例：「従業員数 217名 ／ 部長クラス ／ 人事部」「従業員数が不明」）。
@@ -13,7 +15,7 @@
 
 ## 画面と操作
 
-- ベンダー編集（referral-hub：`/vendors/[id]/edit`）：「候補の条件（候補ピックアップに使う）」の枠。
+- ベンダー詳細（referral-hub：`/vendors/[id]`）の「紹介の条件（N件）」カード（`id="vendor-criteria"`）。表示モードは条件ごとの小さな枠（名前・要約・メモ）を2列で並べ、「条件を編集・追加」で編集モード。編集モードは条件ごとの枠＋「＋ 条件を追加」＋除外企業＋保存／キャンセル。ベンダー編集画面には入れない（編集画面の保存で条件を消さないため）。
   - 従業員数（以上）・従業員数（未満）：数値。
   - 役職クラス：チェックボックス（代表取締役・会長・顧問・役員・取締役クラス・本部長クラス・部長クラス・課長クラス・主任・係長クラス・一般社員）。
   - 部署（例：人事）・業種（「、」区切り）・地域（「、」区切り）・除外する企業（1行1社）。
@@ -25,7 +27,9 @@
 
 ## データ
 
-`vendors.criteria`（JSON、空は NULL）：
+`vendors.criteria`（JSON、空は NULL）：`{ "sets": CriteriaSet[], "excludeCompanies": string[] }`。CriteriaSet は下の表から excludeCompanies を除き、`label`（名前）と `note`（自由記述・判定に使わない）を足したもの。以前の1つだけの形（下の表そのもの）も `parseVendorCriteria` で1件として読める。
+
+1つの条件のキー：
 
 | キー | 型 | 意味 |
 |---|---|---|
@@ -54,15 +58,16 @@ ALTER TABLE vendors ADD COLUMN criteria TEXT; -- JSON 文字列（NULL＝条件�
   - 部署：`contactDept`（関係性メモ「部署: 人事部」や氏名の括弧）＋役職の文字にキーワードを含むか。分からなければ check。
   - 業種・地域：空 → check、キーワードを含む → ok、それ以外 → ng。
   - 単価表（ある場合）：`judgeFee` が matched → ok（金額）、outside → ng、ambiguous/unknown → check。
+- 複数の条件（`matchVendorCriteria`）：判定項目のある条件それぞれで `matchCandidate` を行い、一番良い結果（match → maybe → no、同じなら ng・check が少ない方）を採る。名前・メモだけの条件は判定しない。条件が2つ以上か名前がある場合は `setName` を返し、候補の理由の先頭に「◯◯に合う」と出す。
 - level：ng が1つでもあれば `no`、無くて check があれば `maybe`、それ以外は `match`。条件も単価表もなければ全員 `match`。
 - 並び：match → maybe → no、同じ段では返信なしを最後。
 - 対象は「有効」で、そのベンダーにまだ紹介案件がない繋がり（最大1000件）。
 
 ## 参照コード
 
-- `src/lib/candidates.ts`：`Criteria`、`parseCriteria`、`hasCriteria`、`describeCriteria`、`matchCandidate`（**DB・Next に依存しない。そのまま流用可**）
-- `src/app/(app)/vendors/VendorForm.tsx`：条件の入力欄
-- `src/app/(app)/vendors/actions.ts`：`criteriaOf`（フォーム → JSON、検証）
+- `src/lib/candidates.ts`：`Criteria`、`parseCriteria`、`hasCriteria`、`describeCriteria`、`matchCandidate`、複数条件の `CriteriaSet`・`VendorCriteria`・`parseVendorCriteria`・`hasVendorCriteria`・`describeVendorCriteria`・`matchVendorCriteria`（**DB・Next に依存しない。そのまま流用可**）
+- `src/app/(app)/vendors/[id]/VendorCriteriaCard.tsx`：紹介の条件カード（表示・編集）
+- `src/app/(app)/vendors/actions.ts`：`saveVendorCriteriaAction`（JSON の検証・保存）
 - `src/app/(app)/vendors/[id]/page.tsx`：候補の計算と並び（`proposeCandidates`）
 - `src/app/(app)/vendors/[id]/ProposePicker.tsx`：ピッカーの画面
 - `scripts/test-parse.ts`：「候補ピックアップ：条件に合う・要確認・合わない」のテスト
@@ -79,7 +84,8 @@ ALTER TABLE vendors ADD COLUMN criteria TEXT; -- JSON 文字列（NULL＝条件�
 
 ## 動作確認チェックリスト
 
-- [ ] 条件を入れて保存すると、ベンダー詳細の上に条件の要約が出る
+- [ ] 条件を2つ入れて保存すると、紹介の条件カードに2件出て、ピッカーの上に条件ごとの要約が出る
+- [ ] 2つ目の条件だけに合う人事が「条件に合う」に入り、「（条件名）に合う」と出る
 - [ ] 範囲内・役職クラスが合う人事が「条件に合う」に入り、理由が出る
 - [ ] 従業員数が空の人事は「要確認」に入る
 - [ ] 除外企業に入れた会社は「合わない」になる

@@ -20,7 +20,8 @@ import { HistoryList } from "@/components/HistoryList";
 import { SubmitButton } from "@/components/SubmitButton";
 import { idOrNull, idParam } from "@/lib/params";
 import { FEE_ROLES, fmtSizeRange, groupFeeTable, parseFeeTable, rewardFor } from "@/lib/fee-table";
-import { describeCriteria, hasCriteria, matchCandidate, parseCriteria } from "@/lib/candidates";
+import { describeVendorCriteria, hasVendorCriteria, matchVendorCriteria, parseVendorCriteria } from "@/lib/candidates";
+import { VendorCriteriaCard } from "./VendorCriteriaCard";
 import { CopyBriefPanel } from "@/components/CopyBrief";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -48,14 +49,14 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
   });
   const notReferredCount = notReferred.length;
   // 候補ピックアップ：条件と単価表に合う順（返信なしは各段の最後）
-  const criteria = parseCriteria(vendor.criteria);
+  const criteria = parseVendorCriteria(vendor.criteria);
   const feeRules = parseFeeTable(vendor.feeTable);
-  const usesFilter = hasCriteria(criteria) || feeRules.length > 0;
+  const usesFilter = hasVendorCriteria(criteria) || feeRules.length > 0;
   const LEVEL_RANK = { match: 0, maybe: 1, no: 2 } as const;
   const proposeCandidates = notReferred
     .map((c) => {
       const f = rewardFor(vendor, c);
-      const m = matchCandidate(criteria, feeRules, c);
+      const m = matchVendorCriteria(criteria, feeRules, c);
       return {
         id: c.id,
         company: c.company,
@@ -64,7 +65,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         employeeSize: c.employeeSize,
         fee: fmtReward(f.rewardAmount, f.rewardUndetermined),
         level: m.level,
-        notes: m.level === "no" ? m.ng : m.level === "maybe" ? m.check : m.ok,
+        notes: [...(m.setName && m.level !== "no" ? [`${m.setName}に合う`] : []), ...(m.level === "no" ? m.ng : m.level === "maybe" ? m.check : m.ok)],
         noReply: c.noReply,
       };
     })
@@ -103,6 +104,8 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         }
       />
 
+      <VendorCriteriaCard vendorId={vendor.id} criteria={criteria} />
+
       <Card
         title={`ベンダーに提案した人事（${vendor.referrals.length}）`}
         actions={
@@ -130,7 +133,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
           <span className="badge bg-emerald-600 text-white border-emerald-600">両方OK {bothOk}</span>
         </div>
         <div className="mb-4">
-          <ProposePicker vendorId={vendor.id} candidates={proposeCandidates} usesFilter={usesFilter} criteriaSummary={[...describeCriteria(criteria), ...(feeRules.length ? ["単価表"] : [])]} />
+          <ProposePicker vendorId={vendor.id} candidates={proposeCandidates} usesFilter={usesFilter} criteriaSummary={[...describeVendorCriteria(criteria), ...(feeRules.length ? ["単価表"] : [])]} />
         </div>
         {proposals.length === 0 ? (
           <EmptyState message="まだ提案した人事はいません" />

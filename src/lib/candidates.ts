@@ -147,3 +147,88 @@ export function matchCandidate(c: Criteria, feeRules: FeeRule[], contact: Candid
   const level: MatchLevel = ng.length ? "no" : check.length ? "maybe" : "match";
   return { level, ok, check, ng };
 }
+
+/**
+ * ベンダーの紹介条件（複数）。どれか1つに合えば候補になる（OR）。除外する企業はベンダー共通。
+ * DB の vendors.criteria は { sets: CriteriaSet[], excludeCompanies: string[] }。
+ * 以前の1つだけの形（Criteria そのもの）も読める。
+ */
+export type CriteriaSet = Omit<Criteria, "excludeCompanies"> & {
+  /** 条件の名前（例：大企業の人事部長）。空なら「条件1」など */
+  label?: string | null;
+  /** 自由記述の条件・メモ（判定には使わず表示だけ。例：上場企業はNG、IT企業優先） */
+  note?: string | null;
+};
+export type VendorCriteria = { sets: CriteriaSet[]; excludeCompanies: string[] };
+export type VendorMatchResult = MatchResult & { setName: string | null };
+
+const textOf = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+function parseSet(o: unknown): CriteriaSet {
+  const c = parseCriteria(o);
+  const r = (o && typeof o === "object" ? o : {}) as Record<string, unknown>;
+  return {
+    label: textOf(r.label),
+    minEmployees: c.minEmployees,
+    maxEmployees: c.maxEmployees,
+    classes: c.classes,
+    dept: c.dept,
+    industries: c.industries,
+    regions: c.regions,
+    note: textOf(r.note),
+  };
+}
+
+/** 判定に使う項目が1つでも入っているか（名前・メモだけの条件は判定しない） */
+export function setHasRules(s: CriteriaSet) {
+  return hasCriteria({ ...s, excludeCompanies: [] });
+}
+const setIsEmpty = (s: CriteriaSet) => !setHasRules(s) && !s.label && !s.note;
+
+export function parseVendorCriteria(json: unknown): VendorCriteria {
+  const o = (json && typeof json === "object" ? json : {}) as Record<string, unknown>;
+  if (Array.isArray(o.sets)) {
+    return { sets: o.sets.map(parseSet).filter((s) => !setIsEmpty(s)), excludeCompanies: listOf(o.excludeCompanies) };
+  }
+  const one = parseSet(o);
+  return { sets: setIsEmpty(one) ? [] : [one], excludeCompanies: listOf(o.excludeCompanies) };
+}
+
+export function hasVendorCriteria(vc: VendorCriteria) {
+  return vc.sets.some(setHasRules) || vc.excludeCompanies.length > 0;
+}
+
+export const setNameOf = (s: CriteriaSet, i: number) => s.label || `条件${i + 1}`;
+
+/** 1つの条件の要約 */
+export function describeSet(s: CriteriaSet): string[] {
+  return describeCriteria({ ...s, excludeCompanies: [] });
+}
+
+/** 画面上部に出す要約（条件ごとに1つ） */
+export function describeVendorCriteria(vc: VendorCriteria): string[] {
+  const out = vc.sets.filter(setHasRules).map((s, _i, arr) => {
+    const d = describeSet(s).join("・");
+    return arr.length > 1 || s.label ? `${setNameOf(s, vc.sets.indexOf(s))}（${d}）` : d;
+  });
+  if (vc.excludeCompanies.length) out.push(`除外 ${vc.excludeCompanies.length}社`);
+  return out;
+}
+
+const LEVEL_ORDER: Record<MatchLevel, number> = { match: 0, maybe: 1, no: 2 };
+
+/** 繋がりがベンダーの紹介条件のどれかに合うか（一番合う条件の結果を返す） */
+export function matchVendorCriteria(vc: VendorCriteria, feeRules: FeeRule[], contact: CandidateContact): VendorMatchResult {
+  const ruled = vc.sets.map((s, i) => ({ s, i })).filter(({ s }) => setHasRules(s));
+  if (!ruled.length) return { ...matchCandidate({ excludeCompanies: vc.excludeCompanies }, feeRules, contact), setName: null };
+  let best: VendorMatchResult | null = null;
+  for (const { s, i } of ruled) {
+    const r = matchCandidate({ ...s, excludeCompanies: vc.excludeCompanies }, feeRules, contact);
+    const better =
+      !best ||
+      LEVEL_ORDER[r.level] < LEVEL_ORDER[best.level] ||
+      (r.level === best.level && (r.ng.length < best.ng.length || (r.ng.length === best.ng.length && r.check.length < best.check.length)));
+    if (better) best = { ...r, setName: ruled.length > 1 || s.label ? setNameOf(s, i) : null };
+  }
+  return best!;
+}

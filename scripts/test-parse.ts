@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { classPartOf, judgeFee } from "../src/lib/fee-table";
 import { joinTitle, splitTitle } from "../src/lib/title";
-import { matchCandidate, parseCriteria } from "../src/lib/candidates";
+import { matchCandidate, matchVendorCriteria, parseCriteria, parseVendorCriteria } from "../src/lib/candidates";
 import { referralTotals } from "../src/lib/referral-totals";
 import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
@@ -213,6 +213,32 @@ test("候補ピックアップ：条件に合う・要確認・合わない", ()
   assert.equal(matchCandidate(c, [], { ...base, title: "部長クラス", employeeSize: "50名" }).level, "no");
   assert.equal(matchCandidate(c, [], { ...base, company: "NG商事株式会社", title: "部長クラス", employeeSize: "300名" }).level, "no");
   assert.equal(matchCandidate(parseCriteria(null), [], { ...base, title: null, employeeSize: null }).level, "match");
+});
+
+test("紹介の条件（複数）：どれか1つに合えば合う・以前の1つだけの形も読める", () => {
+  const vc = parseVendorCriteria({
+    sets: [
+      { label: "大企業の人事", minEmployees: 300, classes: ["部長クラス"], dept: "人事" },
+      { minEmployees: 50, maxEmployees: 300, classes: ["代表取締役"] },
+      { note: "上場企業はNG" },
+      {},
+    ],
+    excludeCompanies: ["NG商事"],
+  });
+  assert.equal(vc.sets.length, 3);
+  const base = { company: "株式会社A", name: "山田", industry: null, region: null, relationMemo: "部署: 人事部" };
+  const a = matchVendorCriteria(vc, [], { ...base, title: "部長クラス（人事部長）", employeeSize: "500名" });
+  assert.equal(a.level, "match");
+  assert.equal(a.setName, "大企業の人事");
+  const b = matchVendorCriteria(vc, [], { ...base, title: "代表取締役", employeeSize: "100名" });
+  assert.equal(b.level, "match");
+  assert.equal(b.setName, "条件2");
+  assert.equal(matchVendorCriteria(vc, [], { ...base, title: "一般社員", employeeSize: "100名" }).level, "no");
+  assert.equal(matchVendorCriteria(vc, [], { ...base, company: "NG商事株式会社", title: "代表取締役", employeeSize: "100名" }).level, "no");
+  const old = parseVendorCriteria({ minEmployees: 100, classes: ["部長クラス"], excludeCompanies: ["X社"] });
+  assert.equal(old.sets.length, 1);
+  assert.deepEqual(old.excludeCompanies, ["X社"]);
+  assert.deepEqual(parseVendorCriteria(null), { sets: [], excludeCompanies: [] });
 });
 
 test("紹介案件の確定・見込みの金額", () => {

@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { proposeContactsAction } from "../actions";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -92,16 +91,16 @@ export function ProposePicker({
         {usesFilter ? (
           <>
             候補の条件：{criteriaSummary.join(" ／ ")}
-            <Link href={`/vendors/${vendorId}/edit`} className="ml-2 text-blue-700 underline">
+            <a href="#vendor-criteria" className="ml-2 text-blue-700 underline">
               条件を変える
-            </Link>
+            </a>
           </>
         ) : (
           <>
             候補の条件が未設定のため、全員を表示しています。
-            <Link href={`/vendors/${vendorId}/edit`} className="ml-1 text-blue-700 underline">
-              条件を入れる
-            </Link>
+            <a href="#vendor-criteria" className="ml-1 text-blue-700 underline">
+              上の「紹介の条件」で条件を入れる
+            </a>
           </>
         )}
       </div>

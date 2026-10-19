@@ -9,7 +9,7 @@ import { errorState, type ActionState } from "@/lib/action-state";
 import { httpUrl, money, str } from "@/lib/utils";
 import { Prisma, type VendorApproval, type VendorMeetingStatus } from "@prisma/client";
 import { parseFeeTable, rewardFor } from "@/lib/fee-table";
-import { hasCriteria, parseCriteria } from "@/lib/candidates";
+import { parseVendorCriteria, setNameOf } from "@/lib/candidates";
 
 function vendorData(formData: FormData) {
   const name = str(formData.get("name"));
@@ -26,32 +26,7 @@ function vendorData(formData: FormData) {
     introSteps: str(formData.get("introSteps")),
     introMessage: str(formData.get("introMessage")),
     feeTable: feeTableOf(formData),
-    criteria: criteriaOf(formData),
   };
-}
-
-/** 候補ピックアップの条件（何も入っていなければ null） */
-function criteriaOf(formData: FormData) {
-  const num = (k: string) => {
-    const v = String(formData.get(k) ?? "").normalize("NFKC").replace(/[^\d]/g, "");
-    return v === "" ? null : Number(v);
-  };
-  const list = (k: string, sep: RegExp) =>
-    String(formData.get(k) ?? "")
-      .split(sep)
-      .map((x) => x.trim())
-      .filter(Boolean);
-  const c = parseCriteria({
-    minEmployees: num("criteriaMin"),
-    maxEmployees: num("criteriaMax"),
-    classes: formData.getAll("criteriaClasses").map(String),
-    dept: String(formData.get("criteriaDept") ?? ""),
-    industries: list("criteriaIndustries", /[、,，]/),
-    regions: list("criteriaRegions", /[、,，]/),
-    excludeCompanies: list("criteriaExclude", /\r?\n/),
-  });
-  if (c.minEmployees != null && c.maxEmployees != null && c.maxEmployees <= c.minEmployees) throw new Error("候補の条件：従業員数の「未満」は「以上」より大きくしてください");
-  return hasCriteria(c) ? c : Prisma.DbNull;
 }
 
 /** 単価表（空なら null） */
@@ -214,4 +189,31 @@ export async function setVendorApprovalAction(formData: FormData) {
     revalidateVendorReferrals(r.vendorId);
     revalidatePath(`/referrals/${id}`);
   });
+}
+
+/** ベンダーの紹介条件（複数）を保存する。ベンダー詳細の「紹介の条件」から */
+export async function saveVendorCriteriaAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const id = Number(formData.get("vendorId"));
+  try {
+    await assertUser();
+    let json: unknown;
+    try {
+      json = JSON.parse(String(formData.get("criteriaJson") ?? "{}"));
+    } catch {
+      throw new Error("条件の形式が正しくありません");
+    }
+    const vc = parseVendorCriteria(json);
+    vc.sets.forEach((c, i) => {
+      if (c.minEmployees != null && c.maxEmployees != null && c.maxEmployees <= c.minEmployees)
+        throw new Error(`${setNameOf(c, i)}：従業員数の「未満」は「以上」より大きくしてください`);
+    });
+    await prisma.vendor.update({
+      where: { id },
+      data: { criteria: vc.sets.length || vc.excludeCompanies.length ? vc : Prisma.DbNull },
+    });
+  } catch (e) {
+    return errorState(e);
+  }
+  revalidatePath(`/vendors/${id}`);
+  return { success: "紹介の条件を保存しました" };
 }
