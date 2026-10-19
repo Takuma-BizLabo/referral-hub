@@ -16,6 +16,7 @@ import { proposedCompaniesByVendor } from "@/lib/saleshub/proposed";
 import { buildBulkBrief, buildMeetingBrief } from "@/lib/line-brief";
 import { CopyBriefButton } from "@/components/CopyBrief";
 import { MeetingPlaceCell } from "./MeetingPlaceCell";
+import { ProposalStatusSelect } from "@/components/ProposalStatusSelect";
 import { MeetingDateCell } from "./MeetingDateCell";
 import { setExecutionStatusAction } from "./actions";
 import type { ApprovalStatus, ExecutionStatus, Prisma } from "@prisma/client";
@@ -75,6 +76,8 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
     .sort((a, b) => (STATUS_RANK[a.m.executionStatus] ?? 9) - (STATUS_RANK[b.m.executionStatus] ?? 9) || a.i - b.i)
     .map((x) => x.m);
   /** 行の背景：確定＝薄い青、日程調整中＝薄い黄色、実施済＝薄いピンク、初回MTGなし・キャンセル＝グレーアウト */
+  // 提案状況はMTGが終わったベンダーだけ（MTGが実施済、またはベンダーのMTG状態が実施済）
+  const showProposal = (m: { executionStatus: string; vendor: { meetingStatus: string } }) => m.executionStatus === "DONE" || m.vendor.meetingStatus === "DONE";
   const rowTone = (status: string) =>
     status === "CONFIRMED"
       ? "bg-sky-50"
@@ -264,6 +267,11 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                         <Link href={`/meetings/${m.id}`}>
                           <VendorTag id={m.vendor.id} name={m.vendor.name} link={false} />
                         </Link>
+                        {showProposal(m) && (
+                          <span className="ml-1.5">
+                            <ProposalStatusSelect vendorId={m.vendor.id} value={m.vendor.proposalStatus} />
+                          </span>
+                        )}
                         <div className="text-sm font-medium text-blue-700 mt-1">
                           <MeetingDateCell id={m.id} value={toInputDateTime(m.scheduledAt)} display={m.scheduledAt ? fmtDateTime(m.scheduledAt) : null} />
                         </div>
@@ -335,6 +343,11 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                         </td>
                         <td>
                           <VendorTag id={m.vendor.id} name={m.vendor.name} />
+                          {showProposal(m) && (
+                            <div className="mt-1">
+                              <ProposalStatusSelect vendorId={m.vendor.id} value={m.vendor.proposalStatus} />
+                            </div>
+                          )}
                         </td>
                         <td className={cn("text-right whitespace-nowrap font-medium", targets.some((t) => t.amount === null) && "text-amber-700")}>
                           {formatTargetsTotal(targets, m.fee ?? m.vendor.referralFee)}
@@ -399,6 +412,11 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                       <Link href={`/meetings/${m.id}`} className="block">
                         <VendorTag id={m.vendor.id} name={m.vendor.name} link={false} />
                       </Link>
+                      {showProposal(m) && (
+                        <div className="mt-1">
+                          <ProposalStatusSelect vendorId={m.vendor.id} value={m.vendor.proposalStatus} />
+                        </div>
+                      )}
                       <div className="text-xs text-gray-500 mt-1">{m.scheduledAt ? fmtDateTime(m.scheduledAt) : "日時未定"}</div>
                       {(() => {
                         const targets = targetsOf(m);

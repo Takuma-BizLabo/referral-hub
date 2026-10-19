@@ -3,8 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Badge, EmptyState, PageHeader } from "@/components/ui";
 import { VENDOR_MEETING_STATUS_LABEL, VENDOR_PROPOSAL_LABEL, VENDOR_PROPOSAL_ORDER } from "@/lib/labels";
-import { StatusSelect } from "@/components/StatusSelect";
-import { setVendorProposalStatusAction } from "./actions";
+import { ProposalStatusSelect } from "@/components/ProposalStatusSelect";
 import { fmtYen } from "@/lib/utils";
 import { cleanParams } from "@/lib/params";
 import type { Prisma } from "@prisma/client";
@@ -110,12 +109,7 @@ export default async function VendorsPage({
                   </td>
                   <td>
                     {v.meetingStatus === "DONE" ? (
-                      <StatusSelect
-                        action={setVendorProposalStatusAction}
-                        id={v.id}
-                        value={v.proposalStatus}
-                        options={VENDOR_PROPOSAL_ORDER.map((p) => ({ value: p, label: VENDOR_PROPOSAL_LABEL[p] }))}
-                      />
+                      <ProposalStatusSelect vendorId={v.id} value={v.proposalStatus} />
                     ) : (
                       <span className="text-xs text-gray-400">-</span>
                     )}
