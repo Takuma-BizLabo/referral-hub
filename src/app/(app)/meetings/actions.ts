@@ -348,6 +348,6 @@ export async function deleteMeetingAction(formData: FormData) {
       await tx.vendorMeeting.delete({ where: { id: m.id } });
     });
     revalidateMeeting(target?.id ?? id, m.vendorId);
-    return { notice: target ? "MTGを削除し、依頼内容をこのMTGにまとめました" : "MTGを削除しました" };
+    return { notice: target ? `MTGを削除し、依頼内容を ${target.scheduledAt ? fmtDateTime(target.scheduledAt) : "日時未定"} のMTGにまとめました` : "MTGを削除しました" };
   });
 }

@@ -16,6 +16,7 @@ import { cn, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import type { VendorApproval } from "@prisma/client";
 import { setVendorApprovalAction, setVendorMeetingStatusAction, toggleVendorActiveAction } from "../actions";
 import { ProposePicker } from "./ProposePicker";
+import { deleteMeetingAction } from "@/app/(app)/meetings/actions";
 import { RewardCell } from "@/app/(app)/referrals/InlineCells";
 import { HistoryList } from "@/components/HistoryList";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -32,7 +33,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 export default async function VendorDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser();
+  const user = await requireUser();
+  const isAdmin = user.role === "ADMIN";
   const { id } = await params;
   const vendor = await prisma.vendor.findUnique({
     where: { id: idParam(id) },
@@ -256,10 +258,12 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
                   <th>承認</th>
                   <th>実施</th>
                   <th>次アクション</th>
+                  {isAdmin && <th></th>}
                 </tr>
               </thead>
               <tbody>
                 {vendor.meetings.map((m) => (
+
                   <tr key={m.id}>
                     <td className="whitespace-nowrap">
                       <Link href={`/meetings/${m.id}`} className="text-blue-700 hover:underline">
@@ -275,6 +279,29 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
                       <Badge value={m.executionStatus} label={EXECUTION_LABEL[m.executionStatus]} />
                     </td>
                     <td className="text-gray-600">{m.nextAction ?? "-"}</td>
+                    {isAdmin && (
+                      <td className="text-right">
+                        {(() => {
+                          // まとめ先：同じベンダーの別のMTG（キャンセル・初回MTGなし以外）。打ち合わせURLがあるもの・日時が新しいものを優先（mergeTargetFor と同じ）
+                          const others = vendor.meetings.filter((o) => o.id !== m.id && o.executionStatus !== "CANCELLED" && o.executionStatus !== "NO_MEETING");
+                          const target = others.find((o) => o.place) ?? others[0];
+                          const where = target ? `${target.scheduledAt ? fmtDateTime(target.scheduledAt) : "日時未定"} のMTG` : null;
+                          return (
+                            <form action={deleteMeetingAction}>
+                              <input type="hidden" name="id" value={m.id} />
+                              <input type="hidden" name="returnTo" value={`/vendors/${vendor.id}`} />
+                              <SubmitButton
+                                className="btn-secondary btn-sm text-rose-700 hover:bg-rose-50"
+                                pendingText="削除中..."
+                                confirm={where ? `このMTGを削除しますか？依頼内容とセールスハブの紐づけは ${where} にまとめます。元に戻せません。` : "このMTGを削除しますか？元に戻せません。"}
+                              >
+                                削除
+                              </SubmitButton>
+                            </form>
+                          );
+                        })()}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
