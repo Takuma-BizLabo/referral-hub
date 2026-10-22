@@ -1,7 +1,17 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
-import { lineConfigured, pushLineText } from "./line";
-import { getLineEnabledMap } from "./settings";
+import { isMonthlyLimitError, lineConfigured, pushLineText } from "./line";
+import { getLineEnabledMap, getSettingRaw, setSetting } from "./settings";
+
+/** LINE の月の送信上限に達した月（YYYY-MM、日本時間）。その月の間は送らずに「未送信」と記録する */
+const LINE_LIMIT_KEY = "lineLimitReachedMonth";
+export function jstMonth(d = new Date()) {
+  return new Date(d.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 7);
+}
+export async function lineLimitReachedThisMonth() {
+  return (await getSettingRaw(LINE_LIMIT_KEY)) === jstMonth();
+}
+export const LINE_LIMIT_MESSAGE = "LINEの今月の送信上限に達したため送っていません（翌月1日に復活。上限はLINE公式アカウントのプランで決まります）";
 import type { NotificationType } from "./labels";
 
 export type NotifyInput = {
@@ -53,13 +63,19 @@ export async function notify(input: NotifyInput): Promise<boolean> {
     if (!enabled[input.type]) return true;
     const user = await prisma.user.findUnique({ where: { id: input.userId } });
     if (!user?.lineUserId || !user.isActive) return true;
+    if (await lineLimitReachedThisMonth()) {
+      await prisma.notification.update({ where: { id: n.id }, data: { lineError: LINE_LIMIT_MESSAGE } });
+      return true;
+    }
     const text = [input.title, input.body, appUrl(input.linkUrl)].filter(Boolean).join("\n");
     await pushLineText(user.lineUserId, text);
     await prisma.notification.update({ where: { id: n.id }, data: { lineSentAt: new Date() } });
   } catch (e) {
+    const limit = isMonthlyLimitError(e);
+    if (limit) await setSetting(LINE_LIMIT_KEY, jstMonth());
     await prisma.notification.update({
       where: { id: n.id },
-      data: { lineError: e instanceof Error ? e.message.slice(0, 500) : "LINE送信エラー" },
+      data: { lineError: limit ? LINE_LIMIT_MESSAGE : e instanceof Error ? e.message.slice(0, 500) : "LINE送信エラー" },
     });
   }
   return true;

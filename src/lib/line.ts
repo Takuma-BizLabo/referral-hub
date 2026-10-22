@@ -21,6 +21,28 @@ export async function pushLineText(lineUserId: string, text: string): Promise<vo
   }
 }
 
+/** 今月の送信上限と使用数（LINE Messaging API）。取れなければ null */
+export async function getLineQuota(): Promise<{ limit: number | null; used: number } | null> {
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!token) return null;
+  try {
+    const h = { Authorization: `Bearer ${token}` };
+    const [q, c] = await Promise.all([
+      fetch(`${LINE_API}/message/quota`, { headers: h, cache: "no-store" }).then((r) => (r.ok ? r.json() : null)),
+      fetch(`${LINE_API}/message/quota/consumption`, { headers: h, cache: "no-store" }).then((r) => (r.ok ? r.json() : null)),
+    ]);
+    if (!c) return null;
+    return { limit: q?.type === "limited" ? Number(q.value) : null, used: Number(c.totalUsage ?? 0) };
+  } catch {
+    return null;
+  }
+}
+
+/** 月の送信上限に達したエラーか */
+export function isMonthlyLimitError(e: unknown) {
+  return e instanceof Error && /\(429\)/.test(e.message) && /monthly limit/i.test(e.message);
+}
+
 /** Webhook の署名検証 */
 export function verifyLineSignature(rawBody: string, signature: string | null): boolean {
   const secret = process.env.LINE_CHANNEL_SECRET;

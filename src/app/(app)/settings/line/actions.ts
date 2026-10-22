@@ -1,4 +1,5 @@
 "use server";
+import { setSetting } from "@/lib/settings";
 import { runWithFlash } from "@/lib/flash";
 import { revalidatePath } from "next/cache";
 import { randomInt } from "node:crypto";
@@ -35,6 +36,8 @@ export async function sendLineTestAction() {
   await runWithFlash(null, async () => {
     const user = await assertUser();
     const { notify } = await import("@/lib/notifications");
+    // テスト送信は上限の記録を外して実際に送ってみる（プラン変更後の再開確認。上限のままならまた記録される）
+    await setSetting("lineLimitReachedMonth", "");
     await notify({ userId: user.id, type: "TASK_ASSIGNED", title: "【テスト】LINE連携の確認メッセージです", body: "このメッセージが届いていれば連携は正常です。" });
     revalidatePath("/settings/line");
   });
