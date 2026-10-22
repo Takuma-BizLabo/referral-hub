@@ -78,3 +78,8 @@
 
 このリポジトリ：`/Users/johnnydeppstreasures/Downloads/referral-hub`（GitHub：Takuma-BizLabo/referral-hub）。
 設計書の「参照コード」にあるパスは、このリポジトリのルートからの相対パス。
+
+
+## 別冊：LINE公式アカウントの通知の作り方
+
+[line-notification-guide.md](line-notification-guide.md)：LINE側の準備・環境変数・データ・コード（push・Webhook・連携コード・5分おきのリマインド）・送信数と料金の注意点。BizLabo で LINE 通知を作るときに単独で使えます。
