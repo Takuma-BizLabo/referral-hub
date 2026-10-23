@@ -288,6 +288,28 @@ export function findApprovedCompanies(body: string, companies: string[]): string
   });
 }
 
+/**
+ * ベンダーが示した希望条件（先方希望ターゲット）を本文から抜き出す。
+ * 「ターゲット」「ご希望」「お繋ぎいただきたい」などと、規模・業種・役職などの条件語が同じ文にあるものだけ。
+ * 例：「弊社としては従業員300名以上の製造業の人事部長の方をご紹介いただけますと幸いです」
+ * 見つからなければ null。最大3文・各100文字。
+ */
+const WANT_RE = /ターゲット|ご希望|希望して|希望する|お探し|求めて|お繋ぎいただきたい|ご紹介いただきたい|ご紹介いただけますと|お繋ぎいただけますと|対象(と|に)?(なる|なります|して)|対象企業|募集中の条件|条件(は|として|に合う)/;
+const COND_RE = /\d+\s*名|規模|業種|業界|業の|職|部長|課長|役員|代表|経営者|人事|担当|以上|未満|上場|エリア|地域|都|府|県/;
+const GREETING_RE = /お世話になって|ありがとうございます|よろしくお願い|失礼いたします|ご連絡いたします|ご確認(ください|のほど)|ございましたら|心当たり/;
+
+export function findWantedTarget(body: string): string | null {
+  const sentences = body
+    .split(/[。\n]/)
+    .map((x) => x.replace(/^[\s　・\-－●■◆※]+/, "").trim())
+    .filter((x) => x.length >= 8 && WANT_RE.test(x) && COND_RE.test(x) && !GREETING_RE.test(x) && !PAST_RE.test(x));
+  if (sentences.length === 0) return null;
+  return sentences
+    .slice(0, 3)
+    .map((x) => (x.length > 100 ? x.slice(0, 100) + "…" : x))
+    .join("／");
+}
+
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const DOW = "[月火水木金土日]";
 /** 時刻: 11:40 / 午前11:00 / 15時 / 13時半 / 9時30分 */

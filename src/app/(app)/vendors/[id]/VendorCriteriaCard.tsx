@@ -6,6 +6,7 @@ import { ErrorMessage, Field } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { TITLE_CLASSES } from "@/lib/title";
 import { describeSet, setHasRules, setNameOf, type VendorCriteria } from "@/lib/candidates";
+import { cn } from "@/lib/utils";
 
 /** 入力中の1条件（入力欄はすべて文字列で持つ） */
 type Draft = { label: string; min: string; max: string; newGrad: string; mid: string; classes: string[]; dept: string; industries: string; regions: string; note: string };
@@ -59,11 +60,24 @@ function toJson(drafts: Draft[], exclude: string, excludeInd: string) {
 }
 
 /** ベンダー詳細の「紹介の条件」：条件をいくつでも追加でき、どれか1つに合う人事を候補ピックアップで上に出す */
-export function VendorCriteriaCard({ vendorId, criteria }: { vendorId: number; criteria: VendorCriteria }) {
+export function VendorCriteriaCard({
+  vendorId,
+  criteria,
+  wantedTarget,
+  ngCompanies = [],
+}: {
+  vendorId: number;
+  criteria: VendorCriteria;
+  /** 先方希望ターゲット（先方から示された希望条件） */
+  wantedTarget?: string | null;
+  /** このベンダーが過去に NG を出した会社 */
+  ngCompanies?: string[];
+}) {
   const [editing, setEditing] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>(() => toDrafts(criteria));
   const [exclude, setExclude] = useState(criteria.excludeCompanies.join("\n"));
   const [excludeInd, setExcludeInd] = useState((criteria.excludeIndustries ?? []).join("、"));
+  const [wanted, setWanted] = useState(wantedTarget ?? "");
   const [state, action, pending, onSubmit] = useStickyAction(saveVendorCriteriaAction, undefined);
 
   // 保存できたら表示に戻す
@@ -75,6 +89,7 @@ export function VendorCriteriaCard({ vendorId, criteria }: { vendorId: number; c
     setDrafts(criteria.sets.length ? toDrafts(criteria) : [emptyDraft()]);
     setExclude(criteria.excludeCompanies.join("\n"));
     setExcludeInd((criteria.excludeIndustries ?? []).join("、"));
+    setWanted(wantedTarget ?? "");
     setEditing(true);
   };
   const update = (i: number, patch: Partial<Draft>) => setDrafts((ds) => ds.map((d, j) => (j === i ? { ...d, ...patch } : d)));
@@ -83,13 +98,29 @@ export function VendorCriteriaCard({ vendorId, criteria }: { vendorId: number; c
     return (
       <section id="vendor-criteria" className="card scroll-mt-20">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-gray-800">紹介の条件（{criteria.sets.length}件）</h2>
+          <h2 className="text-sm font-semibold text-gray-800">先方希望ターゲット・紹介の条件（{criteria.sets.length}件）</h2>
           <button type="button" onClick={startEdit} className="btn-secondary btn-sm">
             {criteria.sets.length ? "条件を編集・追加" : "＋ 条件を追加"}
           </button>
         </div>
         <div className="p-4">
           {state?.success && <p className="mb-2 text-xs text-emerald-700">{state.success}</p>}
+          <div className={cn("mb-3 rounded-lg border px-3 py-2", wantedTarget ? "border-amber-300 bg-amber-50" : "border-dashed border-gray-200")}>
+            <div className="text-xs font-semibold text-amber-800">先方希望ターゲット</div>
+            {wantedTarget ? (
+              <p className="mt-0.5 whitespace-pre-wrap text-sm text-gray-900">{wantedTarget}</p>
+            ) : (
+              <p className="mt-0.5 text-xs text-gray-400">未入力（提案を断られたときなどに先方が示した希望条件を、「条件を編集・追加」から端的に入れてください）</p>
+            )}
+          </div>
+          {(ngCompanies.length > 0 || criteria.excludeCompanies.length > 0 || !!criteria.excludeIndustries?.length) && (
+            <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+              <div className="font-semibold">NG確定（この会社・業種は提案しても通らない）</div>
+              {ngCompanies.length > 0 && <div className="mt-0.5">過去にNG：{ngCompanies.join("、")}</div>}
+              {!!criteria.excludeIndustries?.length && <div className="mt-0.5">除外する業種：{criteria.excludeIndustries.join("、")}</div>}
+              {criteria.excludeCompanies.length > 0 && <div className="mt-0.5">除外する企業：{criteria.excludeCompanies.join("、")}</div>}
+            </div>
+          )}
           {criteria.sets.length === 0 && criteria.excludeCompanies.length === 0 && !criteria.excludeIndustries?.length ? (
             <p className="text-sm text-gray-500">まだ条件がありません。「＋ 条件を追加」で、紹介してほしい企業・人事の条件を入れると、下の「提案した人事を追加」で条件に合う人事が上に並びます。</p>
           ) : (
@@ -131,11 +162,15 @@ export function VendorCriteriaCard({ vendorId, criteria }: { vendorId: number; c
     <form id="vendor-criteria" action={action} onSubmit={onSubmit} className="card scroll-mt-20">
       <input type="hidden" name="vendorId" value={vendorId} />
       <input type="hidden" name="criteriaJson" value={toJson(drafts, exclude, excludeInd)} />
+      <input type="hidden" name="wantedTarget" value={wanted} />
       <div className="border-b border-gray-100 px-4 py-3">
         <h2 className="text-sm font-semibold text-gray-800">紹介の条件を編集</h2>
         <p className="mt-0.5 text-xs text-gray-500">条件はいくつでも追加できます。どれか1つに合えば「条件に合う」になります。各条件の中の空の項目は問いません。</p>
       </div>
       <div className="space-y-3 p-4">
+        <Field label="先方希望ターゲット" hint="先方から示された希望条件を端的に（例：従業員300名以上の製造業の人事部長。派遣会社はNG）">
+          <textarea className="input" rows={2} value={wanted} onChange={(e) => setWanted(e.target.value)} />
+        </Field>
         {drafts.map((d, i) => (
           <div key={i} className="rounded-lg border border-gray-200 p-3">
             <div className="mb-2 flex items-center gap-2">

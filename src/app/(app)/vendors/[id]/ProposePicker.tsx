@@ -11,19 +11,20 @@ export type ProposeCandidate = {
   title: string | null;
   employeeSize: string | null;
   fee: string;
-  /** 候補の条件・単価表に：match＝合う／maybe＝要確認（データ不足）／no＝合わない */
-  level: "match" | "maybe" | "no";
+  /** 候補の条件・単価表に：match＝合う／maybe＝要確認（データ不足）／no＝合わない／ng＝NG確定（除外・過去NG） */
+  level: "match" | "maybe" | "no" | "ng";
   /** 合う理由・確認すること・合わない理由 */
   notes: string[];
   /** 返信が返ってこない人事（グレーアウト） */
   noReply: boolean;
 };
 
-const LEVEL_LABEL = { match: "条件に合う", maybe: "要確認", no: "合わない" } as const;
+const LEVEL_LABEL = { match: "条件に合う", maybe: "要確認", no: "合わない", ng: "NG確定" } as const;
 const LEVEL_BADGE = {
   match: "bg-emerald-50 text-emerald-800 border-emerald-200",
   maybe: "bg-amber-50 text-amber-800 border-amber-200",
   no: "bg-gray-100 text-gray-500 border-gray-200",
+  ng: "bg-rose-600 text-white border-rose-600",
 } as const;
 
 /** ベンダーに提案する人事を、まだ紹介していない繋がりから選んで追加する（候補の条件に合う順） */
@@ -40,11 +41,16 @@ export function ProposePicker({
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [tab, setTab] = useState<"match" | "maybe" | "all">(usesFilter ? "match" : "all");
+  const [tab, setTab] = useState<"match" | "maybe" | "ng" | "all">(usesFilter ? "match" : "all");
   const [hideNoReply, setHideNoReply] = useState(true);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const counts = useMemo(
-    () => ({ match: candidates.filter((c) => c.level === "match").length, maybe: candidates.filter((c) => c.level === "maybe").length, all: candidates.length }),
+    () => ({
+      match: candidates.filter((c) => c.level === "match").length,
+      maybe: candidates.filter((c) => c.level === "maybe").length,
+      ng: candidates.filter((c) => c.level === "ng").length,
+      all: candidates.length,
+    }),
     [candidates],
   );
   const list = useMemo(() => {
@@ -64,9 +70,14 @@ export function ProposePicker({
         <button type="button" className="btn-primary btn-sm" onClick={() => setOpen(true)}>
           ＋ 提案した人事を追加
         </button>
-        {usesFilter && (
+        {(usesFilter || counts.ng > 0) && (
           <span className="text-xs text-gray-500">
-            候補の条件に合う人事 <b className="text-emerald-700">{counts.match}</b> 人・要確認 {counts.maybe} 人
+            {usesFilter && (
+              <>
+                候補の条件に合う人事 <b className="text-emerald-700">{counts.match}</b> 人・要確認 {counts.maybe} 人
+              </>
+            )}
+            {counts.ng > 0 && <span className="text-rose-700">{usesFilter ? "・" : ""}NG確定 {counts.ng} 人</span>}
           </span>
         )}
       </div>
@@ -105,8 +116,8 @@ export function ProposePicker({
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {usesFilter &&
-          (["match", "maybe", "all"] as const).map((k) => (
+        {(usesFilter || counts.ng > 0) &&
+          ((usesFilter ? ["match", "maybe", ...(counts.ng ? (["ng"] as const) : []), "all"] : ["ng", "all"]) as ("match" | "maybe" | "ng" | "all")[]).map((k) => (
             <button key={k} type="button" className={cn("chip", tab === k && "chip-active")} onClick={() => setTab(k)}>
               {k === "all" ? "すべて" : LEVEL_LABEL[k]}（{counts[k]}）
             </button>
@@ -120,13 +131,13 @@ export function ProposePicker({
       <ul className="mt-2 max-h-96 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-200 bg-white">
         {list.length === 0 && <li className="px-3 py-4 text-center text-sm text-gray-400">該当する繋がりがありません</li>}
         {list.map((c) => (
-          <li key={c.id} className={cn(c.noReply && "bg-gray-50 opacity-60")}>
+          <li key={c.id} className={cn(c.noReply && "bg-gray-50 opacity-60", c.level === "ng" && "bg-rose-50/60")}>
             <label className={cn("flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50", picked.has(c.id) && "bg-blue-50")}>
               <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} className="h-4 w-4" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
                   <span className="truncate font-medium text-gray-900">{c.company ?? c.name}</span>
-                  {usesFilter && <span className={cn("badge shrink-0", LEVEL_BADGE[c.level])}>{LEVEL_LABEL[c.level]}</span>}
+                  {(usesFilter || c.level === "ng") && <span className={cn("badge shrink-0", LEVEL_BADGE[c.level])}>{LEVEL_LABEL[c.level]}</span>}
                   {c.noReply && <span className="badge shrink-0 bg-gray-200 text-gray-600 border-gray-300">返信なし</span>}
                 </span>
                 <span className="block truncate text-xs text-gray-500">
@@ -134,7 +145,9 @@ export function ProposePicker({
                   {c.title ? ` ・ ${c.title}` : ""}
                   {c.employeeSize ? ` ・ ${c.employeeSize}` : ""}
                 </span>
-                {usesFilter && c.notes.length > 0 && <span className="block truncate text-[11px] text-gray-400">{c.notes.join(" ／ ")}</span>}
+                {(usesFilter || c.level === "ng") && c.notes.length > 0 && (
+                  <span className={cn("block truncate text-[11px]", c.level === "ng" ? "font-medium text-rose-700" : "text-gray-400")}>{c.notes.join(" ／ ")}</span>
+                )}
               </span>
               <span className={cn("shrink-0 text-xs", c.fee === "未定" ? "text-amber-700" : "text-gray-700")}>{c.fee}</span>
             </label>

@@ -5,13 +5,15 @@ import { prisma } from "@/lib/db";
 import { Badge, Card, Description, EmptyState, PageHeader } from "@/components/ui";
 import { REFERRAL_LABEL, REWARD_LABEL, VENDOR_MEETING_STATUS_LABEL } from "@/lib/labels";
 import { VendorTag } from "@/components/VendorTag";
-import { fmtDate, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
+import { cn, fmtDate, fmtDateTime, fmtReward, fmtYen } from "@/lib/utils";
 import { toggleContactActiveAction, toggleNoReplyAction } from "../actions";
 import { thankYouTotal } from "@/lib/thank-you";
 import { SubmitButton } from "@/components/SubmitButton";
 import { idOrNull, idParam } from "@/lib/params";
 import { splitTitle } from "@/lib/title";
 import { HIRING_FIELDS, hasHiring } from "@/lib/hiring";
+import { FIT_BADGE, FIT_LABEL, parseVendorCriteria, vendorFit } from "@/lib/candidates";
+import { parseFeeTable } from "@/lib/fee-table";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const id = idOrNull((await params).id);
@@ -31,7 +33,24 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   });
   if (!contact) notFound();
   const referredVendorIds = new Set(contact.referrals.map((r) => r.vendorId));
-  const otherVendors = await prisma.vendor.findMany({ where: { isActive: true, id: { notIn: [...referredVendorIds] } }, orderBy: { name: "asc" } });
+  const vendorRows = await prisma.vendor.findMany({ where: { isActive: true, id: { notIn: [...referredVendorIds] } }, orderBy: { name: "asc" } });
+  // 提案前の判定：ベンダーごとに NG確定（除外・過去NG）／条件に合う／要確認／合わない
+  const ngRows = await prisma.referral.findMany({
+    where: { vendorApproval: "NG", vendorId: { in: vendorRows.map((v) => v.id) } },
+    select: { vendorId: true, contact: { select: { company: true } } },
+  });
+  const FIT_RANK = { match: 0, maybe: 1, none: 2, no: 3, ng: 4 } as const;
+  const otherVendors = vendorRows
+    .map((v) => {
+      const fit = vendorFit(
+        parseVendorCriteria(v.criteria),
+        parseFeeTable(v.feeTable),
+        contact,
+        ngRows.filter((r) => r.vendorId === v.id && r.contact.company).map((r) => r.contact.company!),
+      );
+      return { ...v, fit, fitKey: fit.level === "ng" || fit.hasRules ? fit.level : ("none" as const) };
+    })
+    .sort((a, b) => FIT_RANK[a.fitKey] - FIT_RANK[b.fitKey] || a.name.localeCompare(b.name, "ja"));
 
   return (
     <div className="space-y-4">
@@ -115,7 +134,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
               <thead>
                 <tr>
                   <th>ベンダー</th>
-                  <th>サービス概要</th>
+                  <th>この人事は</th>
+                  <th>先方希望ターゲット</th>
                   <th className="text-right">単価</th>
                   <th>MTG状態</th>
                   <th></th>
@@ -123,17 +143,27 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
               </thead>
               <tbody>
                 {otherVendors.map((v) => (
-                  <tr key={v.id}>
+                  <tr key={v.id} className={v.fit.level === "ng" ? "bg-rose-50/60" : ""}>
                     <td>
                       <VendorTag id={v.id} name={v.name} />
                     </td>
-                    <td className="text-gray-600 max-w-xs truncate">{v.serviceSummary ?? "-"}</td>
+                    <td className="max-w-56">
+                      {v.fitKey === "none" ? (
+                        <span className="text-xs text-gray-400">条件未設定</span>
+                      ) : (
+                        <>
+                          <span className={cn("badge", FIT_BADGE[v.fit.level])}>{FIT_LABEL[v.fit.level]}</span>
+                          {v.fit.reasons.length > 0 && <div className={cn("mt-0.5 text-[11px]", v.fit.level === "ng" ? "font-medium text-rose-700" : "text-gray-500")}>{v.fit.reasons.join(" ／ ")}</div>}
+                        </>
+                      )}
+                    </td>
+                    <td className="max-w-xs text-xs text-gray-700">{v.wantedTarget ? <span className="line-clamp-2 whitespace-pre-wrap">{v.wantedTarget}</span> : <span className="text-gray-300">-</span>}</td>
                     <td className="text-right whitespace-nowrap font-medium">{fmtYen(v.referralFee)}</td>
                     <td>
                       <Badge value={v.meetingStatus} label={VENDOR_MEETING_STATUS_LABEL[v.meetingStatus]} />
                     </td>
                     <td className="text-right">
-                      <Link href={`/referrals/new?vendorId=${v.id}&contactId=${contact.id}`} className="btn-primary btn-sm">
+                      <Link href={`/referrals/new?vendorId=${v.id}&contactId=${contact.id}`} className={v.fit.level === "ng" ? "btn-secondary btn-sm" : "btn-primary btn-sm"}>
                         紹介する
                       </Link>
                     </td>

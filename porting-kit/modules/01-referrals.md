@@ -204,7 +204,9 @@ ISO 文字列は辞書順＝時刻順になるので、`<`・ORDER BY がその�
 
 ### 一覧に出す条件（LISTED）
 
-- `vendor_approval='OK' OR listed_early=1` の案件だけを一覧・件数チップ・ベンダーチップの対象にする。
+- 手で登録した紹介案件（登録フォーム）は先方OK（`vendor_approval='OK'`）で作る。面談日時が入った・日程調整中以降に進んだ案件も、回答に関わらず一覧に出す（手で面談を入れたのに一覧に出ない、を防ぐ）。
+
+- `vendor_approval='OK' OR listed_early=1 OR meeting_at IS NOT NULL OR status IN ('SCHEDULING','MEETING_CONFIRMED','MEETING_DONE')` の案件だけを一覧・件数チップ・ベンダーチップの対象にする。
 - 「先方OK待ちの候補」＝ LISTED でない かつ status≠DECLINED。ステータス・報酬状態の絞り込みは候補には効かない（ベンダー・紹介先検索は効く）。
 - 候補から除外：そのベンダーの最新のベンダーMTG（created_at 降順の先頭）が CANCELLED のもの。
 - 候補の並び：確定済み（CONFIRMED かつ日時あり）のベンダーMTGがある → 日時の新しい順、次に MTG 日程調整中（SCHEDULING / RESCHEDULE / CONFIRMED で日時なし）、最後に MTG 未設定。同順位は vendor_id, id 昇順。

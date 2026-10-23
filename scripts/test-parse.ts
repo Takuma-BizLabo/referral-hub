@@ -6,9 +6,9 @@
 import assert from "node:assert/strict";
 import { classPartOf, judgeFee } from "../src/lib/fee-table";
 import { joinTitle, splitTitle } from "../src/lib/title";
-import { matchCandidate, matchVendorCriteria, parseCriteria, parseVendorCriteria } from "../src/lib/candidates";
+import { matchCandidate, matchVendorCriteria, parseCriteria, parseVendorCriteria, vendorFit } from "../src/lib/candidates";
 import { referralTotals } from "../src/lib/referral-totals";
-import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, findApprovedCompanies, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
+import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, findApprovedCompanies, findWantedTarget, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
 /** JST の "YYYY-MM-DD HH:mm" を Date に */
 function jst(s: string): Date {
@@ -270,6 +270,23 @@ test("候補ピックアップ：新卒・中途の採用人数", () => {
   assert.equal(matchCandidate(c, [], { ...base, hiresNewGrad: "0名" }).level, "no");
   assert.equal(matchCandidate(c, [], { ...base, hiresNewGrad: null }).level, "maybe");
   assert.equal(matchCandidate(parseCriteria({ minMidCareer: 50 }), [], { ...base, hiresMidCareer: "101名以上" }).level, "match");
+});
+
+test("提案前の判定：除外・過去NGはNG確定", () => {
+  const vc = parseVendorCriteria({ sets: [{ minEmployees: 300 }], excludeIndustries: ["派遣"], excludeCompanies: ["NG商事"] });
+  const base = { name: "山田", industry: null, region: null, title: null, employeeSize: "500名" };
+  assert.equal(vendorFit(vc, [], { ...base, company: "株式会社テスト派遣" }).level, "ng");
+  assert.equal(vendorFit(vc, [], { ...base, company: "NG商事株式会社" }).level, "ng");
+  assert.equal(vendorFit(vc, [], { ...base, company: "株式会社A" }, ["株式会社A"]).level, "ng");
+  assert.equal(vendorFit(vc, [], { ...base, company: "株式会社B" }, ["株式会社A"]).level, "match");
+  assert.equal(vendorFit(vc, [], { ...base, company: "株式会社B", employeeSize: "50名" }).level, "no");
+});
+
+test("先方希望ターゲットを抜き出す", () => {
+  const body = "松田様\nお世話になっております。\n株式会社Aについては今回見送らせてください。\n弊社としては従業員300名以上の製造業の人事部長の方をご紹介いただけますと幸いです。\n引き続きよろしくお願いいたします。";
+  assert.equal(findWantedTarget(body), "弊社としては従業員300名以上の製造業の人事部長の方をご紹介いただけますと幸いです");
+  assert.equal(findWantedTarget("お世話になっております。日程の件、承知いたしました。"), null);
+  assert.equal(findWantedTarget("候補企業様ございましたら、ぜひご紹介いただけますと幸いです。"), null);
 });
 
 test("紹介案件の確定・見込みの金額", () => {

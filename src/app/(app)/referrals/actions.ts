@@ -75,6 +75,8 @@ export async function createReferralAction(_prev: ActionState, formData: FormDat
           pickedUpAt: parseDateInput(formData.get("pickedUpAt")) ?? new Date(),
           rewardAmount,
           rewardUndetermined,
+          // 手で登録する紹介案件は、ベンダーがピックアップした（先方が希望した）ものなので先方OKにする
+          vendorApproval: "OK",
           ...meetingFields(formData),
         },
       });

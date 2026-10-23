@@ -4,7 +4,7 @@ import { recordHistory, reopenVendorMeetingStatus } from "../history";
 import { notify, notifyAdmins } from "../notifications";
 import { getSettingRaw } from "../settings";
 import { fmtDateTime } from "../utils";
-import { evaluateThreadSchedule, extractCompanies, findApprovedCompanies, findDeclinedCompanies, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
+import { evaluateThreadSchedule, extractCompanies, findApprovedCompanies, findDeclinedCompanies, findWantedTarget, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
 import { isProposed, proposedCompaniesForVendor } from "./proposed";
 import type { SaleshubMessage, SaleshubThread } from "@prisma/client";
 import { parseFeeTable, rewardFor } from "../fee-table";
@@ -183,6 +183,28 @@ export async function applyApprovals(vendorId: number, vendorName: string, messa
     });
   }
   return approved;
+}
+
+/**
+ * ベンダーが示した希望条件（先方希望ターゲット）をチャットから拾う。
+ * 先方希望ターゲットが空なら入れ、管理者に知らせる（入っていれば知らせるだけ。人が書いた内容は上書きしない）。
+ */
+export async function applyWantedTarget(vendorId: number, vendorName: string, messages: Msg[], opts: { line?: false } = {}) {
+  for (const m of messages.filter((x) => !x.isMine)) {
+    const found = findWantedTarget(m.body);
+    if (!found) continue;
+    const v = await prisma.vendor.findUnique({ where: { id: vendorId }, select: { wantedTarget: true } });
+    const filled = !v?.wantedTarget;
+    if (filled) await prisma.vendor.update({ where: { id: vendorId }, data: { wantedTarget: `${found}（${fmtDateTime(m.sentAt)} チャットより）` } });
+    await notifyAdmins({
+      type: "SALESHUB_MESSAGE",
+      title: `【先方希望ターゲット】${vendorName}：${found.slice(0, 80)}`,
+      body: filled ? "ベンダー詳細の「先方希望ターゲット」に入れました。端的に書き直してください。" : "先方希望ターゲットは入力済みのため変えていません。必要ならベンダー詳細で更新してください。",
+      linkUrl: `/vendors/${vendorId}#vendor-criteria`,
+      dedupeKey: `saleshub:wanted:${m.id}`,
+      line: opts.line,
+    });
+  }
 }
 
 /** チャットで決まった日時でMTGを「確定」にし、担当者と管理者に知らせる */
@@ -412,6 +434,7 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
     // 候補登録のあとで判定する（同じメッセージで挙がって断られた会社も見送りにする）
     await applyDeclines(vendorId, thread.vendorName, vendorMessages, { line });
     await applyApprovals(vendorId, thread.vendorName, vendorMessages, { line });
+    await applyWantedTarget(vendorId, thread.vendorName, vendorMessages, { line });
   }
 }
 

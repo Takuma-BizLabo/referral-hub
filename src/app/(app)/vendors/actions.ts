@@ -234,11 +234,14 @@ export async function saveVendorCriteriaAction(_prev: ActionState, formData: For
     });
     await prisma.vendor.update({
       where: { id },
-      data: { criteria: vc.sets.length || vc.excludeCompanies.length || vc.excludeIndustries?.length ? vc : Prisma.DbNull },
+      data: {
+        criteria: vc.sets.length || vc.excludeCompanies.length || vc.excludeIndustries?.length ? vc : Prisma.DbNull,
+        ...(formData.has("wantedTarget") ? { wantedTarget: str(formData.get("wantedTarget")) } : {}),
+      },
     });
   } catch (e) {
     return errorState(e);
   }
   revalidatePath(`/vendors/${id}`);
-  return { success: "紹介の条件を保存しました" };
+  return { success: "先方希望ターゲット・紹介の条件を保存しました" };
 }

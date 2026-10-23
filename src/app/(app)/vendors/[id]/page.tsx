@@ -22,7 +22,7 @@ import { HistoryList } from "@/components/HistoryList";
 import { SubmitButton } from "@/components/SubmitButton";
 import { idOrNull, idParam } from "@/lib/params";
 import { FEE_ROLES, fmtSizeRange, groupFeeTable, parseFeeTable, rewardFor } from "@/lib/fee-table";
-import { describeVendorCriteria, hasVendorCriteria, matchVendorCriteria, parseVendorCriteria } from "@/lib/candidates";
+import { describeVendorCriteria, hasVendorCriteria, parseVendorCriteria, vendorFit } from "@/lib/candidates";
 import { VendorCriteriaCard } from "./VendorCriteriaCard";
 import { CopyBriefPanel } from "@/components/CopyBrief";
 
@@ -55,11 +55,13 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
   const criteria = parseVendorCriteria(vendor.criteria);
   const feeRules = parseFeeTable(vendor.feeTable);
   const usesFilter = hasVendorCriteria(criteria) || feeRules.length > 0;
-  const LEVEL_RANK = { match: 0, maybe: 1, no: 2 } as const;
+  const LEVEL_RANK = { match: 0, maybe: 1, no: 2, ng: 3 } as const;
+  // このベンダーが過去に NG を出した会社（同じ会社の別の人事も NG確定 にする）
+  const ngCompanies = vendor.referrals.filter((r) => r.vendorApproval === "NG" && r.contact.company).map((r) => r.contact.company!);
   const proposeCandidates = notReferred
     .map((c) => {
       const f = rewardFor(vendor, c);
-      const m = matchVendorCriteria(criteria, feeRules, c);
+      const m = vendorFit(criteria, feeRules, c, ngCompanies);
       return {
         id: c.id,
         company: c.company,
@@ -68,7 +70,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         employeeSize: c.employeeSize,
         fee: fmtReward(f.rewardAmount, f.rewardUndetermined),
         level: m.level,
-        notes: [...(m.setName && m.level !== "no" ? [m.level === "match" ? `${m.setName}に合う` : `${m.setName}：要確認`] : []), ...(m.level === "no" ? m.ng : m.level === "maybe" ? m.check : m.ok)],
+        notes: m.reasons,
         noReply: c.noReply,
       };
     })
@@ -115,7 +117,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
         </div>
       )}
 
-      <VendorCriteriaCard vendorId={vendor.id} criteria={criteria} />
+      <VendorCriteriaCard vendorId={vendor.id} criteria={criteria} wantedTarget={vendor.wantedTarget} ngCompanies={[...new Set(vendor.referrals.filter((r) => r.vendorApproval === "NG" && r.contact.company).map((r) => r.contact.company!))]} />
 
       <Card
         title={`ベンダーに提案した人事（${vendor.referrals.length}）`}

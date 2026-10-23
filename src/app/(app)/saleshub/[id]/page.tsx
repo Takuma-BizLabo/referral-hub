@@ -9,6 +9,7 @@ import { proposedCompaniesForVendor } from "@/lib/saleshub/proposed";
 import { threadCandidates } from "@/lib/saleshub/candidates";
 import { MarkThreadRead } from "./MarkRead";
 import { idOrNull, idParam } from "@/lib/params";
+import { describeVendorCriteria, parseVendorCriteria } from "@/lib/candidates";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const id = idOrNull((await params).id);
@@ -30,6 +31,8 @@ export default async function SaleshubThreadPage({ params }: { params: Promise<{
     prisma.notification.count({ where: { userId: user.id, readAt: null, type: "SALESHUB_MESSAGE", linkUrl: `/saleshub/${t.id}` } }),
   ]);
   const fee = t.fee ?? (vendor && vendor.referralFee > 0 ? vendor.referralFee : null);
+  const vc = parseVendorCriteria(vendor?.criteria);
+  const ngCompanies = [...new Set(referrals.filter((r) => r.vendorApproval === "NG" && r.contact.company).map((r) => r.contact.company!))];
   // 会社名の照合用（有効な繋がりのみ。件数は数百件程度の想定）
   const contacts = await prisma.contact.findMany({ where: { isActive: true, company: { not: null } }, select: { id: true, name: true, company: true, title: true } });
   const candidates = threadCandidates(t, t.messages, proposed, fee, contacts, referrals);
@@ -94,6 +97,30 @@ export default async function SaleshubThreadPage({ params }: { params: Promise<{
           </div>
         </Card>
         <div className="space-y-4">
+          {vendor && (
+            <Card title="提案前チェック">
+              <div className={cn("rounded-lg border px-3 py-2", vendor.wantedTarget ? "border-amber-300 bg-amber-50" : "border-dashed border-gray-200")}>
+                <div className="text-xs font-semibold text-amber-800">先方希望ターゲット</div>
+                {vendor.wantedTarget ? (
+                  <p className="mt-0.5 whitespace-pre-wrap text-sm text-gray-900">{vendor.wantedTarget}</p>
+                ) : (
+                  <p className="mt-0.5 text-xs text-gray-400">未入力</p>
+                )}
+              </div>
+              {(ngCompanies.length > 0 || vc.excludeCompanies.length > 0 || !!vc.excludeIndustries?.length) && (
+                <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+                  <div className="font-semibold">NG確定（送っても通らない）</div>
+                  {ngCompanies.length > 0 && <div className="mt-0.5">過去にNG：{ngCompanies.join("、")}</div>}
+                  {!!vc.excludeIndustries?.length && <div className="mt-0.5">除外する業種：{vc.excludeIndustries.join("、")}</div>}
+                  {vc.excludeCompanies.length > 0 && <div className="mt-0.5">除外する企業：{vc.excludeCompanies.join("、")}</div>}
+                </div>
+              )}
+              {describeVendorCriteria(vc).length > 0 && <p className="mt-2 text-xs text-gray-600">紹介の条件：{describeVendorCriteria(vc).join(" ／ ")}</p>}
+              <Link href={`/vendors/${vendor.id}#vendor-criteria`} className="mt-2 inline-block text-xs text-blue-700 underline">
+                条件に合う人事・NG確定の人事を見る（ベンダー詳細）
+              </Link>
+            </Card>
+          )}
           <Card title="お繋ぎ先候補と単価">
             {candidates.length === 0 ? (
               <p className="text-sm text-gray-500">チャットから会社名は見つかっていません。</p>

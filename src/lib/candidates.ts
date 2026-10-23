@@ -265,3 +265,36 @@ export function matchVendorCriteria(vc: VendorCriteria, feeRules: FeeRule[], con
   }
   return best!;
 }
+
+/**
+ * 提案前の判定（ベンダー × 繋がり）。
+ * - ng：NG確定（除外する企業・除外する業種に当たる、またはこのベンダーに過去 NG と言われた会社）
+ * - それ以外は matchVendorCriteria の結果（match / maybe / no）
+ * ngCompanies：このベンダーが過去に NG を出した会社名（正規化前で可）
+ */
+export type FitLevel = "ng" | MatchLevel;
+export type Fit = { level: FitLevel; reasons: string[]; setName: string | null; hasRules: boolean };
+
+export function normalizeCompany(s: string) {
+  return norm(s);
+}
+
+export function vendorFit(vc: VendorCriteria, feeRules: FeeRule[], contact: CandidateContact, ngCompanies: string[] = []): Fit {
+  const hasRules = hasVendorCriteria(vc) || feeRules.length > 0;
+  const n = contact.company ? norm(contact.company) : "";
+  const pastNg = n ? ngCompanies.find((x) => norm(x) && (norm(x) === n || n.includes(norm(x)) || norm(x).includes(n))) : undefined;
+  if (pastNg) return { level: "ng", reasons: [`過去にこのベンダーからNG（${pastNg}）`], setName: null, hasRules: true };
+  const m = matchVendorCriteria(vc, feeRules, contact);
+  const hardNg = m.ng.filter((x) => x.startsWith("除外する"));
+  if (hardNg.length) return { level: "ng", reasons: hardNg, setName: null, hasRules: true };
+  const reasons = m.level === "no" ? m.ng : m.level === "maybe" ? m.check : m.ok;
+  return { level: m.level, reasons: [...(m.setName && m.level !== "no" ? [m.level === "match" ? `${m.setName}に合う` : `${m.setName}：要確認`] : []), ...reasons], setName: m.setName, hasRules };
+}
+
+export const FIT_LABEL: Record<FitLevel, string> = { ng: "NG確定", no: "合わない", maybe: "要確認", match: "条件に合う" };
+export const FIT_BADGE: Record<FitLevel, string> = {
+  ng: "bg-rose-600 text-white border-rose-600",
+  no: "bg-gray-100 text-gray-500 border-gray-200",
+  maybe: "bg-amber-50 text-amber-800 border-amber-200",
+  match: "bg-emerald-50 text-emerald-800 border-emerald-200",
+};

@@ -126,6 +126,7 @@ model Vendor {
   introMessage   String? // お繋ぎ文章（紹介先へ送る文面。〇〇様 は紹介先の氏名に置き換えてコピー）
   feeTable       Json? // 単価表（従業員数×役職→協力金）。src/lib/fee-table.ts の FeeRule[]
   criteria       Json? // 候補ピックアップの条件。src/lib/candidates.ts の Criteria
+  wantedTarget   String? // 先方希望ターゲット（断られたあとなどに先方が示した希望条件を端的に）
   saleshubUrl    String?
   meetingStatus  VendorMeetingStatus @default(NOT_DONE)
   proposalStatus VendorProposalStatus @default(NOT_PROPOSED)

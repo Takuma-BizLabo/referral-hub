@@ -30,11 +30,13 @@ const SORTS: Record<string, { label: string; orderBy: Prisma.ReferralOrderByWith
 };
 
 /**
- * 一覧に出す紹介案件：先方（ベンダー）が OK のもの（人事が確認待ちでも出す）、または手動で一覧に追加したもの。
+ * 一覧に出す紹介案件：先方（ベンダー）が OK のもの（人事が確認待ちでも出す）、手動で一覧に追加したもの、
+ * 面談日時が入っている・日程調整中以降に進んだもの。
  * それ以外は「先方OK待ちの候補」として畳んで表示する（回答はベンダー詳細のチェックリストで入力）。
  */
 const LISTED: Prisma.ReferralWhereInput = {
-  OR: [{ vendorApproval: "OK" }, { listedEarly: true }],
+  // 面談日時が入っている・日程調整より先に進んだ案件は、回答の入力がなくても一覧に出す
+  OR: [{ vendorApproval: "OK" }, { listedEarly: true }, { meetingAt: { not: null } }, { status: { in: ["SCHEDULING", "MEETING_CONFIRMED", "MEETING_DONE"] } }],
 };
 
 const ANSWER_LABEL = { PENDING: "確認待ち", OK: "OK", NG: "NG" } as const;
