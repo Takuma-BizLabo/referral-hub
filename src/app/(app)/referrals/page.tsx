@@ -82,7 +82,13 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
     stagnant: ["1"],
   });
   const view = sp.view === "kanban" ? "kanban" : sp.view === "calendar" ? "calendar" : "list";
+  // 面談日（商談日）の月：tm=YYYY-MM／none（面談日未定）。未指定（すべて）が既定
+  const tm = sp.tm === "none" || /^\d{4}-\d{2}$/.test(sp.tm ?? "") ? sp.tm! : "all";
+  const tmStart = /^\d{4}-\d{2}$/.test(tm) ? new Date(`${tm}-01T00:00:00+09:00`) : null;
+  const tmEnd = tmStart ? new Date(new Date(tmStart).setUTCMonth(tmStart.getUTCMonth() + 1)) : null;
+  const inTm = (d: Date | null) => (tm === "all" ? true : tm === "none" ? !d : !!d && d >= tmStart! && d < tmEnd!);
   const where: Prisma.ReferralWhereInput = {
+    ...(tmStart ? { meetingAt: { gte: tmStart, lt: tmEnd! } } : tm === "none" ? { meetingAt: null } : {}),
     ...(sp.vendor ? { vendorId: Number(sp.vendor) } : {}),
     ...(sp.status ? { status: sp.status as ReferralStatus } : {}),
     ...(sp.reward ? { rewardStatus: sp.reward as RewardStatus } : {}),
@@ -133,18 +139,17 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
     .sort((a, b) => group(a.r) - group(b.r) || (group(a.r) === 0 ? b.r.meetingAt!.getTime() - a.r.meetingAt!.getTime() : 0) || a.i - b.i)
     .map((x) => x.r);
   const vendorCounts: Record<number, number> = {};
-  for (const r of allForCounts) vendorCounts[r.vendorId] = (vendorCounts[r.vendorId] ?? 0) + 1;
+  for (const r of allForCounts.filter((x) => inTm(x.meetingAt))) vendorCounts[r.vendorId] = (vendorCounts[r.vendorId] ?? 0) + 1;
   const statusCounts: Record<string, number> = {};
-  for (const r of allForCounts.filter((x) => !sp.vendor || x.vendorId === Number(sp.vendor))) statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
+  for (const r of allForCounts.filter((x) => (!sp.vendor || x.vendorId === Number(sp.vendor)) && inTm(x.meetingAt))) statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
   // 確定・見込みの金額（ベンダーの絞り込みだけ効かせる。ステータスの絞り込みは無視）
-  // 確定・見込みは面談日（商談日）の月ごと。tm=YYYY-MM（既定は今月）／none（面談日未定）／all（すべて）
+  // 確定・見込みは面談日（商談日）の月ごと（上の tm で一覧と一緒に切り替わる）
   const totalRows = allForCounts.filter((x) => !sp.vendor || x.vendorId === Number(sp.vendor));
   const byMonth = totalsByMonth(totalRows);
   const thisMonth = monthKeyJst(new Date());
-  const tm = sp.tm === "all" || sp.tm === "none" || /^\d{4}-\d{2}$/.test(sp.tm ?? "") ? sp.tm! : thisMonth;
   const totals = tm === "all" ? referralTotals(totalRows) : (byMonth.find((m) => m.key === tm)?.totals ?? referralTotals([]));
   const monthKeys = [...new Set([...byMonth.map((m) => m.key).filter((k) => k !== "none"), thisMonth])].sort();
-  const tmHref = (k: string) => linkWith({ tm: k === thisMonth ? undefined : k });
+  const tmHref = (k: string) => linkWith({ tm: k === "all" ? undefined : k });
   const linkWith = (patch: Record<string, string | undefined>) => {
     const o: Record<string, string> = { ...Object.fromEntries(Object.entries(sp).filter(([, v]) => v) as [string, string][]), view };
     for (const [k, v] of Object.entries(patch)) {
@@ -187,7 +192,7 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
           counts={vendorCounts}
           activeId={sp.vendor ? Number(sp.vendor) : undefined}
           hrefFor={(id) => linkWith({ vendor: String(id) })}
-          total={allForCounts.length}
+          total={allForCounts.filter((x) => inTm(x.meetingAt)).length}
           allHref={linkWith({ vendor: undefined })}
         />
         <CountChips
@@ -300,8 +305,8 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
 
       {view !== "calendar" && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="mr-1 text-gray-500">面談日の月：</span>
-          {[...monthKeys, ...(byMonth.some((m) => m.key === "none") ? ["none"] : []), "all"].map((k) => (
+          <span className="mr-1 text-gray-500">面談日の月（一覧と金額）：</span>
+          {["all", ...monthKeys, ...(byMonth.some((m) => m.key === "none") ? ["none"] : [])].map((k) => (
             <Link key={k} href={tmHref(k)} className={cn("chip", tm === k && "chip-active")}>
               {k === "all" ? "すべて" : monthLabel(k)}
               {k === thisMonth ? "（今月）" : ""}
