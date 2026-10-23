@@ -110,19 +110,47 @@ export function ReferralForm({
           <input type="hidden" name="contactId" value={referral.contactId} />
         ) : (
           <Field label="紹介先（繋がり）" required>
-            <input className="input mb-1" placeholder="氏名・会社名で絞り込み" value={filter} onChange={(e) => setFilter(e.target.value)} />
-            <select name="contactId" className="input" value={contactId} onChange={(e) => {
-                const id = e.target.value ? Number(e.target.value) : "";
-                setContactId(id);
-                applyFee(vendor, contacts.find((x) => x.id === id));
-              }} required size={5}>
-              {filtered.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.company ? `（${[c.company, c.title, vendor?.feeTable.length ? c.employeeSize : null].filter(Boolean).join(" / ")}）` : ""}
-                </option>
-              ))}
-            </select>
+            <input type="hidden" name="contactId" value={contactId} />
+            {contact ? (
+              <div className="flex items-start justify-between gap-2 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2">
+                <div className="min-w-0 text-sm">
+                  <div className="text-[11px] font-medium text-blue-700">選択中</div>
+                  <div className="font-medium text-gray-900">{contact.company ?? contact.name}</div>
+                  <div className="text-xs text-gray-600">{[contact.company ? contact.name : null, contact.title, vendor?.feeTable.length ? contact.employeeSize : null].filter(Boolean).join(" ／ ")}</div>
+                </div>
+                <button type="button" className="btn-secondary btn-sm shrink-0" onClick={() => setContactId("")}>
+                  変更
+                </button>
+              </div>
+            ) : (
+              <>
+                <input className="input mb-1" placeholder="会社名・氏名で絞り込み" value={filter} onChange={(e) => setFilter(e.target.value)} />
+                <ul className="max-h-56 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100" role="listbox" aria-label="紹介先（繋がり）">
+                  {filtered.length === 0 ? (
+                    <li className="px-3 py-2 text-xs text-gray-400">該当する繋がりがありません</li>
+                  ) : (
+                    filtered.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={false}
+                          className="block w-full px-3 py-1.5 text-left hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                          onClick={() => {
+                            setContactId(c.id);
+                            applyFee(vendor, c);
+                          }}
+                        >
+                          <span className="block text-sm font-medium text-gray-900">{c.company ?? c.name}</span>
+                          <span className="block text-xs text-gray-500">{[c.company ? c.name : null, c.title, vendor?.feeTable.length ? c.employeeSize : null].filter(Boolean).join(" ／ ")}</span>
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+                {state?.error && !contactId && <p className="mt-1 text-xs text-rose-600">紹介先を選んでください</p>}
+              </>
+            )}
           </Field>
         )}
         <Field label="ピックアップ日">
