@@ -204,6 +204,8 @@ ISO 文字列は辞書順＝時刻順になるので、`<`・ORDER BY がその�
 
 ### 一覧に出す条件（LISTED）
 
+- 面談の日程が決まった（面談日時が入った・面談確定・面談実施済）案件は、先方・人事の回答が確認待ちなら自動で OK にする（NG は触らない。履歴に「面談の日程が決まったため自動で OK」）。`approveByProgress()`（`src/lib/referral-progress.ts`）を、登録・編集・ステータス変更・面談日時のその場入力のあとに呼ぶ。
+
 - 手で登録した紹介案件（登録フォーム）は先方OK（`vendor_approval='OK'`）で作る。面談日時が入った・日程調整中以降に進んだ案件も、回答に関わらず一覧に出す（手で面談を入れたのに一覧に出ない、を防ぐ）。
 
 - `vendor_approval='OK' OR listed_early=1 OR meeting_at IS NOT NULL OR status IN ('SCHEDULING','MEETING_CONFIRMED','MEETING_DONE')` の案件だけを一覧・件数チップ・ベンダーチップの対象にする。

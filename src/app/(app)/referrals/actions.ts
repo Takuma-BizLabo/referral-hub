@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { assertAdmin, assertUser } from "@/lib/auth";
 import { recordHistory } from "@/lib/history";
+import { approveByProgress } from "@/lib/referral-progress";
 import { notifyAdmins } from "@/lib/notifications";
 import { errorState, type ActionState } from "@/lib/action-state";
 import { fmtReward, money, parseDateInput, parseDateTimeInput, str } from "@/lib/utils";
@@ -88,6 +89,7 @@ export async function createReferralAction(_prev: ActionState, formData: FormDat
         toValue: "RECEIVED",
         changedById: user.id,
       });
+      await approveByProgress(tx, created.id, user.id);
       return created;
     });
     id = r.id;
@@ -101,7 +103,7 @@ export async function createReferralAction(_prev: ActionState, formData: FormDat
 export async function updateReferralAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const id = Number(formData.get("id"));
   try {
-    await assertUser();
+    const user = await assertUser();
     const before = await prisma.referral.findUniqueOrThrow({ where: { id } });
     const data = {
       ...meetingFields(formData),
@@ -110,6 +112,7 @@ export async function updateReferralAction(_prev: ActionState, formData: FormDat
       rewardAmount: formData.get("rewardUndetermined") === "on" ? 0 : money(formData.get("rewardAmount"), before.rewardAmount),
     };
     await prisma.referral.update({ where: { id }, data });
+    await approveByProgress(prisma, id, user.id);
     revalidateReferral(id, before.vendorId, before.contactId);
   } catch (e) {
     return errorState(e);
@@ -145,6 +148,7 @@ async function changeReferralStatus(user: { id: number }, id: number, status: Re
       toValue: status,
       changedById: user.id,
     });
+    await approveByProgress(tx, id, user.id);
     if (applyReward) {
       await recordHistory(tx, {
         entityType: "REFERRAL",
@@ -333,11 +337,12 @@ export async function saveRewardAction(_prev: ActionState, formData: FormData): 
 /** 一覧から面談日時をその場で入力・変更する（空文字で未定に戻す） */
 export async function updateReferralMeetingAtAction(id: number, value: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    await assertUser();
+    const user = await assertUser();
     if (!Number.isSafeInteger(id) || id <= 0) throw new Error("不正なIDです");
     const meetingAt = value.trim() ? parseDateTimeInput(value) : null;
     if (value.trim() && !meetingAt) throw new Error("日時の形式が正しくありません");
     const r = await prisma.referral.update({ where: { id }, data: { meetingAt } });
+    await approveByProgress(prisma, id, user.id);
     revalidateReferral(id, r.vendorId, r.contactId);
     return { ok: true };
   } catch (e) {
