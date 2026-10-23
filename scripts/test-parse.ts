@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { classPartOf, judgeFee } from "../src/lib/fee-table";
 import { joinTitle, splitTitle } from "../src/lib/title";
 import { matchCandidate, matchVendorCriteria, parseCriteria, parseVendorCriteria, vendorFit } from "../src/lib/candidates";
-import { referralTotals } from "../src/lib/referral-totals";
+import { referralTotals, totalsByMonth } from "../src/lib/referral-totals";
 import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, findApprovedCompanies, findWantedTarget, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
 /** JST の "YYYY-MM-DD HH:mm" を Date に */
@@ -287,6 +287,19 @@ test("先方希望ターゲットを抜き出す", () => {
   assert.equal(findWantedTarget(body), "弊社としては従業員300名以上の製造業の人事部長の方をご紹介いただけますと幸いです");
   assert.equal(findWantedTarget("お世話になっております。日程の件、承知いたしました。"), null);
   assert.equal(findWantedTarget("候補企業様ございましたら、ぜひご紹介いただけますと幸いです。"), null);
+});
+
+test("紹介案件の金額を面談日の月ごとに分ける（日本時間）", () => {
+  const r = (meetingAt: string | null, status: string, rewardAmount: number) => ({ meetingAt: meetingAt ? new Date(meetingAt) : null, status, rewardStatus: "UNFIXED", rewardAmount, rewardUndetermined: false, thankYouFee: null });
+  const m = totalsByMonth([
+    r("2026-10-31T15:30:00Z", "MEETING_CONFIRMED", 10000), // 日本時間 11/1 0:30 → 11月
+    r("2026-10-20T01:00:00Z", "MEETING_DONE", 40000),
+    r(null, "RECEIVED", 5000),
+    r("2026-10-21T01:00:00Z", "DECLINED", 90000),
+  ]);
+  assert.deepEqual(m.map((x) => x.key), ["2026-10", "2026-11", "none"]);
+  assert.equal(m[0].totals.fixed.amount, 40000);
+  assert.equal(m[1].totals.expected.amount, 10000);
 });
 
 test("紹介案件の確定・見込みの金額", () => {

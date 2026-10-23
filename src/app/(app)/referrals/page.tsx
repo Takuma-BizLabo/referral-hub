@@ -11,7 +11,7 @@ import { FilterPanel } from "@/components/FilterPanel";
 import { cleanParams } from "@/lib/params";
 import { REFERRAL_LABEL, REFERRAL_ORDER, REWARD_LABEL, REWARD_ORDER } from "@/lib/labels";
 import { cn, fmtDate, fmtDateTime, fmtReward, fmtYen, toInputDateTime } from "@/lib/utils";
-import { referralTotals, type TotalsBucket } from "@/lib/referral-totals";
+import { monthKeyJst, monthLabel, referralTotals, totalsByMonth, type TotalsBucket } from "@/lib/referral-totals";
 import { setListedEarlyAction, setReferralStatusAction } from "./actions";
 import { MeetingAtCell, RewardCell, ThankYouFeeCell } from "./InlineCells";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -19,7 +19,7 @@ import type { Prisma, ReferralStatus, RewardStatus } from "@prisma/client";
 
 export const metadata = { title: "紹介案件" };
 
-type SP = { view?: string; month?: string; vendor?: string; status?: string; reward?: string; q?: string; stagnant?: string; sort?: string };
+type SP = { view?: string; month?: string; tm?: string; vendor?: string; status?: string; reward?: string; q?: string; stagnant?: string; sort?: string };
 
 const SORTS: Record<string, { label: string; orderBy: Prisma.ReferralOrderByWithRelationInput[] }> = {
   updated: { label: "ステータス更新が新しい順", orderBy: [{ statusChangedAt: "desc" }] },
@@ -100,7 +100,7 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
     prisma.vendor.findMany({ orderBy: { name: "asc" } }),
     prisma.setting.findUnique({ where: { key: "stagnationDays" } }).then((s) => Number(s?.value ?? 7)),
     prisma.referral.findMany({ where: { AND: [{ ...where, vendorId: undefined, status: undefined }, LISTED] },
-      select: { vendorId: true, status: true, rewardStatus: true, rewardAmount: true, rewardUndetermined: true, thankYouFee: true },
+      select: { vendorId: true, status: true, rewardStatus: true, rewardAmount: true, rewardUndetermined: true, thankYouFee: true, meetingAt: true },
     }),
     prisma.referral.findMany({
       // 紹介見送りは候補に出さない
@@ -137,7 +137,14 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
   const statusCounts: Record<string, number> = {};
   for (const r of allForCounts.filter((x) => !sp.vendor || x.vendorId === Number(sp.vendor))) statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
   // 確定・見込みの金額（ベンダーの絞り込みだけ効かせる。ステータスの絞り込みは無視）
-  const totals = referralTotals(allForCounts.filter((x) => !sp.vendor || x.vendorId === Number(sp.vendor)));
+  // 確定・見込みは面談日（商談日）の月ごと。tm=YYYY-MM（既定は今月）／none（面談日未定）／all（すべて）
+  const totalRows = allForCounts.filter((x) => !sp.vendor || x.vendorId === Number(sp.vendor));
+  const byMonth = totalsByMonth(totalRows);
+  const thisMonth = monthKeyJst(new Date());
+  const tm = sp.tm === "all" || sp.tm === "none" || /^\d{4}-\d{2}$/.test(sp.tm ?? "") ? sp.tm! : thisMonth;
+  const totals = tm === "all" ? referralTotals(totalRows) : (byMonth.find((m) => m.key === tm)?.totals ?? referralTotals([]));
+  const monthKeys = [...new Set([...byMonth.map((m) => m.key).filter((k) => k !== "none"), thisMonth])].sort();
+  const tmHref = (k: string) => linkWith({ tm: k === thisMonth ? undefined : k });
   const linkWith = (patch: Record<string, string | undefined>) => {
     const o: Record<string, string> = { ...Object.fromEntries(Object.entries(sp).filter(([, v]) => v) as [string, string][]), view };
     for (const [k, v] of Object.entries(patch)) {
@@ -292,6 +299,17 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
       )}
 
       {view !== "calendar" && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="mr-1 text-gray-500">面談日の月：</span>
+          {[...monthKeys, ...(byMonth.some((m) => m.key === "none") ? ["none"] : []), "all"].map((k) => (
+            <Link key={k} href={tmHref(k)} className={cn("chip", tm === k && "chip-active")}>
+              {k === "all" ? "すべて" : monthLabel(k)}
+              {k === thisMonth ? "（今月）" : ""}
+            </Link>
+          ))}
+        </div>
+      )}
+      {view !== "calendar" && (
         <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
           <TotalBox label="確定" note="面談実施済・計上申請以降" b={totals.fixed} tone="border-emerald-200 bg-emerald-50/60" />
           <TotalBox label="見込み" note="面談前（紹介見送りを除く）" b={totals.expected} tone="border-amber-200 bg-amber-50/60" />
@@ -304,6 +322,44 @@ export default async function ReferralsPage({ searchParams }: { searchParams: Pr
             </div>
           </div>
         </div>
+      )}
+      {view !== "calendar" && byMonth.length > 0 && (
+        <details className="card mb-3">
+          <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium text-gray-700">月別の内訳（面談日ベース）</summary>
+          <div className="overflow-x-auto border-t border-gray-100">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>面談日の月</th>
+                  <th className="text-right">確定</th>
+                  <th className="text-right">見込み</th>
+                  <th className="text-right">確定＋見込み</th>
+                  <th className="text-right">件数</th>
+                  <th className="text-right">謝礼金</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byMonth.map(({ key, totals: t }) => (
+                  <tr key={key} className={cn(tm === key && "bg-blue-50/60")}>
+                    <td className="whitespace-nowrap">
+                      <Link href={tmHref(key)} className="text-blue-700 hover:underline">
+                        {monthLabel(key)}
+                      </Link>
+                    </td>
+                    <td className="text-right whitespace-nowrap">{fmtYen(t.fixed.amount)}</td>
+                    <td className="text-right whitespace-nowrap">
+                      {fmtYen(t.expected.amount)}
+                      {t.expected.undetermined > 0 && <span className="ml-1 text-xs text-amber-700">＋未定{t.expected.undetermined}件</span>}
+                    </td>
+                    <td className="text-right whitespace-nowrap font-semibold">{fmtYen(t.total)}</td>
+                    <td className="text-right">{t.fixed.count + t.expected.count}</td>
+                    <td className="text-right whitespace-nowrap">{fmtYen(t.fixed.thankYou + t.expected.thankYou)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       )}
 
       {view === "calendar" ? (
