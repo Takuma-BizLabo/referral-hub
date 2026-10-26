@@ -263,6 +263,15 @@ export function findDeclinedCompanies(body: string, companies: string[]): string
 }
 
 /**
+ * 会社名を出さずに断っているか（例：「ご提案いただいた企業様について確認したところ…商談の対象外」）。
+ * このときは、直前にこちらが提示した会社を見送りとみなす（rules の applyDeclines）。
+ */
+const GENERIC_REF_RE = /(ご提案|ご紹介|ご提示|お繋ぎ)(いただいた|頂いた|いただきました)(企業|会社)|対象の(企業|会社)|上記の(企業|会社)|こちらの(企業|会社)|いずれの(企業|会社)|どちらの(企業|会社)/;
+export function isGenericDecline(body: string): boolean {
+  return body.split(/[。！!？?\n]/).some((x) => DECLINE_RE.test(x) && !PAST_RE.test(x)) && GENERIC_REF_RE.test(body.replace(/[\s　]+/g, ""));
+}
+
+/**
  * ベンダーが「ターゲット企業です」「ぜひご紹介いただきたく」「正式依頼」などと、繋いでほしいと返した会社を返す（先方OK）。
  * - 段落（空行区切り）か文（。区切り）の中に、了承の言葉と会社名が両方あるもの
  * - 「正式依頼」はその後ろに並んだ会社すべて（箇条書きで会社が別の行にあるため）

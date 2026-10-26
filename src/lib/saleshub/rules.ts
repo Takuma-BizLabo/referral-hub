@@ -4,7 +4,7 @@ import { recordHistory, reopenVendorMeetingStatus } from "../history";
 import { notify, notifyAdmins } from "../notifications";
 import { getSettingRaw } from "../settings";
 import { fmtDateTime } from "../utils";
-import { evaluateThreadSchedule, extractCompanies, findApprovedCompanies, findDeclinedCompanies, findWantedTarget, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
+import { evaluateThreadSchedule, extractCompanies, findApprovedCompanies, findDeclinedCompanies, findWantedTarget, isGenericDecline, isMeetingRoomUrl, isSchedulingToolUrl, looksLikeMeetingRequest, normalizeCompanyName, URL_RE } from "./parse";
 import { isProposed, proposedCompaniesForVendor } from "./proposed";
 import type { SaleshubMessage, SaleshubThread } from "@prisma/client";
 import { parseFeeTable, rewardFor } from "../fee-table";
@@ -117,7 +117,7 @@ export async function registerCandidates(
  * ベンダーが紹介を見送った会社の紹介案件を「紹介見送り」にする。
  * 人が進めた案件（日程調整中以降）は変更しない。
  */
-export async function applyDeclines(vendorId: number, vendorName: string, messages: Msg[], opts: { line?: false } = {}): Promise<string[]> {
+export async function applyDeclines(vendorId: number, vendorName: string, messages: Msg[], opts: { line?: false } = {}, allMessages: Msg[] = messages): Promise<string[]> {
   const fromVendor = messages.filter((m) => !m.isMine);
   if (fromVendor.length === 0) return [];
   const referrals = await prisma.referral.findMany({
@@ -126,10 +126,19 @@ export async function applyDeclines(vendorId: number, vendorName: string, messag
   });
   const declined: string[] = [];
   const done = new Set<number>();
+  // 会社名を出さずに断ったメッセージは、その直前にこちらが提示した会社（前回のベンダー発言より後のこちらの発言）を対象にする
+  const sorted = [...allMessages].sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime());
+  const proposedBefore = (m: Msg): string[] => {
+    if (!isGenericDecline(m.body)) return [];
+    const i = sorted.findIndex((x) => x.id === m.id);
+    const out: string[] = [];
+    for (let j = i - 1; j >= 0 && sorted[j].isMine; j--) out.push(...extractCompanies(sorted[j].body, [vendorName]).map((c) => c.company));
+    return out;
+  };
   for (const m of fromVendor) {
     for (const r of referrals) {
       if (done.has(r.id) || !r.contact.company) continue;
-      if (findDeclinedCompanies(m.body, [r.contact.company]).length === 0) continue;
+      if (findDeclinedCompanies(m.body, [r.contact.company]).length === 0 && !proposedBefore(m).some((c) => findDeclinedCompanies(`${c} 見送り`, [r.contact.company!]).length > 0)) continue;
       await prisma.referral.update({ where: { id: r.id }, data: { status: "DECLINED", vendorApproval: "NG" } });
       await recordHistory(prisma, { entityType: "REFERRAL", entityId: r.id, field: "status", fromValue: r.status, toValue: "DECLINED", note: `ベンダーが紹介見送りと連絡（${fmtDateTime(m.sentAt)}）`, changedById: null });
       done.add(r.id);
@@ -432,7 +441,7 @@ export async function applyRules(thread: Thread, newMessages: Msg[], allMessages
       }
     }
     // 候補登録のあとで判定する（同じメッセージで挙がって断られた会社も見送りにする）
-    await applyDeclines(vendorId, thread.vendorName, vendorMessages, { line });
+    await applyDeclines(vendorId, thread.vendorName, vendorMessages, { line }, allMessages);
     await applyApprovals(vendorId, thread.vendorName, vendorMessages, { line });
     await applyWantedTarget(vendorId, thread.vendorName, vendorMessages, { line });
   }

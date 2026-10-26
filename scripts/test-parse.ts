@@ -8,7 +8,7 @@ import { classPartOf, judgeFee } from "../src/lib/fee-table";
 import { joinTitle, splitTitle } from "../src/lib/title";
 import { matchCandidate, matchVendorCriteria, parseCriteria, parseVendorCriteria, vendorFit } from "../src/lib/candidates";
 import { referralTotals, totalsByMonth } from "../src/lib/referral-totals";
-import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, findApprovedCompanies, findWantedTarget, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
+import { classifyScheduleMessage, evaluateThreadSchedule, extractCompanies, findDeclinedCompanies, findApprovedCompanies, findWantedTarget, isGenericDecline, extractMeetingDateTime, looksLikeMeetingRequest } from "../src/lib/saleshub/parse";
 
 /** JST の "YYYY-MM-DD HH:mm" を Date に */
 function jst(s: string): Date {
@@ -300,6 +300,13 @@ test("紹介案件の金額を面談日の月ごとに分ける（日本時間�
   assert.deepEqual(m.map((x) => x.key), ["2026-10", "2026-11", "none"]);
   assert.equal(m[0].totals.fixed.amount, 40000);
   assert.equal(m[1].totals.expected.amount, 10000);
+});
+
+test("会社名を出さない見送り（直前に提示した会社が対象）", () => {
+  assert.equal(isGenericDecline("大変恐縮ではございますが、ご提案いただいた企業様について確認いたしましたところ、行き違いで商談の対象外となってしまっているようでした。"), true);
+  assert.equal(isGenericDecline("確認させていただきましたが、今回はどちらの企業様も弊社のご紹介対象外となるため、見送らせていただければと思います。"), true);
+  assert.equal(isGenericDecline("ご提案いただいた企業様、ぜひお願いします。"), false);
+  assert.equal(isGenericDecline("株式会社Aは今回見送らせてください。"), false);
 });
 
 test("紹介案件の確定・見込みの金額", () => {
