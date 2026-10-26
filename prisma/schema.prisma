@@ -338,6 +338,8 @@ model SaleshubThread {
   vendorName        String
   requestTitle      String?
   lastSnippet       String?
+  /// 詳細（メッセージ）を取り込んだ時点の一覧の最新メッセージ。lastSnippet と違えば詳細を取り直す
+  syncedSnippet     String?
   lastMessageAt     DateTime?
   fee               Int? // 依頼ページの協力金（紹介単価）
   vendorId          Int? // 紐付け済みベンダー

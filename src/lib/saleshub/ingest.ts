@@ -80,7 +80,9 @@ export async function ingestFromExtension(payload: IngestPayload): Promise<Inges
         create: { proposalId: t.proposalId, vendorName: t.vendorName, requestTitle: t.requestTitle, lastSnippet: t.lastSnippet, vendorId: vendorMatch },
       });
       const msgCount = existing ? (countBy.get(existing.id) ?? 0) : 0;
-      if (!existing || existing.lastSnippet !== t.lastSnippet || msgCount === 0) needDetails.push(t.proposalId);
+      // 詳細を取り込み済みの時点の最新メッセージ（syncedSnippet）と違えば取り直す。
+      // 一覧の lastSnippet はここで先に更新されるため、それと比べると詳細の取得に失敗した回の新着を取りこぼす
+      if (!existing || existing.syncedSnippet !== t.lastSnippet || msgCount === 0) needDetails.push(t.proposalId);
       else if (existing.fee === null) needFeeOnly.push(t.proposalId);
     }
     // 新着の可能性があるスレッドを先に（拡張は先頭から15件だけ取りに行く）
@@ -170,6 +172,10 @@ export async function ingestFromExtension(payload: IngestPayload): Promise<Inges
         });
       }
       await prisma.saleshubMessage.update({ where: { id: row.id }, data: { notifiedAt: now } });
+    }
+    // このスレッドは一覧の最新メッセージまで取り込めた
+    if (thread.lastSnippet && thread.syncedSnippet !== thread.lastSnippet) {
+      await prisma.saleshubThread.update({ where: { id: thread.id }, data: { syncedSnippet: thread.lastSnippet } });
     }
     // 自動化ルール。初回同期（過去分の取り込み）でも適用して、過去のやりとりからMTGを登録する。
     // 初回は LINE を送らずツール内通知のみ。
